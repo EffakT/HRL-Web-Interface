@@ -19,6 +19,14 @@ Route::get('/opt-in', function () {
     return view('opt-in');
 })->name('opt-in');
 
+Route::get('/help', function () {
+    return view('help');
+})->name('help');
+
+Route::get('/contact', function () {
+    return view('contact');
+})->name('contact');
+
 Route::get('/servers', 'LeaderboardController@servers')->name('servers');
 Route::get('/servers/{server}', 'LeaderboardController@server')->name('server');
 

@@ -5,7 +5,7 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>Opt-In - Halo Race Leaderboard</title>
+        <title>Help - Halo Race Leaderboard</title>
 
         <link rel="stylesheet" type="text/css" href="{{ URL::asset('css/app.css') }}"/>
 
@@ -52,18 +52,8 @@
 
         <div class="row">
           <div class="col-lg-12">
-            <h1>Opt In</h1>
-            <p>In order to Opt-In to HRL, all you need to do is install a LUA script.</p>
-            <h2>Requirements</h2>
-            <ul>
-              <li>Halo Dedicated Server</li>
-              <li>Halo Server App - SAPP</li>
-            </ul>
-            <h2>Set Up</h2>
-            <p>Coming Soon...</p>
-            <h2>Notes</h2>
-            <p>Your server will not appear on this app instantly. Please give up to 15 minutes after first lap is recorded.</p>
-            <p>If your server is still not displaying 15 minutes after the first lap is recorded, please <a href="#">contact me</a></p>
+            <h1>Help</h1>
+
           </div>
         </div>
         <!-- /.row -->

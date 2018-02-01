@@ -18,6 +18,9 @@ Homestead.json
 
 # Rocketeer PHP task runner and deployment package. https://github.com/rocketeers/rocketeer
 .rocketeer/
+<<<<<<< HEAD
 
 # Atom
 .ftpconfig
+=======
+>>>>>>> refs/remotes/origin/master

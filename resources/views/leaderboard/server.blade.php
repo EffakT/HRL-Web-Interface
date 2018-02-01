@@ -63,8 +63,6 @@
       </div>
       <!-- /.container -->
 
-
-
       <script src="{{ URL::asset('js/app.js') }}"></script>
       <script src="//cdn.datatables.net/1.10.16/js/jquery.dataTables.min.js"></script>
       <script src="//cdn.datatables.net/1.10.16/js/dataTables.bootstrap4.min.js"></script>
@@ -73,7 +71,12 @@
           var table = $('#server-table').DataTable({
               serverSide: true,
               processing: true,
-              ajax: '{!! route('server', $server->id) !!}',
+              ajax: {
+                url: '{!! route('server', $server->id) !!}',
+                data: function(d) {
+                  d.map_filter = $('#map_filter').val();
+                }
+              },
               columns: [
                 {data: 'name', name: 'players.name'},
                 {data: 'label', name: 'maps.label'},
@@ -84,10 +87,16 @@
           });
 
             $('<label style="margin-left: 25px;">Filter by Map ' +
-                '<select class="form-control" style="width: auto;">'+
-                  '<option value=""></option>'+
+                '<select id="map_filter" class="form-control" style="width: auto;">'+
+                '<option value="">All</option>'+
+                  @foreach ($maps AS $map)
+                  '<option value="{{$map->label}}">{{$map->label}}</option>'+
+                  @endforeach
                 '</select>' +
-                '</label>').appendTo("#server-table_length");
+              '</label>').appendTo("#server-table_length");
+              $('#map_filter').on('change', function() {
+                table.draw();
+              });
       });
       </script>
 

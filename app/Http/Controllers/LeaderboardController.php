@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use DB;
 use App\LapTime;
 use App\Map;
 use App\Player;
@@ -24,10 +25,16 @@ class LeaderboardController extends Controller
         ->join('players', 'players.id', '=', 'lap_times.player_id')
         ->join('maps', 'maps.id', '=', 'lap_times.map_id')
         ->where('lap_times.server_id', $server->id);
+        if ($map_filter = request('map_filter')) {
+          $lapTimes->where('maps.label', $map_filter);
+        }
 
         return Datatables::of($lapTimes)->make(true);
       }
-      return view('leaderboard.server', compact('server'));
+
+      $maps = DB::table('maps')->select('maps.*')->join('servers_maps', 'servers_maps.map_id', '=', 'maps.id')->where('servers_maps.server_id', $server->id)->get();
+
+      return view('leaderboard.server', compact('server', 'maps'));
     }
 
     public function maps() {

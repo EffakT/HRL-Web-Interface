@@ -54,6 +54,11 @@
             <h1>About Halo Race Leaderboard</h1>
             <p>Halo Race Leaderboard is a fully public leaderboard that any Halo Server can opt-in to have track their times.</p>
             <p>For information on how to opt-in, click <a href="{!! route('opt-in') !!}">here</a></p>
+            <h2>Future Plans</h2>
+            <ul>
+              <li>Development with HAC2 Optic - Research Phase</li>
+              <li>App converted to PWA (Progressive Web App - Planning Phase</li>
+            </ul>
           </div>
         </div>
         <!-- /.row -->

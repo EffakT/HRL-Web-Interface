@@ -19,7 +19,6 @@ class GenerateMenus
         $menu->add('Opt-In', 'opt-in');
         $menu->add('Servers', 'servers');
         $menu->add('Maps', 'maps');
-        $menu->add('Help', 'help');
         $menu->add('Contact', 'contact');
     });
 

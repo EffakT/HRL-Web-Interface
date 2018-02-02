@@ -52,7 +52,7 @@
         <div class="row">
           <div class="col-lg-12">
             <h1>About Halo Race Leaderboard</h1>
-            <p>Any Halo race server can opt-in to be displayed on this web app.</p>
+            <p>Halo Race Leaderboard is a fully public leaderboard that any Halo Server can opt-in to have track their times.</p>
             <p>For information on how to opt-in, click <a href="{!! route('opt-in') !!}">here</a></p>
           </div>
         </div>

@@ -59,6 +59,20 @@
               <li>Development with HAC2 Optic - Research Phase</li>
               <li>App converted to PWA (Progressive Web App - Planning Phase</li>
             </ul>
+            <h2>Known Issues</h2>
+            <ul>
+            </ul>
+            <h2>Change Log</h2>
+            <h3>3 Mar 2018</h3>
+            <ul>
+              <li>Adding ability to record lap times while not in a vehicle</li>
+            </ul>
+            <h3>25 Feb 2018</h3>
+            <ul>
+              <li>Resolved issue causing server crash on Lap report when player had special characters in name. E.G &copy;</li>
+            </ul>
+            <h2>Demo Server</h2>
+            <img src="http://cache.gametracker.com/server_info/163.47.229.219:2302/b_560_95_1.png" border="0" class="img-responsive" alt="HRL Demo Server Information"/>
           </div>
         </div>
         <!-- /.row -->

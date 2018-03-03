@@ -9,6 +9,8 @@ class LapTime extends Model
      protected $table = 'lap_times';
      protected $fillable = ['server_id', 'map_id', 'player_id', 'time'];
 
+     protected $dateFormat = 'Y-m-d';
+
      public function server() {
        $this->hasOne('App\Server');
      }

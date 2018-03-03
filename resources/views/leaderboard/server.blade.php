@@ -53,7 +53,8 @@
                 <tr>
                   <th>Player</th>
                   <th>Map</th>
-                  <th>Time</th>
+                  <th>Time (seconds)</th>
+                  <th>Date of Lap</th>
                 </tr>
               </thead>
             </table>
@@ -81,7 +82,8 @@
               columns: [
                 {data: 'name', name: 'players.name'},
                 {data: 'label', name: 'maps.label'},
-                {data: 'time'}
+                {data: 'time'},
+                {data: 'updated_at'}
               ],
               "autoWidth": true,
               "order": [[ 2, "asc" ]]

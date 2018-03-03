@@ -55,7 +55,8 @@
                   <th>Server</th>
                   <th>IP</th>
                   <th>Port</th>
-                  <th>Time</th>
+                  <th>Time (seconds)</th>
+                  <th>Date of Lap</th>
                 </tr>
               </thead>
             </table>
@@ -82,10 +83,11 @@
                 {data: 'server_name', name: 'servers.name'},
                 {data: 'ip', name: 'servers.ip'},
                 {data: 'port', name: 'servers.port'},
-                {data: 'time'}
+                {data: 'time'},
+                {data: 'updated_at'}
               ],
               "autoWidth": true,
-              "order": [[ 3, "asc" ]]
+              "order": [[ 4, "asc" ]]
           });
       });
       </script>

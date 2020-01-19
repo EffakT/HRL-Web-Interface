@@ -33,7 +33,15 @@ Route::get('/contact', function () {
 })->name('contact');
 
 Route::get('/servers', 'LeaderboardController@servers')->name('servers');
+
+Route::get('/servers/mine', 'ManageServerController@myServers')->name('server:mine');
+
 Route::get('/servers/{server}', 'LeaderboardController@server')->name('server');
+
+Route::get('/servers/{server}/manage', 'ManageServerController@index')->name('server:manage');
+Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim');
+Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify');
+
 
 
 Route::get('/maps', 'LeaderboardController@maps')->name('maps');

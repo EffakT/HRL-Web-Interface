@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('pageTitle', 'Maps Leaderboard')
+
+
 @section('content')
     <div class="container">
 

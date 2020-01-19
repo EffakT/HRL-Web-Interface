@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@section('pageTitle', 'Leaderboard for '.$player->name)
+
 @section('content')
     <div class="container">
 

@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('pageTitle', 'Opt In')
+
+
 @section('content')
     <!-- Page Content -->
     <div class="container">

@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@section('pageTitle', 'Leaderboard for '.$map->label)
+
 @section('content')
     <div class="container">
 

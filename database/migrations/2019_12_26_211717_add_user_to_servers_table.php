@@ -27,8 +27,8 @@ class AddUserToServersTable extends Migration
     public function down()
     {
         Schema::table('servers', function (Blueprint $table) {
-            $table->dropColumn('user_id');
             $table->dropForeign('servers_user_id_foreign');
+            $table->dropColumn('user_id');
         });
     }
 }

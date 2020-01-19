@@ -13,6 +13,7 @@
         "google/recaptcha": "~1.1",
         "guzzlehttp/guzzle": "^6.5",
         "jamesdordoy/laravelvuedatatable": "^1.2",
+        "laracasts/flash": "^3.0",
         "laravel/framework": "^6.2",
         "laravel/tinker": "^2.0",
         "laravel/ui": "^1.1",

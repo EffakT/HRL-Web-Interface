@@ -40,7 +40,6 @@ class ProcessNewLap implements ShouldQueue
     {
         //Query the Halo Server for all details
         $buffer = " ";
-        $this->request['user_ip'] = "192.168.88.7";
 
         $query = new \App\Helpers\QueryServer($buffer, trim($this->request['user_ip']), (int)$this->request['data']['port']);
         if (($response = $query->runQuery()) === false):

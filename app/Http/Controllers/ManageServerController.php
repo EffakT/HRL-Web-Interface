@@ -95,6 +95,7 @@ class ManageServerController extends Controller
         $query->join('users_servers', 'server_id', '=', 'servers.id')
             ->select('servers.*')
             ->where('users_servers.user_id', '=', $user->id)
+            ->whereNotNull('users_servers.claimed_at')
             ->whereNull('deleted_at');
 
         $data = $query->paginate($length);

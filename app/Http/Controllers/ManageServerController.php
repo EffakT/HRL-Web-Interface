@@ -7,6 +7,7 @@ use App\Http\Requests\ClaimServerRequest;
 use App\Http\Requests\MigrateLapsRequest;
 use App\Http\Requests\ResetLapsRequest;
 use App\Jobs\ClearClaim;
+use App\LapTime;
 use App\Server;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -70,11 +71,43 @@ class ManageServerController extends Controller
 
     public function migrateLaps(MigrateLapsRequest $request, Server $server)
     {
+        $user = Auth::user();
         $toServer = Server::where('id', $request->post('to-server'))->get();
+        $toServer = Server::where('id', 3)->get();
+
+        //if server found
         if (!$toServer->count()):
             flash('The selected server could not be found')->error();
             return redirect(route('server:manage', $server));
         endif;
+        $toServer = $toServer->first();
+
+        //if server claimed by user
+        if (!$toServer->isClaimedBy($user)):
+            flash('The selected server is not claimed by you')->error();
+            return redirect(route('server:manage', $server));
+        endif;
+
+        //copy server maps
+        $maps = $server->maps;
+        $toServer->maps()->syncWithoutDetaching($maps);
+
+        //copy players
+        $players = $server->players;
+        $toServer->players()->syncWithoutDetaching($players);
+
+        //copy laps - There may be a better way to do this?
+        $laps = $server->laps;
+        $laps->each(function ($lap) use ($toServer) {
+            $newLap = $lap->replicate();
+            $newLap->server_id = $toServer->id;
+            $res = LapTime::updateOrCreate($newLap->toArray(), [
+                'server_id' => $newLap->server_id,
+                'player_id' => $newLap->player_id,
+                'map_id' => $newLap->map_id,
+            ]);
+        });
+
 
         flash('Server lap times have been successfully migrated')->success();
         return redirect(route('server:manage', $server));

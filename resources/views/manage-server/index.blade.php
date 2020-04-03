@@ -59,7 +59,7 @@
                         </div>
                     </div>
                 </div>
-                @endif
-           @endif
+            @endif
+        @endif
     </div>
 @endsection

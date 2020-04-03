@@ -35,3 +35,17 @@ files.keys().map(key => Vue.component(key.split('/').pop().split('.')[0], files(
 const app = new Vue({
     el: '#app',
 });
+
+
+$('[data-form-modal]').each(function() {
+    $(this).find('[data-form-submit]').on('click', function() {
+        $(this).closest('form').off('submit', formSubmit);
+        $(this).closest('form').submit();
+    });
+
+    $(this).on('submit', formSubmit);
+    function formSubmit(e) {
+        e.preventDefault();
+        $(this).find('.modal').modal('show');
+    }
+});

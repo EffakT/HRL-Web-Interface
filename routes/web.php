@@ -42,6 +42,7 @@ Route::get('/servers/{server}/manage', 'ManageServerController@index')->name('se
 Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim');
 Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify');
 
+Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps');
 
 
 Route::get('/maps', 'LeaderboardController@maps')->name('maps');

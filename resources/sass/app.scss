@@ -8,3 +8,70 @@
 @import '~bootstrap/scss/bootstrap';
 
 @import "~datatables.net-bs4/css/dataTables.bootstrap4.css";
+
+//material-icons
+$material-icons-font-path: '~material-icons/iconfont/';
+@import '~material-icons/iconfont/material-icons.scss';
+
+.modal-confirm {
+    color: #636363;
+
+    .modal-content {
+        padding: 20px;
+        border-radius: 5px;
+        border: none;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    .modal-header {
+        border-bottom: none;
+        position: relative;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .icon-box {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto;
+        border-radius: 50%;
+        z-index: 9;
+        text-align: center;
+        border: 3px solid $danger;
+
+        i {
+            color: $danger;
+            font-size: 46px;
+            display: inline-block;
+            margin-top: 13px;
+        }
+    }
+
+    h4 {
+        text-align: center;
+        font-size: 26px;
+        margin: 20px 0 -10px;
+        width: 100%;
+    }
+
+    .close {
+        position: absolute;
+        top: -5px;
+        right: -2px;
+    }
+
+    .modal-body {
+        color: #999;
+    }
+
+   .modal-footer {
+        border: none;
+        text-align: center;
+        border-radius: 5px;
+        font-size: 13px;
+        padding: 10px 15px 25px;
+    }
+
+
+}

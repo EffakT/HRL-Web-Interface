@@ -38,5 +38,21 @@
                 </div>
             </div>
         </div>
+
+        @if ($server->isClaimed())
+            @if ($server->isClaimedBy($user))
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">{{ __('Reset all lap times') }}</div>
+                            <div class="card-body">
+                                @include('manage-server/reset-laps/form')
+                            </div>
+                        </div>
+                    </div>
+                </div>
+           @endif
+
+           @endif
     </div>
 @endsection

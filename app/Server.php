@@ -37,6 +37,10 @@ class Server extends Model
         return $this->belongsToMany('App\Map', 'servers_maps');
     }
 
+    public function laps() {
+        return $this->hasMany('App\LapTime');
+    }
+
     public function isClaimed()
     {
         $claims = $this->claims;

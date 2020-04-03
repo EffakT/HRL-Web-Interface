@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Claim;
 use App\Http\Requests\ClaimServerRequest;
+use App\Http\Requests\ResetLapsRequest;
 use App\Jobs\ClearClaim;
 use App\Server;
 use Carbon\Carbon;
@@ -56,6 +57,13 @@ class ManageServerController extends Controller
         flash('Server claim has been successfully initiated')->success();
         return redirect(route('server:manage', $server));
 
+    }
+
+    public function resetLaps(ResetLapsRequest $request, Server $server) {
+        $server->laps()->delete();
+
+        flash('Server lap times have been successfully reset')->success();
+        return redirect(route('server:manage', $server));
     }
 
     public function verifyClaimServer(Request $request, Server $server)

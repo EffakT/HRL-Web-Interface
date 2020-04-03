@@ -50,8 +50,16 @@
                             </div>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">{{ __('Migrate lap times') }}</div>
+                            <div class="card-body">
+                                @include('manage-server/migrate-laps/form')
+                            </div>
+                        </div>
+                    </div>
                 </div>
-           @endif
+                @endif
 
            @endif
     </div>

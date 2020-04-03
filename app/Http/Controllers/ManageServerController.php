@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Claim;
 use App\Http\Requests\ClaimServerRequest;
+use App\Http\Requests\MigrateLapsRequest;
 use App\Http\Requests\ResetLapsRequest;
 use App\Jobs\ClearClaim;
 use App\Server;
@@ -59,10 +60,23 @@ class ManageServerController extends Controller
 
     }
 
-    public function resetLaps(ResetLapsRequest $request, Server $server) {
+    public function resetLaps(ResetLapsRequest $request, Server $server)
+    {
         $server->laps()->delete();
 
         flash('Server lap times have been successfully reset')->success();
+        return redirect(route('server:manage', $server));
+    }
+
+    public function migrateLaps(MigrateLapsRequest $request, Server $server)
+    {
+        $toServer = Server::where('id', $request->post('to-server'))->get();
+        if (!$toServer->count()):
+            flash('The selected server could not be found')->error();
+            return redirect(route('server:manage', $server));
+        endif;
+
+        flash('Server lap times have been successfully migrated')->success();
         return redirect(route('server:manage', $server));
     }
 

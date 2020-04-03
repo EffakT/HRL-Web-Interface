@@ -60,7 +60,6 @@
                     </div>
                 </div>
                 @endif
-
            @endif
     </div>
 @endsection

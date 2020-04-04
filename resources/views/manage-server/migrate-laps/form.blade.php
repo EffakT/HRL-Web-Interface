@@ -1,15 +1,19 @@
-<form method="POST" action="{{ route('server:migrate-laps', $server) }}" l>
+<form method="POST" action="{{ route('server:migrate-laps', $server) }}" data-form-modal novalidate class="needs-validation">
     @csrf
 
     <div class="form-group">
-
-        <select name="to-server" id="to-server" class="form-control {{ ($errors->has('to-server')) ? "is-invalid" : "" }}">
+        <label for="to-server">{{__('Migrate to server')}}</label>
+        <select name="to-server" id="to-server"
+                class="form-control {{ ($errors->has('to-server')) ? "is-invalid" : "" }}" required>
             <option value="" disabled selected>
                 Select a server
             </option>
-            <option value="value">
-                Label
-            </option>
+            @foreach ($servers AS $this_server)
+                @if ($this_server->id == $server->id) @continue @endif
+                <option value="{{$this_server->id}}">
+                    {{$this_server->name}} ({{$this_server->ip}}:{{$this_server->port}})
+                </option>
+            @endforeach
         </select>
         @if ($errors->has('to-server'))
             <span class="invalid-feedback" style="display: block;">
@@ -43,4 +47,7 @@
         The selected server's lap times will NOT be overwritten.
     </p>
 
+
+    @php $body = "Do you really want to migrate all lap times? This process cannot be undone." @endphp
+    @include('manage-server.partials.confirm-modal')
 </form>

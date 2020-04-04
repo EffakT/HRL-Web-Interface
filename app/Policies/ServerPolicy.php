@@ -33,4 +33,16 @@ class ServerPolicy
     {
         return $server->isClaimedBy($user);
     }
+
+    /**
+     * Determine whether the user can delete the server.
+     *
+     * @param User $user
+     * @param Server $server
+     * @return mixed
+     */
+    public function delete(User $user, Server $server)
+    {
+        return $server->isClaimedBy($user);
+    }
 }

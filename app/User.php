@@ -38,4 +38,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function servers() {
+        return $this->belongsToMany('App\Server', 'users_servers')->whereNotNull('users_servers.claimed_at');
+    }
 }

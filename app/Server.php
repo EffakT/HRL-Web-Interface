@@ -5,12 +5,14 @@ namespace App;
 use App\Helpers\QueryServer;
 use App\Traits\HasClaims;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use JamesDordoy\LaravelVueDatatable\Traits\LaravelVueDatatableTrait;
 
 class Server extends Model
 {
     use LaravelVueDatatableTrait;
     use HasClaims;
+    use SoftDeletes;
 
     protected $table = 'servers';
     protected $fillable = ['ip', 'port', 'name'];

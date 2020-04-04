@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Claim;
 use App\Http\Requests\ClaimServerRequest;
+use App\Http\Requests\DeleteServerRequest;
 use App\Http\Requests\MigrateLapsRequest;
 use App\Http\Requests\ResetLapsRequest;
 use App\Jobs\ClearClaim;
@@ -25,7 +26,8 @@ class ManageServerController extends Controller
     public function index(Request $request, Server $server)
     {
         $user = Auth::user();
-        return view('manage-server/index', compact('server', 'user'));
+        $servers = $user->servers;
+        return view('manage-server/index', compact('server', 'user', 'servers'));
     }
 
     public function claimServer(ClaimServerRequest $request, Server $server)
@@ -113,6 +115,15 @@ class ManageServerController extends Controller
         return redirect(route('server:manage', $server));
     }
 
+
+    public function delete(DeleteServerRequest $request, Server $server)
+    {
+        $server->delete();
+
+        flash('Server has been successfully deleted')->success();
+        return redirect(route('my-account', $server));
+    }
+
     public function verifyClaimServer(Request $request, Server $server)
     {
         $user = Auth::user();
@@ -151,7 +162,7 @@ class ManageServerController extends Controller
             ->select('servers.*')
             ->where('users_servers.user_id', '=', $user->id)
             ->whereNotNull('users_servers.claimed_at')
-            ->whereNull('deleted_at');
+            ->whereNull('servers.deleted_at');
 
         $data = $query->paginate($length);
 

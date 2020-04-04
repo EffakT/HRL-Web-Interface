@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use App\Rules\Captcha;
 use Illuminate\Foundation\Http\FormRequest;
 
-class MigrateLapsRequest extends FormRequest
+class DeleteServerRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -25,7 +25,6 @@ class MigrateLapsRequest extends FormRequest
     public function rules()
     {
         return [
-            'to-server' => 'required',
             'g-recaptcha-response' => new Captcha()
         ];
     }

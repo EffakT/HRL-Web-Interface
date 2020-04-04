@@ -49,6 +49,12 @@
                                 @include('manage-server/reset-laps/form')
                             </div>
                         </div>
+                        <div class="card mt-3">
+                            <div class="card-header">{{ __('Delete Server') }}</div>
+                            <div class="card-body">
+                                @include('manage-server/delete/form')
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <div class="card">

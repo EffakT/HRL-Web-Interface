@@ -44,6 +44,7 @@ Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@veri
 
 Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps')->middleware("can:reset,server"); ;
 Route::post('/servers/{server}/manage/migrate-laps', 'ManageServerController@migrateLaps')->name('server:migrate-laps')->middleware("can:migrate,server");
+Route::post('/servers/{server}/manage/delete', 'ManageServerController@delete')->name('server:delete')->middleware("can:delete,server");
 
 
 Route::get('/maps', 'LeaderboardController@maps')->name('maps');

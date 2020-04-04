@@ -98,7 +98,7 @@ class ProcessNewLap implements ShouldQueue
         }
 
         //Create Player if not already exists
-        $player = Player::firstOrCreate(['hash' => $this->request['data']['player_hash'], 'name' => $this->request['data']['player_name']]);
+        $player = Player::firstOrCreate(['hash' => hash('sha256', $this->request['data']['player_hash']), 'name' => $this->request['data']['player_name']]);
         if (!$player->servers->contains($server->id))
             $player->servers()->attach($server->id);
 

@@ -39,8 +39,8 @@ Route::get('/servers/mine', 'ManageServerController@myServers')->name('server:mi
 Route::get('/servers/{server}', 'LeaderboardController@server')->name('server');
 
 Route::get('/servers/{server}/manage', 'ManageServerController@index')->name('server:manage');
-Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim');
-Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify');
+Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim')->middleware("can:claim");
+Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify')->middleware("can:verify-claim");
 
 Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps')->middleware("can:reset,server"); ;
 Route::post('/servers/{server}/manage/migrate-laps', 'ManageServerController@migrateLaps')->name('server:migrate-laps')->middleware("can:migrate,server");
@@ -51,4 +51,5 @@ Route::get('/maps', 'LeaderboardController@maps')->name('maps');
 Route::get('/maps/{map}', 'LeaderboardController@map')->name('map');
 
 
+Route::get('/players/', 'LeaderboardController@players')->name('players');
 Route::get('/players/{player}', 'LeaderboardController@player')->name('player');

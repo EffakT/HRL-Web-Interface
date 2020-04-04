@@ -120,6 +120,22 @@ class LeaderboardController extends Controller
         return view('leaderboard.map', compact('map'));
     }
 
+    public function players(Player $player, Request $request)
+    {
+        if (request()->wantsJson()) {
+            $length = $request->input('length') ?? "10";
+            $sortBy = $request->input('column') ?? "name";
+            $orderBy = $request->input('dir') ?? "asc";
+            $searchValue = $request->input('search') ?? "";
+
+            $query = Player::eloquentQuery($sortBy, $orderBy, $searchValue);
+            $data = $query->paginate($length);
+
+            return new DataTableCollectionResource($data);
+        }
+        return view('leaderboard.players');
+    }
+
     public function player(Player $player, Request $request)
     {
         if (request()->wantsJson()) {

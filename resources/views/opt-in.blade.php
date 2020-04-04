@@ -39,6 +39,7 @@
                     </li>
                 </ul>
                 <h2>Notes</h2>
+                <p>Due to limitations with GameServers, you may need to contact GameServers support to install the script.</p>
                 <p>Your server will not appear on this app instantly. Please give up to 15 minutes after first lap is
                     recorded.</p>
                 <p>If your server is still not displaying 15 minutes after the first lap is recorded, please <a

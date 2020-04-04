@@ -7,7 +7,9 @@
 // Bootstrap
 @import '~bootstrap/scss/bootstrap';
 
-@import "~datatables.net-bs4/css/dataTables.bootstrap4.css";
+@import '~laravel-vue-datatable/dist/laravel-vue-datatable.css';
+
+//@import "~datatables.net-bs4/css/dataTables.bootstrap4.css";
 
 //material-icons
 $material-icons-font-path: '~material-icons/iconfont/';
@@ -65,7 +67,7 @@ $material-icons-font-path: '~material-icons/iconfont/';
         color: #999;
     }
 
-   .modal-footer {
+    .modal-footer {
         border: none;
         text-align: center;
         border-radius: 5px;
@@ -74,4 +76,18 @@ $material-icons-font-path: '~material-icons/iconfont/';
     }
 
 
+}
+
+
+.filter-asc {
+    border-bottom: 5px solid #e2e8f0;
+}
+.active-filter-asc {
+    border-bottom: 5px solid #ccc;
+}
+.filter-desc {
+    border-top: 5px solid #e2e8f0;
+}
+.active-filter-desc {
+    border-top: 5px solid #ccc;
 }

@@ -20,4 +20,8 @@ class Player extends Model
     public function servers() {
         return $this->belongsToMany('App\Server', 'players_servers');
     }
+
+    public function alias() {
+        return Player::where('hash', $this->hash)->get();
+    }
 }

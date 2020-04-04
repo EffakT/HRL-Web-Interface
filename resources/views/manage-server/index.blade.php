@@ -31,7 +31,7 @@
                             @if ($server->isClaimedBy($user))
                                 You have already claimed this server
                             @else
-                                This server has been claimed by {{$user->name}}
+                                This server has been claimed by {{$server->isClaimed()->user->name}}
                             @endif
                         @endif
                     </div>

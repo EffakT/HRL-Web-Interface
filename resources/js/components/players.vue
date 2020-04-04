@@ -2,7 +2,8 @@
     <data-table
         :columns="columns"
         :url="ajax"
-        :classes="classes">
+        :classes="classes"
+        order-by="name">
 
         <tbody slot="body" slot-scope="{ data }">
         <tr
@@ -40,7 +41,7 @@
                 columns: [
                     {
                         label: 'Name',
-                        name: 'label',
+                        name: 'name',
                         orderable: true,
                     }
                 ],
@@ -68,7 +69,7 @@
         },
         methods: {
             goToItem(data) {
-                var url = this.route.replace('map_id', data.id);
+                var url = this.route.replace('player_id', data.id);
                 window.location.href = url;
             },
         },

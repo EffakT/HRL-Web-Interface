@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('pageTitle', 'Maps Leaderboard')
+@section('pageTitle', 'Players Leaderboard')
 
 
 @section('content')
@@ -8,9 +8,9 @@
 
         <div class="row">
             <div class="col-lg-12">
-                <h1>Maps</h1>
-                <maps route="{{ route('map', "map_id") }}"
-                         ajax="{{ route('maps')  }}"></maps>
+                <h1>Players</h1>
+                <players route="{{ route('player', "player_id") }}"
+                      ajax="{{ route('players')  }}"></players>
 
             </div>
         </div>

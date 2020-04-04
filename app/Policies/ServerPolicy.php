@@ -45,4 +45,28 @@ class ServerPolicy
     {
         return $server->isClaimedBy($user);
     }
+
+    /**
+     * Determine whether the user can claim the server.
+     *
+     * @param User $user
+     * @param Server $server
+     * @return mixed
+     */
+    public function claim(User $user, Server $server)
+    {
+        return $server->isClaimed();
+    }
+
+    /**
+     * Determine whether the user can verify the claim on the server.
+     *
+     * @param User $user
+     * @param Server $server
+     * @return mixed
+     */
+    public function verifyclaim(User $user, Server $server)
+    {
+        return $server->isPendingClaimBy($user);
+    }
 }

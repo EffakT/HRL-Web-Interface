@@ -17,10 +17,10 @@ class Claim extends Model
     protected $dateFormat = 'Y-m-d H:i:s';
 
     public function server() {
-        $this->hasOne('App\Server');
+        return $this->belongsTo('App\Server');
     }
     public function user() {
-        $this->hasOne('App\User');
+       return $this->belongsTo('App\User');
     }
     public function getIsClaimedAttribute() {
         return !is_null('claimed_at');

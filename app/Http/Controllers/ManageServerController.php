@@ -75,7 +75,6 @@ class ManageServerController extends Controller
     {
         $user = Auth::user();
         $toServer = Server::where('id', $request->post('to-server'))->get();
-        $toServer = Server::where('id', 3)->get();
 
         //if server found
         if (!$toServer->count()):
@@ -103,11 +102,24 @@ class ManageServerController extends Controller
         $laps->each(function ($lap) use ($toServer) {
             $newLap = $lap->replicate();
             $newLap->server_id = $toServer->id;
-            $res = LapTime::updateOrCreate($newLap->toArray(), [
-                'server_id' => $newLap->server_id,
-                'player_id' => $newLap->player_id,
-                'map_id' => $newLap->map_id,
-            ]);
+            //check if exists
+            $existingLap = LapTime::where('server_id', $newLap->server_id)
+                ->where('map_id', $newLap->map_id)
+                ->where('player_id', $newLap->player_id)->get();
+
+            //if existing lap does not exist, create it
+            if (!$existingLap->count()):
+                $newLap->save();
+            else:
+                //if existing lap exists
+                $existingLap = $existingLap->first();
+                //check if existing time is greater then the new time
+                if ($existingLap->time > $newLap->time):
+                    //update the time and save.
+                    $existingLap->time = $newLap->time;
+                    $existingLap->save();
+                endif;
+            endif;
         });
 
 

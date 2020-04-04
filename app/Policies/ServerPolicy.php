@@ -55,7 +55,7 @@ class ServerPolicy
      */
     public function claim(User $user, Server $server)
     {
-        return $server->isClaimed();
+        return !$server->isClaimed();
     }
 
     /**

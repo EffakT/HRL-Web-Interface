@@ -54,7 +54,7 @@
                 <li>Resolved issue causing server crash on Lap report when player had special characters in name. E.G &copy;</li>
             </ul>
             <h2>Demo Server</h2>
-            <img src="http://cache.gametracker.com/server_info/163.47.230.216:2302/b_560_95_1.png" border="0" class="img-fluid" alt="HRL Demo Server Information"/>
+            <img src="https://cache.gametracker.com/server_info/163.47.230.216:2302/b_560_95_1.png" border="0" class="img-fluid" alt="HRL Demo Server Information"/>
         </div>
     </div>
     <!-- /.row -->

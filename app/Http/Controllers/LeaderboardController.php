@@ -102,6 +102,7 @@ class LeaderboardController extends Controller
                 ->join('servers', 'servers.id', '=', 'lap_times.server_id')
                 ->join('maps', 'maps.id', '=', 'lap_times.map_id')
                 ->where('lap_times.map_id', $map->id)
+                ->whereNull('servers.deleted_at')
                 ->select('lap_times.*', 'players.name', 'servers.name AS server_name', 'servers.ip', 'servers.port');
 
             $query->where(function ($query) use ($searchValue) {
@@ -151,6 +152,7 @@ class LeaderboardController extends Controller
                 ->join('servers', 'servers.id', '=', 'lap_times.server_id')
                 ->join('maps', 'maps.id', '=', 'lap_times.map_id')
                 ->where('lap_times.player_id', $player->id)
+                ->whereNull('servers.deleted_at')
                 ->select('lap_times.*', 'maps.label AS map_name', 'servers.name AS server_name', 'servers.ip', 'servers.port');
 
             $query->where(function ($query) use ($searchValue) {

@@ -18,7 +18,7 @@
                 </ul>
                 <h2>Set Up</h2>
                 <ul>
-                    <li><a href="{{ URL::asset('js/hrl-files.zip') }}">Click here</a> to download the HRL files.</li>
+                    <li><a href="{{ URL::asset('files/files.zip') }}">Click here</a> to download the HRL files.</li>
                     <li>Copy the <strong>hrl_api.dll</strong> to your <strong>exe</strong> folder (where your <strong>haloded.exe</strong>
                         file is).
                     </li>

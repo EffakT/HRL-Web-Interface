@@ -101,7 +101,14 @@ class ManageServerController extends Controller
         $laps = $server->laps;
         $laps->each(function ($lap) use ($toServer) {
             $newLap = $lap->replicate();
-            $newLap->server_id = $toServer->id;
+            //we don't want to update the timestamps, since we are just replicating.
+            $newLap->timestamps = false;
+
+            $newLap->fill([
+                'created_at' => $lap->created_at,
+                'updated_at' => $lap->updated_at,
+                'server_id' => $toServer->id,
+            ]);
             //check if exists
             $existingLap = LapTime::where('server_id', $newLap->server_id)
                 ->where('map_id', $newLap->map_id)
@@ -115,8 +122,17 @@ class ManageServerController extends Controller
                 $existingLap = $existingLap->first();
                 //check if existing time is greater then the new time
                 if ($existingLap->time > $newLap->time):
-                    //update the time and save.
-                    $existingLap->time = $newLap->time;
+
+                    //we don't want to update the timestamps, since we are overriding.
+                    $existingLap->timestamps = false;
+
+                    //update the time, and dates and save.
+                    $existingLap->fill([
+                        'time' => $newLap->time,
+                        'created_at' => $newLap->created_at,
+                        'updated_at' => $newLap->updated_at,
+                    ]);
+
                     $existingLap->save();
                 endif;
             endif;

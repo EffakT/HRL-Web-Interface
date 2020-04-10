@@ -11,26 +11,19 @@
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
-
 Auth::routes(['verify' => true]);
+
+
+Route::get('/', 'HomeController@home')->name('home');
 
 Route::get('/my-account', 'AccountController@index')->name('my-account');
 
 
-Route::get('/opt-in', function () {
-    return view('opt-in');
-})->name('opt-in');
+Route::get('/opt-in', 'HomeController@optIn')->name('opt-in');
 
-Route::get('/help', function () {
-    return view('help');
-})->name('help');
+Route::get('/help', 'HomeController@help')->name('help');
 
-Route::get('/contact', function () {
-    return view('contact');
-})->name('contact');
+Route::get('/contact', 'HomeController@contact')->name('contact');
 
 Route::get('/servers', 'LeaderboardController@servers')->name('servers');
 
@@ -42,7 +35,7 @@ Route::get('/servers/{server}/manage', 'ManageServerController@index')->name('se
 Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim')->middleware("can:claim");
 Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify')->middleware("can:verify-claim");
 
-Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps')->middleware("can:reset,server"); ;
+Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps')->middleware("can:reset,server");
 Route::post('/servers/{server}/manage/migrate-laps', 'ManageServerController@migrateLaps')->name('server:migrate-laps')->middleware("can:migrate,server");
 Route::post('/servers/{server}/manage/delete', 'ManageServerController@delete')->name('server:delete')->middleware("can:delete,server");
 

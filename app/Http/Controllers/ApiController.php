@@ -11,7 +11,7 @@ class ApiController extends Controller
     {
         return $request->user();
     }
-    
+
     public function newTime(Request $request)
     {
         $data = [];

@@ -79,7 +79,7 @@
 
                             <div class="form-group row">
                                 <div class="col-md-6 offset-md-4">
-                                    <div class="g-recaptcha" data-sitekey="{{ env('CAPTCHA_SITE_KEY') }}"></div>
+                                    <div class="g-recaptcha" data-sitekey="{{ config('captcha.site') }}"></div>
                                     @if ($errors->has('g-recaptcha-response'))
                                         <span class="invalid-feedback" style="display: block;">
                                             <strong>{{ $errors->first('g-recaptcha-response') }}</strong>

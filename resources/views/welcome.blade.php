@@ -21,6 +21,14 @@
             <ul>
             </ul>
             <h2>Change Log</h2>
+            <h3>10 April 2020</h3>
+            <ul>
+                <li>Bug fix for migrating lap times
+                    <ul>
+                        <li>Lap times dates were not copying correctly</li>
+                    </ul>
+                </li>
+            </ul>
             <h3>4 April 2020</h3>
             <ul>
                 <li>Adding ability to create users</li>

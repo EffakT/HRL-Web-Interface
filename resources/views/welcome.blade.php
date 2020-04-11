@@ -21,6 +21,11 @@
             <ul>
             </ul>
             <h2>Change Log</h2>
+            <h3>12 April 2020</h3>
+            <ul>
+                <li>Adding last lap time to servers page</li>
+                <li>Bug fixes on form captcha</li>
+            </ul>
             <h3>10 April 2020</h3>
             <ul>
                 <li>Bug fix for migrating lap times

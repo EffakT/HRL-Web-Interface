@@ -21,7 +21,10 @@ class LeaderboardController extends Controller
             $orderBy = $request->input('dir') ?? "asc";
             $searchValue = $request->input('search') ?? "";
 
-            $query = Server::eloquentQuery($sortBy, $orderBy, $searchValue);
+            $query = Server::queryBuilderQuery($sortBy, $orderBy, $searchValue);
+            $query->select('servers.*', DB::raw("(SELECT `lap_times`.`updated_at` FROM `lap_times` WHERE `lap_times`.`server_id` = `servers`.`id` ORDER BY `lap_times`.`updated_at` DESC LIMIT 1 ) as latest_lap"));
+            $query->whereNull('deleted_at');
+
             $data = $query->paginate($length);
 
             return new DataTableCollectionResource($data);

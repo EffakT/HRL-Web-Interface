@@ -17,8 +17,8 @@ class ApiController extends Controller
         $data = [];
         $data['user_ip'] = $request->ip();
         $data['data'] = $request->all();
-        if (isset($data['data']['ip']))
-            $data['uesr_ip'] = $data['data']['ip'];
+        /*if (isset($data['data']['ip']))
+            $data['uesr_ip'] = $data['data']['ip'];*/
 
         if (isset($data['data']['test'])):
             $process = new ProcessNewLap($data);

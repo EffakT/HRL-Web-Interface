@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 |
 */
 
-Route::middleware('auth:api')->get('/user', 'ApiController@user');
+//Route::middleware('auth:api')->get('/user', 'ApiController@user');
 
 Route::get('/newtime', 'ApiController@newTime');
 Route::post('/newtime', 'ApiController@newTime');

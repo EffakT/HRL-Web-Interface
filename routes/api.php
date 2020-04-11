@@ -15,5 +15,10 @@ use Illuminate\Http\Request;
 
 //Route::middleware('auth:api')->get('/user', 'ApiController@user');
 
-Route::get('/newtime', 'ApiController@newTime');
+//New Time Endpoint
 Route::post('/newtime', 'ApiController@newTime');
+
+
+Route::middleware('auth:api')->prefix('servers')->group(function () {
+    Route::get('/', 'ApiController@servers');
+});

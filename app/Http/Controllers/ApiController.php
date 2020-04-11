@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ProcessNewLap;
+use App\Server;
 use Illuminate\Http\Request;
 
 class ApiController extends Controller
@@ -28,5 +29,10 @@ class ApiController extends Controller
         endif;
 
         return response()->json(['success' => true]);
+    }
+
+
+    public function servers() {
+        return Server::jsonPaginate();
     }
 }

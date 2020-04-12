@@ -21,6 +21,14 @@
             <ul>
             </ul>
             <h2>Change Log</h2>
+            <h3>13 April 2020</h3>
+            <ul>
+                <li>Added the Developer API
+                    <ul>
+                        <li>API Tokens are generated in a user's profile.</li>
+                    </ul>
+                </li>
+            </ul>
             <h3>12 April 2020</h3>
             <ul>
                 <li>Adding last lap time to servers page</li>

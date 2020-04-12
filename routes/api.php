@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 //Route::middleware('auth:api')->get('/user', 'ApiController@user');
 
 //New Time Endpoint
-Route::post('/newtime', 'ApiController@newTime');
+Route::post('/newtime', 'ApiController@newTime')->name('new-time');
 
 
 Route::middleware('auth:api')->group(function () {

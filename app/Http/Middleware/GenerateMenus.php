@@ -21,6 +21,7 @@ class GenerateMenus
             $menu->add('Maps', 'maps');
             $menu->add('Players', 'players');
             $menu->add('Contact', 'contact');
+            $menu->add('API', 'docs');
         });
 
         return $next($request);

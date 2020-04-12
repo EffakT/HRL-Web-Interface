@@ -25,9 +25,16 @@ class Server extends Model
         ],
         'name' => [
             'searchable' => true,
+        ],
+        'latest_lap' => [
+            'searchable' => false,
         ]
     ];
 
+
+    public function getLatestLapAttribute() {
+        return $this->laps()->with(['player', 'map', 'server'])->orderByDesc('updated_at')->get()->first();
+    }
 
     public function players()
     {

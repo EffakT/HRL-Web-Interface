@@ -52,6 +52,11 @@
                         name: 'port',
                         orderable: true,
                     },
+                    {
+                        label: 'Latest Lap',
+                        name: 'latest_lap',
+                        orderable: false,
+                    },
                 ],
                 classes: {
                     "table-container": {

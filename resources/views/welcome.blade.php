@@ -21,6 +21,27 @@
             <ul>
             </ul>
             <h2>Change Log</h2>
+            <h3>13 April 2020</h3>
+            <ul>
+                <li>Added the Developer API
+                    <ul>
+                        <li>API Tokens are generated in a user's profile.</li>
+                    </ul>
+                </li>
+            </ul>
+            <h3>12 April 2020</h3>
+            <ul>
+                <li>Adding last lap time to servers page</li>
+                <li>Bug fixes on form captcha</li>
+            </ul>
+            <h3>10 April 2020</h3>
+            <ul>
+                <li>Bug fix for migrating lap times
+                    <ul>
+                        <li>Lap times dates were not copying correctly</li>
+                    </ul>
+                </li>
+            </ul>
             <h3>4 April 2020</h3>
             <ul>
                 <li>Adding ability to create users</li>

@@ -17,6 +17,7 @@ Auth::routes(['verify' => true]);
 Route::get('/', 'HomeController@home')->name('home');
 
 Route::get('/my-account', 'AccountController@index')->name('my-account');
+Route::post('/my-account/generate-token', 'AccountController@generateToken')->name('generate-token');
 
 
 Route::get('/opt-in', 'HomeController@optIn')->name('opt-in');

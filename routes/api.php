@@ -13,7 +13,19 @@ use Illuminate\Http\Request;
 |
 */
 
-Route::middleware('auth:api')->get('/user', 'ApiController@user');
+//Route::middleware('auth:api')->get('/user', 'ApiController@user');
 
-Route::get('/newtime', 'ApiController@newTime');
-Route::post('/newtime', 'ApiController@newTime');
+//New Time Endpoint
+Route::post('/newtime', 'ApiController@newTime')->name('new-time');
+
+
+Route::middleware('auth:api')->group(function () {
+    Route::get('servers/', 'ApiController@servers');
+    Route::get('servers/{server}', 'ApiController@server');
+
+    Route::get('players', 'ApiController@players');
+    Route::get('players/{player}', 'ApiController@player');
+
+    Route::get('maps', 'ApiController@maps');
+    Route::get('maps/{map}', 'ApiController@map');
+});

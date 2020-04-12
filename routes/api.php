@@ -19,6 +19,13 @@ use Illuminate\Http\Request;
 Route::post('/newtime', 'ApiController@newTime');
 
 
-Route::middleware('auth:api')->prefix('servers')->group(function () {
-    Route::get('/', 'ApiController@servers');
+Route::middleware('auth:api')->group(function () {
+    Route::get('servers/', 'ApiController@servers');
+    Route::get('servers/{server}', 'ApiController@server');
+
+    Route::get('players', 'ApiController@players');
+    Route::get('players/{player}', 'ApiController@player');
+
+    Route::get('maps', 'ApiController@maps');
+    Route::get('maps/{map}', 'ApiController@map');
 });

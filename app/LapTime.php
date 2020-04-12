@@ -22,12 +22,12 @@ class LapTime extends Model
     ];
 
     public function server() {
-        $this->hasOne('App\Server');
+        return $this->belongsTo('App\Server');
     }
     public function map() {
-        $this->hasOne('App\Map');
+        return $this->belongsTo('App\Map');
     }
     public function player() {
-        $this->hasOne('App\Player');
+        return $this->belongsTo('App\Player');
     }
 }

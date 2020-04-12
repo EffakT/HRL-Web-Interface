@@ -25,6 +25,9 @@ class Server extends Model
         ],
         'name' => [
             'searchable' => true,
+        ],
+        'latest_lap' => [
+            'searchable' => false,
         ]
     ];
 

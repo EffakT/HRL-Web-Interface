@@ -185,7 +185,7 @@ class ManageServerController extends Controller
         $orderBy = $request->input('dir') ?? "asc";
         $searchValue = $request->input('search') ?? "";
 
-        $query = Server::queryBuilderQuery($sortBy, $orderBy, $searchValue);
+        $query = Server::eloquentQuery($sortBy, $orderBy, $searchValue);
         $query->join('users_servers', 'server_id', '=', 'servers.id')
             ->select('servers.*')
             ->where('users_servers.user_id', '=', $user->id)

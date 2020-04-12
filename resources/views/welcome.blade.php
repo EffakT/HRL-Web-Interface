@@ -15,7 +15,6 @@
                 <li>App converted to PWA (Progressive Web App - Planning Phase)</li>
                 <li>Add the ability to claim players</li>
                 <li>Add ability for users to be notified if their record is broken</li>
-                <li>Develop a Developer API for pulling data</li>
             </ul>
             <h2>Known Issues</h2>
             <ul>

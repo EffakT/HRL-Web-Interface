@@ -1,0 +1,637 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>API Reference</title>
+
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/all.js"></script>
+
+
+          <script>
+        $(function() {
+            setupLanguages(["bash","javascript","php"]);
+        });
+      </script>
+      </head>
+
+  <body class="">
+    <a href="#" id="nav-button">
+      <span>
+        NAV
+        <img src="images/navbar.png" />
+      </span>
+    </a>
+    <div class="tocify-wrapper">
+        <img src="images/logo.png" />
+                    <div class="lang-selector">
+                                  <a href="#" data-language-name="bash">bash</a>
+                                  <a href="#" data-language-name="javascript">javascript</a>
+                                  <a href="#" data-language-name="php">php</a>
+                            </div>
+                            <div class="search">
+              <input type="text" class="search" id="input-search" placeholder="Search">
+            </div>
+            <ul class="search-results"></ul>
+              <div id="toc">
+      </div>
+                    <ul class="toc-footer">
+                                  <li><a href='http://github.com/mpociot/documentarian'>Documentation Powered by Documentarian</a></li>
+                            </ul>
+            </div>
+    <div class="page-wrapper">
+      <div class="dark-box"></div>
+      <div class="content">
+          <!-- START_INFO -->
+<h1>Info</h1>
+<p>Welcome to the generated API reference.
+<a href="https://haloraceleaderboard.effakt.info/docs/collection.json">Get Postman Collection</a></p>
+<!-- END_INFO -->
+<h1>Authentication</h1>
+<p>All calls to the API must use the API Token, which can be generated in your <a href="https://haloraceleaderboard.effakt.info/my-account">user profile</a>. If the API Token is incorrect then the server will respond with an HTTP status code of 401 Unauthorized.</p>
+<h1>Maps</h1>
+<!-- START_554b3719ed175060245101662cc39460 -->
+<h2>List Maps</h2>
+<p>Get a paginated list of all maps</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/maps" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/maps"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/maps',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": [
+        {
+            "id": 1,
+            "name": "bloodgulch",
+            "label": "Bloodgulch"
+        },
+        {
+            "id": 2,
+            "name": "dangercanyon",
+            "label": "Danger Canyon"
+        },
+        {
+            "id": 3,
+            "name": "timberland",
+            "label": "Timberland"
+        },
+        {
+            "id": 4,
+            "name": "deathisland",
+            "label": "Death Island"
+        },
+        {
+            "id": 5,
+            "name": "gephyrophobia",
+            "label": "Gephyrophobia"
+        },
+        {
+            "id": 6,
+            "name": "icefields",
+            "label": "Ice Fields"
+        },
+        {
+            "id": 7,
+            "name": "infinity",
+            "label": "Infinity"
+        },
+        {
+            "id": 8,
+            "name": "sidewinder",
+            "label": "Sidewinder"
+        },
+        {
+            "id": 9,
+            "name": "chillout",
+            "label": "Chillout"
+        },
+        {
+            "id": 10,
+            "name": "bloodgulch",
+            "label": "Bloodgulch - Any Order"
+        }
+    ],
+    "links": {
+        "first": "https:\/\/haloraceleaderboard.effakt.info\/api\/maps?page=1",
+        "last": "https:\/\/haloraceleaderboard.effakt.info\/api\/maps?page=1",
+        "prev": null,
+        "next": null
+    },
+    "meta": {
+        "current_page": 1,
+        "from": 1,
+        "last_page": 1,
+        "path": "https:\/\/haloraceleaderboard.effakt.info\/api\/maps",
+        "per_page": "10",
+        "to": 10,
+        "total": 10
+    }
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/maps</code></p>
+<!-- END_554b3719ed175060245101662cc39460 -->
+<!-- START_7a430468ab33019a63e03199d1078a2c -->
+<h2>Get Map</h2>
+<p>Get a map and a list of its lap times</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/maps/1" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/maps/1"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/maps/1',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": {
+        "id": 1,
+        "name": "bloodgulch",
+        "label": "Bloodgulch"
+    },
+    "laps": [
+        {
+            "id": 886,
+            "time": "62.10",
+            "date": "2018-07-05T00:00:00.000000Z",
+            "player": {
+                "id": 6,
+                "name ": "HLN«ßÕX3R»"
+            },
+            "server": {
+                "id": 4,
+                "ip": "163.47.230.216",
+                "port": "2302",
+                "name": "Halo Race Leaderboard - Demo Server 04.04.20"
+            }
+        },
+        {
+            "id": 876,
+            "time": "65.37",
+            "date": "2018-03-01T00:00:00.000000Z",
+            "player": {
+                "id": 5,
+                "name ": "©opyrite"
+            },
+            "server": {
+                "id": 4,
+                "ip": "163.47.230.216",
+                "port": "2302",
+                "name": "Halo Race Leaderboard - Demo Server 04.04.20"
+            }
+        }
+    ]
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/maps/{map}</code></p>
+<!-- END_7a430468ab33019a63e03199d1078a2c -->
+<h1>Players</h1>
+<!-- START_93bfac9632d7791d6c2cb79f153cf516 -->
+<h2>List Players</h2>
+<p>Get a paginated list of all players</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/players" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/players"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/players',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": [
+        {
+            "id": 5,
+            "name ": "©opyrite"
+        },
+        {
+            "id": 6,
+            "name ": "HLN«ßÕX3R»"
+        },
+        {
+            "id": 7,
+            "name ": "WarNeverDie"
+        },
+        {
+            "id": 8,
+            "name ": "CryForce"
+        },
+        {
+            "id": 9,
+            "name ": "destroyer"
+        },
+        {
+            "id": 10,
+            "name ": "GåþøFêîk¬£Q"
+        },
+        {
+            "id": 11,
+            "name ": "Pretty Girl"
+        },
+        {
+            "id": 12,
+            "name ": "Fooch"
+        },
+        {
+            "id": 13,
+            "name ": "Mr Hankey"
+        },
+        {
+            "id": 14,
+            "name ": "Malleus"
+        }
+    ],
+    "links": {
+        "first": "https:\/\/haloraceleaderboard.effakt.info\/api\/players?page=1",
+        "last": "https:\/\/haloraceleaderboard.effakt.info\/api\/players?page=14",
+        "prev": null,
+        "next": "https:\/\/haloraceleaderboard.effakt.info\/api\/players?page=2"
+    },
+    "meta": {
+        "current_page": 1,
+        "from": 1,
+        "last_page": 14,
+        "path": "https:\/\/haloraceleaderboard.effakt.info\/api\/players",
+        "per_page": "10",
+        "to": 10,
+        "total": 140
+    }
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/players</code></p>
+<!-- END_93bfac9632d7791d6c2cb79f153cf516 -->
+<!-- START_c59ee9cd29373e2b291359a420c59443 -->
+<h2>Get Player</h2>
+<p>Get a specific player and a list of their lap times</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/players/1" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/players/1"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/players/1',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": {
+        "id": 5,
+        "name ": "©opyrite"
+    },
+    "laps": [
+        {
+            "id": 912,
+            "time": "42.90",
+            "date": "2018-04-21T00:00:00.000000Z",
+            "map": {
+                "id": 9,
+                "name": "chillout",
+                "label": "Chillout"
+            },
+            "server": {
+                "id": 4,
+                "ip": "163.47.230.216",
+                "port": "2302",
+                "name": "Halo Race Leaderboard - Demo Server 04.04.20"
+            }
+        },
+        {
+            "id": 875,
+            "time": "47.27",
+            "date": "2020-04-03T00:00:00.000000Z",
+            "map": {
+                "id": 3,
+                "name": "timberland",
+                "label": "Timberland"
+            },
+            "server": {
+                "id": 4,
+                "ip": "163.47.230.216",
+                "port": "2302",
+                "name": "Halo Race Leaderboard - Demo Server 04.04.20"
+            }
+        }
+    ]
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/players/{player}</code></p>
+<!-- END_c59ee9cd29373e2b291359a420c59443 -->
+<h1>Servers</h1>
+<!-- START_3867421074cac7359b4ccc82f8a25dac -->
+<h2>List Servers</h2>
+<p>Get a paginated list of all servers</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/servers" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/servers"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/servers',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": [
+        {
+            "id": 4,
+            "ip": "163.47.230.216",
+            "port": "2302",
+            "name": "Halo Race Leaderboard - Demo Server 04.04.20",
+            "created_at": "2020-04-02T23:14:44.000000Z",
+            "latest_lap": {
+                "id": 1096,
+                "time": "100.00",
+                "date": "2020-04-11T00:00:00.000000Z",
+                "map": {
+                    "id": 1,
+                    "name": "bloodgulch",
+                    "label": "Bloodgulch"
+                },
+                "player": {
+                    "id": 143,
+                    "name ": "EffakT"
+                }
+            }
+        }
+    ],
+    "links": {
+        "first": "https:\/\/haloraceleaderboard.effakt.info\/api\/servers?page=1",
+        "last": "https:\/\/haloraceleaderboard.effakt.info\/api\/servers?page=1",
+        "prev": null,
+        "next": null
+    },
+    "meta": {
+        "current_page": 1,
+        "from": 1,
+        "last_page": 1,
+        "path": "https:\/\/haloraceleaderboard.effakt.info\/api\/servers",
+        "per_page": "10",
+        "to": 1,
+        "total": 1
+    }
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/servers</code></p>
+<!-- END_3867421074cac7359b4ccc82f8a25dac -->
+<!-- START_4c0c7788dbc14f2ab65edc6f5ebeded4 -->
+<h2>Get Server</h2>
+<p>Get a specific server and a list of its lap times</p>
+<p><br><small style="padding: 1px 9px 2px;font-weight: bold;white-space: nowrap;color: #ffffff;-webkit-border-radius: 9px;-moz-border-radius: 9px;border-radius: 9px;background-color: #3a87ad;">Requires authentication</small></p>
+<blockquote>
+<p>Example request:</p>
+</blockquote>
+<pre><code class="language-bash">curl -X GET \
+    -G "https://haloraceleaderboard.effakt.info/api/servers/1" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json"</code></pre>
+<pre><code class="language-javascript">const url = new URL(
+    "https://haloraceleaderboard.effakt.info/api/servers/1"
+);
+
+let headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+};
+
+fetch(url, {
+    method: "GET",
+    headers: headers,
+})
+    .then(response =&gt; response.json())
+    .then(json =&gt; console.log(json));</code></pre>
+<pre><code class="language-php">
+$client = new \GuzzleHttp\Client();
+$response = $client-&gt;get(
+    'https://haloraceleaderboard.effakt.info/api/servers/1',
+    [
+        'headers' =&gt; [
+            'Content-Type' =&gt; 'application/json',
+            'Accept' =&gt; 'application/json',
+        ],
+    ]
+);
+$body = $response-&gt;getBody();
+print_r(json_decode((string) $body));</code></pre>
+<blockquote>
+<p>Example response (200):</p>
+</blockquote>
+<pre><code class="language-json">{
+    "data": {
+        "id": 4,
+        "ip": "163.47.230.216",
+        "port": "2302",
+        "name": "Halo Race Leaderboard - Demo Server 04.04.20",
+        "created_at": "2020-04-02T23:14:44.000000Z",
+        "latest_lap": {
+            "id": 1096,
+            "time": "100.00",
+            "date": "2020-04-11T00:00:00.000000Z",
+            "map": {
+                "id": 1,
+                "name": "bloodgulch",
+                "label": "Bloodgulch"
+            },
+            "player": {
+                "id": 143,
+                "name ": "EffakT"
+            }
+        }
+    },
+    "laps": [
+        {
+            "id": 9,
+            "time": "38.87",
+            "date": "2018-07-05T00:00:00.000000Z",
+            "map": {
+                "id": 9,
+                "name": "chillout",
+                "label": "Chillout"
+            },
+            "player": {
+                "id": 6,
+                "name ": "HLN«ßÕX3R»"
+            }
+        },
+        {
+            "id": 9,
+            "time": "42.90",
+            "date": "2018-04-21T00:00:00.000000Z",
+            "map": {
+                "id": 9,
+                "name": "chillout",
+                "label": "Chillout"
+            },
+            "player": {
+                "id": 5,
+                "name ": "©opyrite"
+            }
+        }
+    ]
+}</code></pre>
+<h3>HTTP Request</h3>
+<p><code>GET api/servers/{server}</code></p>
+<!-- END_4c0c7788dbc14f2ab65edc6f5ebeded4 -->
+      </div>
+      <div class="dark-box">
+                        <div class="lang-selector">
+                                    <a href="#" data-language-name="bash">bash</a>
+                                    <a href="#" data-language-name="javascript">javascript</a>
+                                    <a href="#" data-language-name="php">php</a>
+                              </div>
+                </div>
+    </div>
+  </body>
+</html>

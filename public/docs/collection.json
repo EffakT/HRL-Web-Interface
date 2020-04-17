@@ -1,0 +1,197 @@
+{
+    "variables": [],
+    "info": {
+        "name": "Halo Race Leaderboard API",
+        "_postman_id": "364af62e-3c5e-4d30-980c-0da3dce6e02a",
+        "description": "",
+        "schema": "https:\/\/schema.getpostman.com\/json\/collection\/v2.0.0\/collection.json"
+    },
+    "item": [
+        {
+            "name": "Maps",
+            "description": "",
+            "item": [
+                {
+                    "name": "List Maps\nGet a paginated list of all maps",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/maps",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                },
+                {
+                    "name": "Get Map\nGet a map and a list of its lap times",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/maps\/:map",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Players",
+            "description": "",
+            "item": [
+                {
+                    "name": "List Players\nGet a paginated list of all players",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/players",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                },
+                {
+                    "name": "Get Player\nGet a specific player and a list of their lap times",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/players\/:player",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Servers",
+            "description": "",
+            "item": [
+                {
+                    "name": "List Servers\nGet a paginated list of all servers",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/servers",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                },
+                {
+                    "name": "Get Server\nGet a specific server and a list of its lap times",
+                    "request": {
+                        "url": {
+                            "protocol": "https",
+                            "host": "haloraceleaderboard.effakt.info",
+                            "path": "api\/servers\/:server",
+                            "query": []
+                        },
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application\/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application\/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[]"
+                        },
+                        "description": "",
+                        "response": []
+                    }
+                }
+            ]
+        }
+    ]
+}

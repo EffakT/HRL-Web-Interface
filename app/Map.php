@@ -13,6 +13,9 @@ class Map extends Model
 
 
     protected $dataTableColumns = [
+        'id' => [
+            'searchable' => true,
+        ],
         'label' => [
             'searchable' => true,
         ]

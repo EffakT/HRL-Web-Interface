@@ -12,6 +12,9 @@ class Player extends Model
     protected $fillable = ['name', 'hash'];
 
     protected $dataTableColumns = [
+        'id' => [
+            'searchable' => true,
+        ],
         'name' => [
             'searchable' => true,
         ]

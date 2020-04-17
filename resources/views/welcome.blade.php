@@ -20,6 +20,19 @@
             <ul>
             </ul>
             <h2>Change Log</h2>
+            <h3>17 April 2020</h3>
+            <ul>
+                <li>Bug Fixes
+                    <ul>
+                        <li>
+                            404 when clicking on map in maps page
+                        </li>
+                        <li>
+                            404 when clicking on player in players page
+                        </li>
+                    </ul>
+                </li>
+            </ul>
             <h3>13 April 2020</h3>
             <ul>
                 <li>Added the Developer API

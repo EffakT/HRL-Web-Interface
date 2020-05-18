@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClaimPlayerRequest;
 use App\Http\Requests\DeletePlayerRequest;
-use App\Jobs\ClearClaim;
+use App\Jobs\ClearPlayerClaim;
 use App\Player;
 use App\PlayerClaim;
 use Illuminate\Http\Request;
@@ -51,7 +51,7 @@ class ManagePlayerController extends Controller
         ]);
         $claim->save();
         //on create, schedule a job to clear the claim
-        ClearClaim::dispatch($claim)->delay(now()->addHours(24));
+        ClearPlayerClaim::dispatch($claim)->delay(now()->addHours(24));
 
 
         flash('Player claim has been successfully initiated')->success();

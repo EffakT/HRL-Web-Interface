@@ -62,4 +62,10 @@ class Player extends Model
         $claims = $this->pendingClaims->where('user_id', $user->id);
         return ($claims->count() > 0) ? $claims->first() : false;
     }
+
+    public function isPendingClaim()
+    {
+        $claims = $this->pendingClaims;
+        return ($claims->count() > 0) ? $claims->first() : false;
+    }
 }

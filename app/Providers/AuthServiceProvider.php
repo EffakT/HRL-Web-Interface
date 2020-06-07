@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Server;
+use App\Player;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 
@@ -15,7 +16,8 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         // 'App\Model' => 'App\Policies\ModelPolicy',
-        Server::class => 'App\Policies\ServerPolicy'
+        Server::class => 'App\Policies\ServerPolicy',
+        Player::class => 'App\Policies\PlayerPolicy'
     ];
 
     /**

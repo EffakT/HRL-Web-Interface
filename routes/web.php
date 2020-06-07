@@ -48,5 +48,5 @@ Route::get('/maps/{map}', 'LeaderboardController@map')->name('map');
 Route::get('/players/', 'LeaderboardController@players')->name('players');
 Route::get('/players/{player}', 'LeaderboardController@player')->name('player');
 Route::get('/players/{player}/manage', 'ManagePlayerController@index')->name('player:manage');
-Route::post('/players/{player}/manage/claim', 'ManagePlayerController@claimPlayer')->name('player:claim')->middleware("can:claim");
+Route::post('/players/{player}/manage/claim', 'ManagePlayerController@claimPlayer')->name('player:claim')->middleware("can:claim,player");
 

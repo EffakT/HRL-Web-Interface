@@ -36,7 +36,6 @@ class ProcessPlayerClaim implements ShouldQueue
     public function handle()
     {
         $hash = hash('sha256', $this->request['data']['player_hash']);
-        $hash = $this->request['data']['player_hash'];
 
         //find the player, or ignore
         $player = Player::where('hash', $hash)->get()->first();

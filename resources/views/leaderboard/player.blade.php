@@ -7,18 +7,14 @@
 
         <div class="row">
             <div class="col-lg-12">
+
+                @if (!$player->isClaimed())
+                    <a href="{{route('player:manage', $player)}}" class="btn btn-primary mb-2">Claim Player</a>
+                @elseif (!is_null($user) && $player->isClaimedBy($user))
+                    <a href="{{route('player:manage', $player)}}" class="btn btn-primary mb-2">Manage Player</a>
+                @endif
+
                 <h1>Leaderboard for {{$player->name}}</h1>
-    
-                <strong>Known Aliases:</strong>
-                <ul class="list-inline list-unstyled">
-                    @foreach ($player->alias() AS $alias)
-                        <li class="list-inline-item">
-                            <a href="{{route('player', $alias->id)}}">
-                                {{$alias->name}}
-                            </a>
-                        </li>
-                    @endforeach
-                </ul>
 
                 <singleplayer ajax="{{ route('player', $player->id)  }}"></singleplayer>
             </div>

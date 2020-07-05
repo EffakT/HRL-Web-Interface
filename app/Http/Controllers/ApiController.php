@@ -9,6 +9,7 @@ use App\Http\Resources\PlayerResource;
 use App\Http\Resources\ServerLapResource;
 use App\Http\Resources\ServerResource;
 use App\Jobs\ProcessNewLap;
+use App\Jobs\ProcessPlayerClaim;
 use App\LapTime;
 use App\Map;
 use App\Player;
@@ -44,6 +45,21 @@ class ApiController extends Controller
         return response()->json(['success' => true]);
     }
 
+
+    public function claimPlayer(Request $request) {
+        $data = [];
+        $data['user_ip'] = $request->ip();
+        $data['data'] = $request->all();
+
+        if (isset($data['data']['test'])):
+            $process = new ProcessPlayerClaim($data);
+            return response()->json(['success' => $process->handle()]);
+        else:
+            ProcessPlayerClaim::dispatch($data);
+        endif;
+
+        return response()->json(['success' => true]);
+    }
 
     /**
      * List Servers

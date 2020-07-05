@@ -40,29 +40,26 @@ class LeaderboardController extends Controller
     public function server(Server $server, Request $request)
     {
         if (request()->wantsJson()):
+
             $length = $request->input('length') ?? "10";
             $sortBy = $request->input('column') ?? "time";
             $orderBy = $request->input('dir') ?? "asc";
             $searchValue = $request->input('search') ?? "";
-            $map = $request->input('map');
 
+            $query = LapTime::has('server')->eloquentQuery($sortBy, $orderBy, $searchValue,
+                [
+                    "map",
+                    "server",
+                    "player"
+                ]);
 
-            $query = LapTime::eloquentQuery($sortBy, $orderBy, $searchValue);
-            $query->join('players', 'players.id', '=', 'lap_times.player_id')
-                ->join('maps', 'maps.id', '=', 'lap_times.map_id')
-                ->where('lap_times.server_id', $server->id)
-                ->where(function ($query) use ($searchValue) {
-                    $query->where('players.name', "LIKE", "%$searchValue%")
-                        ->orWhere('maps.label', "LIKE", "%$searchValue%");
-                })
-                ->select('lap_times.*', 'players.name', 'maps.label');
-
-            if (isset($map) && !empty($map))
-                $query->where('lap_times.map_id', $map);
+            $query->where('lap_times.server_id', $server->id);
+            $query->select('lap_times.*');
 
             $data = $query->paginate($length);
 
             return new DataTableCollectionResource($data);
+
         endif;
 
 
@@ -97,22 +94,15 @@ class LeaderboardController extends Controller
             $orderBy = $request->input('dir') ?? "asc";
             $searchValue = $request->input('search') ?? "";
 
-            $query = LapTime::eloquentQuery($sortBy, $orderBy, $searchValue);
+            $query = LapTime::has('server')->eloquentQuery($sortBy, $orderBy, $searchValue,
+                [
+                    "map",
+                    "server",
+                    "player"
+                ]);
 
-            $query->join('players', 'players.id', '=', 'lap_times.player_id')
-                ->join('servers', 'servers.id', '=', 'lap_times.server_id')
-                ->join('maps', 'maps.id', '=', 'lap_times.map_id')
-                ->where('lap_times.map_id', $map->id)
-                ->whereNull('servers.deleted_at')
-                ->select('lap_times.*', 'players.name', 'servers.name AS server_name', 'servers.ip', 'servers.port');
-
-            $query->where(function ($query) use ($searchValue) {
-                $query->where('players.name', "LIKE", "%$searchValue%")
-                    ->orWhere('maps.label', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.name', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.ip', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.port', "LIKE", "%$searchValue%");
-            });
+            $query->where('lap_times.map_id', $map->id);
+            $query->select('lap_times.*');
 
             $data = $query->paginate($length);
 
@@ -146,26 +136,18 @@ class LeaderboardController extends Controller
             $sortBy = $request->input('column') ?? "time";
             $orderBy = $request->input('dir') ?? "asc";
             $searchValue = $request->input('search') ?? "";
+            $query = LapTime::has('server')->eloquentQuery($sortBy, $orderBy, $searchValue,
+                [
+                    "map",
+                    "server",
+                    "player"
+                ]);
 
-            $query = LapTime::eloquentQuery($sortBy, $orderBy, '');
-            //$query = LapTime::queryBuilderQuery($sortBy, $orderBy, '');
-
-            $query->join('players', 'players.id', '=', 'lap_times.player_id')
-                ->join('servers', 'servers.id', '=', 'lap_times.server_id')
-                ->join('maps', 'maps.id', '=', 'lap_times.map_id')
-                ->where('lap_times.player_id', $player->id)
-                ->whereNull('servers.deleted_at')
-                ->select('lap_times.*', 'maps.label AS map_name', 'servers.name AS server_name', 'servers.ip', 'servers.port');
-
-            $query->where(function ($query) use ($searchValue) {
-                $query->where('players.name', "LIKE", "%$searchValue%")
-                    ->orWhere('maps.label', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.name', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.ip', "LIKE", "%$searchValue%")
-                    ->orWhere('servers.port', "LIKE", "%$searchValue%");
-            });
+            $query->where('player_id', $player->id);
+            $query->select('lap_times.*');
 
             $data = $query->paginate($length);
+
 
             return new DataTableCollectionResource($data);
 

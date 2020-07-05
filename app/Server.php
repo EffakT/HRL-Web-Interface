@@ -15,7 +15,7 @@ class Server extends Model
     use SoftDeletes;
 
     protected $table = 'servers';
-    protected $fillable = ['ip', 'port', 'name'];
+    protected $fillable = ['ip', 'port', 'name', 'type'];
     protected $dataTableColumns = [
         'ip' => [
             'searchable' => false,
@@ -27,6 +27,9 @@ class Server extends Model
             'searchable' => true,
         ],
         'latest_lap' => [
+            'searchable' => false,
+        ],
+        'type' => [
             'searchable' => false,
         ]
     ];

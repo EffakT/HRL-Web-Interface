@@ -53,6 +53,11 @@
                         orderable: true,
                     },
                     {
+                        label: 'Type',
+                        name: 'type',
+                        orderable: true,
+                    },
+                    {
                         label: 'Latest Lap',
                         name: 'latest_lap',
                         orderable: false,

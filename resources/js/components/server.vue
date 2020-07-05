@@ -69,12 +69,14 @@
                 columns: [
                     {
                         label: 'Player',
-                        name: 'name',
+                        name: 'player.name',
+                        columnName: 'players.name',
                         orderable: true,
                     },
                     {
                         label: 'Map',
-                        name: 'label',
+                        name: 'map.label',
+                        columnName: 'maps.label',
                         orderable: true,
                     },
                     {

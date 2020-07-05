@@ -12,11 +12,7 @@
                 <p>For information on how to opt-in, click <a href="{!! route('opt-in') !!}">here</a></p>
                 <h2>Future Plans</h2>
                 <ul>
-                    <li>Add the ability to claim players
-                        <ul>
-                            <li>This is similar to Server claiming, where a user could delete a lap time that they are not happy with.</li>
-                        </ul>
-                    </li>
+                    <li>Add the ability to delete player times</li>
                     <li>Add the ability for server admin's to delete laps
                         <ul>
                             <li>This gives the server admin more flexibility in managing their server's laps.</li>
@@ -48,7 +44,17 @@
                 <ul>
                 </ul>
                 <h2>Change Log</h2>
-                <h3>15 Map 2020</h3>
+                <h3>5 July 2020</h3>
+                <ul>
+                    <li>Bug Fixes
+                        <ul>
+                            <li>
+                                Ability to claim players
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+                <h3>15 May 2020</h3>
                 <ul>
                     <li>Bug Fixes
                         <ul>

@@ -35,6 +35,18 @@ class ServerPolicy
     }
 
     /**
+     * Determine whether the user can be notified of outages of the server.
+     *
+     * @param User $user
+     * @param Server $server
+     * @return mixed
+     */
+    public function notifyOutage(User $user, Server $server)
+    {
+        return $server->isClaimedBy($user);
+    }
+
+    /**
      * Determine whether the user can delete the server.
      *
      * @param User $user

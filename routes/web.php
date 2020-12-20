@@ -40,6 +40,8 @@ Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@reset
 Route::post('/servers/{server}/manage/migrate-laps', 'ManageServerController@migrateLaps')->name('server:migrate-laps')->middleware("can:migrate,server");
 Route::post('/servers/{server}/manage/delete', 'ManageServerController@delete')->name('server:delete')->middleware("can:delete,server");
 
+Route::post('/servers/{server}/manage/notify-outage', 'ManageServerController@notifyOutage')->name('server:notify-outage')->middleware("can:notify-outage,server");
+
 
 Route::get('/maps', 'LeaderboardController@maps')->name('maps');
 Route::get('/maps/{map}', 'LeaderboardController@map')->name('map');

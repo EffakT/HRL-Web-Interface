@@ -6,6 +6,7 @@ use App\Claim;
 use App\Http\Requests\ClaimServerRequest;
 use App\Http\Requests\DeleteServerRequest;
 use App\Http\Requests\MigrateLapsRequest;
+use App\Http\Requests\NotifyOutageRequest;
 use App\Http\Requests\ResetLapsRequest;
 use App\Jobs\ClearClaim;
 use App\LapTime;
@@ -61,6 +62,19 @@ class ManageServerController extends Controller
         flash('Server claim has been successfully initiated')->success();
         return redirect(route('server:manage', $server));
 
+    }
+
+    public function NotifyOutage(NotifyOutageRequest $request, Server $server)
+    {
+        $server->notify_outage = (!$server->notify_outage);
+        $server->save();
+
+        if ($server->notify_outage):
+            flash('You will now be notified if we are unable to access your server')->success();
+        else:
+            flash('You will no longer be notified if we are unable to access your server')->success();
+        endif;
+        return redirect(route('server:manage', $server));
     }
 
     public function resetLaps(ResetLapsRequest $request, Server $server)

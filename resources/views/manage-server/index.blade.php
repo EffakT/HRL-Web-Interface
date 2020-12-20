@@ -43,7 +43,13 @@
             @if ($server->isClaimedBy($user))
                 <div class="row mt-3">
                     <div class="col-md-6">
-                        <div class="card">
+                        <div class="card mt-3">
+                            <div class="card-header">{{ __('Notify of server outage') }}</div>
+                            <div class="card-body">
+                                @include('manage-server/notify-outage/form')
+                            </div>
+                        </div>
+                        <div class="card mt-3">
                             <div class="card-header">{{ __('Reset all lap times') }}</div>
                             <div class="card-body">
                                 @include('manage-server/reset-laps/form')
@@ -57,7 +63,7 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card">
+                        <div class="card mt-3">
                             <div class="card-header">{{ __('Migrate lap times') }}</div>
                             <div class="card-body">
                                 @include('manage-server/migrate-laps/form')

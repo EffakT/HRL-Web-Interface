@@ -2,6 +2,8 @@
 
 namespace App\Console;
 
+use App\Console\Commands\ScheduleList;
+use App\Jobs\CheckServerOutages;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -13,6 +15,7 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
+        ScheduleList::class
         //
     ];
 
@@ -26,6 +29,7 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')
         //          ->hourly();
+        $schedule->job(new CheckServerOutages)->hourly();
     }
 
     /**

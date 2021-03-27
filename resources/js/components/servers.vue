@@ -59,7 +59,7 @@
                     },
                     {
                         label: 'Latest Lap',
-                        name: 'latest_lap',
+                        name: 'latest_lap.updated_at',
                         orderable: false,
                     },
                 ],

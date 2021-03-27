@@ -15,7 +15,10 @@ class Server extends Model
     use SoftDeletes;
 
     protected $table = 'servers';
-    protected $fillable = ['ip', 'port', 'name'];
+    protected $fillable = ['ip', 'port', 'name', 'notify_outage'];
+    protected $casts = [
+        'notify_outage_last' => 'datetime'
+    ];
     protected $dataTableColumns = [
         'ip' => [
             'searchable' => false,
@@ -27,6 +30,9 @@ class Server extends Model
             'searchable' => true,
         ],
         'latest_lap' => [
+            'searchable' => false,
+        ],
+        'type' => [
             'searchable' => false,
         ]
     ];
@@ -67,7 +73,6 @@ class Server extends Model
         $claims = $this->pendingClaims->where('user_id', $user->id);
         return ($claims->count() > 0) ? $claims->first() : false;
     }
-
 
     public function queryServer() {
         $buffer = " ";

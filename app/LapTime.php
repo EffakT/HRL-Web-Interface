@@ -21,6 +21,43 @@ class LapTime extends Model
         ]
     ];
 
+
+
+    protected $dataTableRelationships = [
+        "belongsTo" => [
+            "server" => [
+                "model" => Server::class,
+                "foreign_key" => "server_id",
+                "columns" => [
+                    "name" => [
+                        "searchable" => true,
+                        "orderable" => true,
+                    ],
+                ],
+            ],
+            "map" => [
+                "model" => Map::class,
+                "foreign_key" => "map_id",
+                "columns" => [
+                    "name" => [
+                        "searchable" => true,
+                        "orderable" => true,
+                    ],
+                ],
+            ],
+            "player" => [
+                "model" => Player::class,
+                "foreign_key" => "player_id",
+                "columns" => [
+                    "name" => [
+                        "searchable" => true,
+                        "orderable" => true,
+                    ],
+                ],
+            ],
+        ]
+    ];
+
     public function server() {
         return $this->belongsTo('App\Server');
     }

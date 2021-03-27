@@ -40,22 +40,32 @@
                 columns: [
                     {
                         label: 'Player',
-                        name: 'name',
+                        name: 'player.name',
+                        columnName: 'players.name',
                         orderable: true,
                     },
                     {
                         label: 'Server',
-                        name: 'server_name',
+                        name: 'server.name',
+                        columnName: 'servers.name',
                         orderable: true,
                     },
                     {
                         label: 'IP',
-                        name: 'ip',
+                        name: 'server.ip',
+                        columnName: 'servers.ip',
                         orderable: true,
                     },
                     {
                         label: 'Port',
-                        name: 'port',
+                        name: 'server.port',
+                        columnName: 'servers.port',
+                        orderable: true,
+                    },
+                    {
+                        label: 'Type',
+                        name: 'server.type',
+                        columnName: 'servers.type',
                         orderable: true,
                     },
                     {

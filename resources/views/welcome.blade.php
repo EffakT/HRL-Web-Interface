@@ -9,14 +9,10 @@
             <div class="col-lg-12">
                 <h1>About Halo Race Leaderboard</h1>
                 <p>Halo Race Leaderboard is a fully public leaderboard that any Halo Server can opt-in to have track their times.</p>
-                <p>For information on how to opt-in, click <a href="{!! route('opt-in') !!}">here</a></p>
+                <p>For information on how to opt-in, click <a href="http://haloraceleaderboard.effakt.info/opt-in">here</a></p>
                 <h2>Future Plans</h2>
                 <ul>
-                    <li>Add the ability to claim players
-                        <ul>
-                            <li>This is similar to Server claiming, where a user could delete a lap time that they are not happy with.</li>
-                        </ul>
-                    </li>
+                    <li>Add the ability for claimed players to delete laps</li>
                     <li>Add the ability for server admin's to delete laps
                         <ul>
                             <li>This gives the server admin more flexibility in managing their server's laps.</li>
@@ -48,6 +44,15 @@
                 <ul>
                 </ul>
                 <h2>Change Log</h2>
+                <h3>20 December 2020</h3>
+                <ul>
+                    <li>Added ability to be notified if HRL is unable to access the Halo server</li>
+                </ul>
+                <h3>5 July 2020</h3>
+                <ul>
+                    <li>Removal of Player Aliases</li>
+                    <li>Ability to claim Players</li>
+                </ul>
                 <h3>15 Map 2020</h3>
                 <ul>
                     <li>Bug Fixes
@@ -125,7 +130,8 @@
                     <li>Resolved issue causing server crash on Lap report when player had special characters in name. E.G &copy;</li>
                 </ul>
                 <h2>Demo Server</h2>
-                <img src="https://cache.gametracker.com/server_info/163.47.230.216:2302/b_560_95_1.png" border="0" class="img-fluid" alt="HRL Demo Server Information"/>
+                <img src="https://cache.gametracker.com/server_info/167.99.107.96:2302/b_560_95_1.png" border="0" class="img-fluid" alt="HRL Demo Server Information"/>
+                <img src="https://cache.gametracker.com/server_info/167.99.107.96:2304/b_560_95_1.png" border="0" class="img-fluid" alt="HRL Demo Server Information"/>
             </div>
         </div>
         <!-- /.row -->

@@ -16,7 +16,7 @@ class CreateUsersPlayersTable extends Migration
         Schema::create('users_players', function (Blueprint $table) {
             $table->increments('id');
 
-            $table->bigIncrements('user_id')->unsigned();
+            $table->bigInteger('user_id')->unsigned();
             $table->integer('player_id')->unsigned();
             $table->string('claim_code');
             $table->timestamp('claimed_at')->nullable();

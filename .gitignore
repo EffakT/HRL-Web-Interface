@@ -13,5 +13,6 @@ yarn-error.log
 /deploy.php
 .idea
 /deployer.phar
-
 package-lock.json
+*.lock
+prepros.config

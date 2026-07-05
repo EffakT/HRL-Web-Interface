@@ -15,10 +15,12 @@ class MapList extends Component
     public function mount(): void
     {
         // Real global data. `maps.name` is the machine slug; `maps.label` is the public label.
-        // The inner join deliberately excludes maps with no laps because they have no global
-        // leaderboard to visit. Counts and bests span every server.
+        // The inner joins deliberately exclude maps with no laps on active servers because they
+        // have no global leaderboard to visit. Soft-deleted servers are treated as nonexistent.
         $maps = Map::query()
             ->join('lap_times', 'maps.id', '=', 'lap_times.map_id')
+            ->join('servers', 'servers.id', '=', 'lap_times.server_id')
+            ->whereNull('servers.deleted_at')
             ->select(['maps.id', 'maps.label'])
             ->selectRaw('COUNT(lap_times.id) as laps')
             ->selectRaw('MIN(lap_times.time) as best')

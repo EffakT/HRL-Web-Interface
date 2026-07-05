@@ -51,8 +51,8 @@ trait HasLapDetailModal
 
     /**
      * Which player/lap the "vs RECORD" line should name — defaults to player #1 for components
-     * that expose a `$players` array (lap-detail-modal.blade.php's rank-based consumers:
-     * MapLeaderboard's mock, ServerMapLeaderboard's real override). Components that don't use
+     * that expose a `$players` array. Real leaderboard components override this to support the
+     * #1-vs-#2 fallback. Components that don't use
      * that shape (e.g. PlayerShow, still mock, uses `$laps` + lap-vs-record-modal.blade.php)
      * get null here — that partial falls back to the selected lap's own recordHolder/recordTime
      * fields in that case, which is what it always did before this property existed.

@@ -32,11 +32,11 @@
                     <div class="mt-3 flex flex-wrap items-baseline gap-3">
                         <span class="text-3xl font-bold text-hud-text-dim">{{ $sel['rank'] }}</span>
                         <span class="text-2xl font-bold tracking-[0.02em] text-white">{{ $sel['name'] }}</span>
-                        <span class="font-mono text-[11px] text-hud-text-dim">{{ $sel['tag'] }}</span>
+                        <span class="font-mono text-[11px] text-hud-text-dim">{{ $sel['subtitle'] }}</span>
                     </div>
                 </div>
                 <button type="button" wire:click="closeLap"
-                        class="hud-clip-sm flex h-7.5 w-7.5 flex-none items-center justify-center border border-hud-green/30 text-hud-text-muted transition hover:border-hud-red/60 hover:text-hud-red"
+                        class="hud-clip-sm flex h-7.5 w-7.5 flex-none cursor-pointer items-center justify-center border border-hud-green/30 text-hud-text-muted transition hover:border-hud-red/60 hover:text-hud-red"
                         aria-label="Close">
                     ✕
                 </button>
@@ -57,10 +57,14 @@
                     <div class="mb-2 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">GAP TO {{ $reference['label'] ?? 'RECORD' }}</div>
                     <div class="font-mono text-2xl font-extrabold leading-none {{ $gapColorClass }}">{{ $sel['gap'] }}</div>
                     <div class="mt-2 font-mono text-[10px] text-hud-text-dim">
-                        SET {{ $sel['date'] }}
-                        @if ($sel['ping'] ?? null)
-                            · PING {{ $sel['ping'] }}ms
-                        @endif
+                        SET
+                        <span class="group relative inline-block">
+                            {{ $sel['date'] }}
+                            <span x-anchor.top.offset.6="$el.parentElement"
+                                  class="pointer-events-none z-20 hidden whitespace-nowrap border border-hud-green/40 bg-hud-bg px-2 py-1 font-mono text-[9px] font-semibold tracking-[0.04em] text-hud-text-bright shadow-[0_4px_16px_-4px_rgba(0,0,0,.8)] group-hover:block">
+                                {{ $sel['dateExact'] }}
+                            </span>
+                        </span>
                     </div>
                 </div>
             </div>
@@ -154,7 +158,7 @@
                 </div>
             </div>
 
-            <div class="mt-5 flex flex-none gap-2.5">
+            <div class="mt-5 flex flex-none flex-wrap gap-2.5">
                 @if ($sel['playerId'] ?? null)
                     <a href="{{ route('players.show', ['playerId' => $sel['playerId']]) }}"
                        class="hud-clip-sm flex-1 cursor-pointer bg-hud-green py-3 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-[#04140d] transition hover:-translate-y-0.5 hover:shadow-[0_0_26px_-4px_theme(colors.hud-green/80%)]">
@@ -165,8 +169,14 @@
                         VIEW PLAYER
                     </div>
                 @endif
+                @if ($sel['serverId'] ?? null)
+                    <a href="{{ route('servers.show', ['serverId' => $sel['serverId']]) }}"
+                       class="hud-clip-sm min-w-[130px] flex-1 cursor-pointer border border-hud-green/22 py-3 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-hud-text-muted transition hover:border-hud-green/50 hover:text-hud-text">
+                        VIEW SERVER
+                    </a>
+                @endif
                 <button type="button" wire:click="closeLap"
-                        class="hud-clip-sm flex-1 border border-hud-green/22 py-3 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-hud-text-muted transition hover:border-hud-green/50 hover:text-hud-text">
+                        class="hud-clip-sm min-w-[130px] flex-1 cursor-pointer border border-hud-green/22 py-3 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-hud-text-muted transition hover:border-hud-green/50 hover:text-hud-text">
                     CLOSE
                 </button>
             </div>

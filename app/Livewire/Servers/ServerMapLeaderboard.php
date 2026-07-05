@@ -55,6 +55,7 @@ class ServerMapLeaderboard extends Component
             ->with('player')
             ->orderBy('time')
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $this->totalLaps = $laps->count();
@@ -79,11 +80,11 @@ class ServerMapLeaderboard extends Component
                     'playerId' => $lap->player_id,
                     'rank' => str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
                     'name' => $lap->player->name,
-                    'tag' => '',
+                    'subtitle' => '',
                     'time' => $lap->formattedTime(),
                     'gap' => $gap,
                     'date' => $lap->created_at->diffForHumans(),
-                    'ping' => null,
+                    'dateExact' => $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T'),
                 ];
             })
             ->all();

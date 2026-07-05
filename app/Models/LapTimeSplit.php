@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\LapTimeSplitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['lap_time_id', 'checkpoint_id', 'duration', 'start_time', 'end_time'])]
 class LapTimeSplit extends Model
 {
-    /** @use HasFactory<\Database\Factories\LapTimeSplitFactory> */
+    /** @use HasFactory<LapTimeSplitFactory> */
     use HasFactory;
 
     protected function casts(): array
@@ -31,7 +32,7 @@ class LapTimeSplit extends Model
 
     /**
      * Real per-checkpoint comparison between two laps — shared by every Lap Detail modal
-     * consumer that has real split data (currently ServerShow, ServerMapLeaderboard). Returns
+     * consumer that has real split data (ServerShow, ServerMapLeaderboard, MapLeaderboard). Returns
      * rows shaped for lap-vs-record-modal.blade.php/leaderboard-podium-and-table.blade.php's
      * split table, or an empty array only if *neither* lap has recorded splits (real coverage
      * is sparse — see docs/database.md), or the two lap ids are the same (nothing to compare

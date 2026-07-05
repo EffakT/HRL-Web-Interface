@@ -66,7 +66,7 @@ All models exist under `app/Models/`, one per real table, with matching factorie
 | `Server` | `servers` | `SoftDeletes` (has `deleted_at`). `maps()`/`players()` are `belongsToMany` via the pivot tables below, both with `->distinct()` baked in — see "Duplicate pivot rows" below, don't remove it. `lapTimes()`, `claims()` (→ `ServerClaim`). |
 | `Map` | `maps` | `servers()` belongsToMany (`->distinct()`, same caveat), `lapTimes()` hasMany. |
 | `Player` | `players` | `user()` belongsTo (nullable), `servers()` belongsToMany (`->distinct()`, same caveat), `lapTimes()` hasMany, `claims()` (→ `PlayerClaim`). |
-| `LapTime` | `lap_times` | `server()`/`map()`/`player()` belongsTo, `splits()` hasMany. **`created_at`/`updated_at` cast to `'date'` explicitly** (not the implicit `'datetime'` cast Eloquent normally assumes) to reflect the real column type — see the precision warning above. |
+| `LapTime` | `lap_times` | `server()`/`map()`/`player()` belongsTo, `splits()` hasMany. Global queries explicitly require an active `server()`; laps attached to soft-deleted servers are ignored. |
 | `LapTimeSplit` | `lap_time_splits` | `lapTime()` belongsTo. |
 | `PlayerClaim` | `users_players` | `SoftDeletes`. Not a plain pivot — has its own `id`/`claim_code`/`claimed_at`/`deleted_at`, modeled as a first-class model with `belongsTo(User)`/`belongsTo(Player)` rather than forced into a `belongsToMany`. Structural only — claim-code feature work is still deferred, see [scope.md](scope.md). |
 | `ServerClaim` | `users_servers` | Same shape as `PlayerClaim`, for `servers`. |
@@ -88,6 +88,12 @@ All models exist under `app/Models/`, one per real table, with matching factorie
 Both pivot tables contain many duplicate `(server_id, map_id)` / `(player_id, server_id)` rows — confirmed on real data: one server had **207** `servers_maps` rows for only **9** distinct maps, and **201** `players_servers` rows for only **17** distinct players. Almost certainly the old app inserted a new pivot row every time it *saw* a map/player on a server again, rather than upserting or checking for an existing row first — not something to "fix" by deleting rows (that's real historical data of a kind, just not deduplicated), just something every consumer must account for.
 
 **Consequence**: `Server::maps()`, `Server::players()`, `Map::servers()`, and `Player::servers()` all call `->distinct()` in their relation definition so `->get()` / eager loading return correctly deduplicated collections automatically — don't remove that. It's still not a plain count-safe relation, though: `$server->maps()->count()` (the aggregate shortcut) does **not** honor a column-less `->distinct()` and will return the raw (duplicated) row count. For counts, use `$server->maps()->distinct('maps.id')->count('maps.id')` — a bare `->distinct()->count()` silently gives the wrong number. Verified both forms against real data before relying on this pattern anywhere.
+
+## Laps from archived servers are excluded
+
+Two server rows (ids 3 and 4) are soft-deleted but still referenced by historical `lap_times` rows. On map 1 alone, 54 laps reference these archived servers. A first real global-leaderboard pass tried to retain and label that history, but the user explicitly chose the simpler product rule: **if a server is trashed, treat it as though it does not exist**.
+
+`LapTime::server()` keeps the normal soft-delete scope. Global leaderboard, Map List aggregates, and Server Single's global-record lookup all require an existing active server (`whereHas('server')` or an active-server join), so archived-server laps do not affect counts, bests, rankings, or record references.
 
 ## Key model decisions
 

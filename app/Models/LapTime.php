@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\LapTimeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['server_id', 'map_id', 'player_id', 'time'])]
 class LapTime extends Model
 {
-    /** @use HasFactory<\Database\Factories\LapTimeFactory> */
+    /** @use HasFactory<LapTimeFactory> */
     use HasFactory;
 
     protected function casts(): array

@@ -1,5 +1,4 @@
-{{-- Expects: $players, $splits, $totalLaps (optional — total laps ever recorded here, for the
-     "SHOWING X / Y" footer; falls back to the old mock constant when not passed) --}}
+{{-- Expects: $players, $splits, $totalLaps (total raw laps, distinct from ranked drivers) --}}
 {{-- Table below only lists rank 4+ — top 3 are already shown in the podium above. --}}
 @php $rest = array_slice($players, 3, null, true); @endphp
 
@@ -11,7 +10,7 @@
         <div wire:click="openLap(1)" class="hud-clip-sm order-2 cursor-pointer border border-hud-cyan/20 bg-gradient-to-b from-[#101915] to-[#0b120f] px-4 py-4.5 transition hover:-translate-y-1 hover:border-hud-cyan/55 tp:order-1">
             <div class="mb-3.5 text-2xl font-bold text-hud-cyan">{{ $p[1]['rank'] }}</div>
             <div class="text-base font-semibold tracking-[0.03em] text-hud-text">{{ $p[1]['name'] }}</div>
-            <div class="mt-0.5 font-mono text-[10px] text-hud-text-dim">{{ $p[1]['tag'] }}</div>
+            <div class="mt-0.5 font-mono text-[10px] text-hud-text-dim">{{ $p[1]['subtitle'] }}</div>
             <div class="mt-3.5 font-mono text-2xl font-bold text-hud-text-bright">{{ $p[1]['time'] }}</div>
             <div class="mt-1 font-mono text-[11px] font-semibold text-hud-cyan">{{ $p[1]['gap'] }}</div>
         </div>
@@ -25,7 +24,7 @@
                 <span class="text-3xl font-bold text-hud-green [text-shadow:0_0_22px_rgba(52,227,155,.6)]">{{ $p[0]['rank'] }}</span>
             </div>
             <div class="text-xl font-bold tracking-[0.02em] text-white">{{ $p[0]['name'] }}</div>
-            <div class="mt-1 font-mono text-[10px] text-hud-text-dim">{{ $p[0]['tag'] }}</div>
+            <div class="mt-1 font-mono text-[10px] text-hud-text-dim">{{ $p[0]['subtitle'] }}</div>
             <div class="mt-4 font-mono text-4xl font-extrabold leading-none text-hud-text-bright [text-shadow:0_0_26px_rgba(52,227,155,.4)]">{{ $p[0]['time'] }}</div>
             {{-- Split pace sparkline — scales to any split count (some maps have up to 14). Times aren't
                  spelled out statically here (no room at 14 splits); hover a segment to see one. --}}
@@ -35,18 +34,24 @@
                     <span>SPLIT PACE</span>
                     <span>{{ count($splits) }} CHECKPOINTS</span>
                 </div>
-                <div class="flex h-2.5 gap-0.5 border border-hud-green/14 bg-white/5 p-0.5">
-                    @foreach ($splits as $split)
-                        @php $isFaster = (float) $split['time'] <= $avgSplitTime; @endphp
-                        <div class="group relative h-full" style="flex-grow: {{ (float) $split['time'] }}; flex-basis: 0;">
-                            <div class="h-full w-full {{ $isFaster ? 'bg-hud-green' : 'bg-hud-gold' }}"></div>
-                            <div x-anchor.top.offset.6="$el.parentElement"
-                                 class="pointer-events-none z-20 hidden whitespace-nowrap border border-hud-green/40 bg-hud-bg px-2 py-1 font-mono text-[9px] font-semibold tracking-[0.04em] text-hud-text-bright shadow-[0_4px_16px_-4px_rgba(0,0,0,.8)] group-hover:block">
-                                {{ $split['label'] }} · <span class="{{ $isFaster ? 'text-hud-green' : 'text-hud-gold' }}">{{ $split['time'] }}s</span>
+                @if (count($splits) > 0)
+                    <div class="flex h-2.5 gap-0.5 border border-hud-green/14 bg-white/5 p-0.5">
+                        @foreach ($splits as $split)
+                            @php $isFaster = (float) $split['time'] <= $avgSplitTime; @endphp
+                            <div class="group relative h-full" style="flex-grow: {{ (float) $split['time'] }}; flex-basis: 0;">
+                                <div class="h-full w-full {{ $isFaster ? 'bg-hud-green' : 'bg-hud-gold' }}"></div>
+                                <div x-anchor.top.offset.6="$el.parentElement"
+                                     class="pointer-events-none z-20 hidden whitespace-nowrap border border-hud-green/40 bg-hud-bg px-2 py-1 font-mono text-[9px] font-semibold tracking-[0.04em] text-hud-text-bright shadow-[0_4px_16px_-4px_rgba(0,0,0,.8)] group-hover:block">
+                                    {{ $split['label'] }} · <span class="{{ $isFaster ? 'text-hud-green' : 'text-hud-gold' }}">{{ $split['time'] }}s</span>
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="border border-hud-green/14 bg-white/5 px-2 py-2 text-center font-mono text-[9px] text-hud-text-dim">
+                        No split data available for this lap.
+                    </div>
+                @endif
             </div>
         </div>
     @endif
@@ -56,7 +61,7 @@
         <div wire:click="openLap(2)" class="hud-clip-sm order-3 cursor-pointer border border-hud-gold/22 bg-gradient-to-b from-[#171410] to-[#0e0b08] px-4 py-4.5 transition hover:-translate-y-1 hover:border-hud-gold/55">
             <div class="mb-3.5 text-2xl font-bold text-hud-gold">{{ $p[2]['rank'] }}</div>
             <div class="text-base font-semibold tracking-[0.03em] text-[#e6ddc9]">{{ $p[2]['name'] }}</div>
-            <div class="mt-0.5 font-mono text-[10px] text-[#7c6e52]">{{ $p[2]['tag'] }}</div>
+            <div class="mt-0.5 font-mono text-[10px] text-[#7c6e52]">{{ $p[2]['subtitle'] }}</div>
             <div class="mt-3.5 font-mono text-2xl font-bold text-[#f6eede]">{{ $p[2]['time'] }}</div>
             <div class="mt-1 font-mono text-[11px] font-semibold text-hud-gold">{{ $p[2]['gap'] }}</div>
         </div>
@@ -74,16 +79,23 @@
             <span class="text-[15px] font-bold text-hud-text-dim">{{ $player['rank'] }}</span>
             <div>
                 <div class="text-sm font-semibold tracking-[0.02em] text-hud-text">{{ $player['name'] }}</div>
-                <div class="mt-px font-mono text-[9px] text-hud-text-dim">{{ $player['tag'] }}</div>
+                <div class="mt-px font-mono text-[9px] text-hud-text-dim">{{ $player['subtitle'] }}</div>
             </div>
             <span class="font-mono text-xs font-semibold text-hud-gold">{{ $player['gap'] }}</span>
             <span class="text-right font-mono text-[15px] font-bold text-hud-text-bright">{{ $player['time'] }}</span>
-            <span class="text-right font-mono text-[10px] text-hud-text-dim">{{ $player['date'] }}</span>
+            <span class="text-right font-mono text-[10px] text-hud-text-dim">
+                <span class="group relative inline-block">
+                    {{ $player['date'] }}
+                    <span x-anchor.top.offset.6="$el.parentElement"
+                          class="pointer-events-none z-20 hidden whitespace-nowrap border border-hud-green/40 bg-hud-bg px-2 py-1 font-mono text-[9px] font-semibold tracking-[0.04em] text-hud-text-bright shadow-[0_4px_16px_-4px_rgba(0,0,0,.8)] group-hover:block">
+                        {{ $player['dateExact'] }}
+                    </span>
+                </span>
+            </span>
         </button>
     @endforeach
     <div class="flex items-center justify-between px-3.5 py-4 font-mono text-[10px] tracking-[0.1em] text-hud-text-dim">
-        <span>SHOWING {{ count($players) }} / {{ $totalLaps ?? 128 }} LAPS</span>
-        <span class="tracking-[0.14em]">‹ PREV&nbsp;&nbsp;·&nbsp;&nbsp;1&nbsp;&nbsp;2&nbsp;&nbsp;3&nbsp;&nbsp;·&nbsp;&nbsp;NEXT ›</span>
+        <span>SHOWING {{ count($players) }} DRIVERS · {{ $totalLaps }} LAPS</span>
     </div>
 </div>
 

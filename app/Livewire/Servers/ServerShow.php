@@ -106,10 +106,11 @@ class ServerShow extends Component
 
         $mapIds = collect($paginator->items())->pluck('map_id')->unique();
 
-        // Course record (global best, any server) per map on this page — cheap summary line for
+        // Course record (global best, any active server) per map on this page — cheap summary line for
         // the modal's "vs MAP RECORD" comparison. Split-by-split comparison itself stays mock
         // (see lap-vs-record-modal.blade.php) — real per-checkpoint comparison isn't built yet.
         $recordsByMap = LapTime::whereIn('map_id', $mapIds)
+            ->whereHas('server')
             ->with('player')
             ->get()
             ->groupBy('map_id')
@@ -193,6 +194,7 @@ class ServerShow extends Component
 
         $runnerUp = LapTime::with('player')
             ->where('map_id', $lap['mapId'])
+            ->whereHas('server')
             ->where('id', '!=', $lap['lapId'])
             ->orderBy('time')
             ->orderBy('created_at')

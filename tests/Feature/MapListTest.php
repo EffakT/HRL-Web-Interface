@@ -37,8 +37,15 @@ it('shows real map labels with global lap counts and best times', function () {
         ->assertSee('0:59.90');
 });
 
-it('hides maps without laps because they have no leaderboard', function () {
-    Map::factory()->create(['label' => 'Unraced Map']);
+it('hides maps without laps on active servers because they have no leaderboard', function () {
+    $map = Map::factory()->create(['label' => 'Unraced Map']);
+    $server = Server::factory()->create();
+
+    LapTime::factory()->create([
+        'map_id' => $map->id,
+        'server_id' => $server->id,
+    ]);
+    $server->delete();
 
     $this->get('/maps')
         ->assertDontSee('Unraced Map');

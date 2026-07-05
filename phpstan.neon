@@ -1,0 +1,11 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - routes
+
+    # Start lenient (5) since real backend code doesn't exist yet — the whole app is
+    # frontend-on-mock-data. Raise this as real models/controllers/jobs get built.
+    level: 5

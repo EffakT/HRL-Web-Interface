@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    /* Custom breakpoint scale — replaces Tailwind's default sm/md/lg/xl/2xl entirely. */
+    --breakpoint-*: initial;
+    --breakpoint-mm: 375px;
+    --breakpoint-ml: 500px;
+    --breakpoint-tp: 735px;
+    --breakpoint-tl: 1020px;
+    --breakpoint-d: 1270px;
+    --breakpoint-dlg: 1440px;
+    --breakpoint-dxlg: 1800px;
+    --breakpoint-dxxlg: 2160px;
+
+    --font-sans: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    --color-hud-bg: #040706;
+    --color-hud-bg-glow: #0a1a14;
+    --color-hud-panel: #070b0a;
+    --color-hud-modal-start: #0e1713;
+    --color-hud-modal-end: #0a110e;
+    --color-hud-green: #34e39b;
+    --color-hud-cyan: #37d0e0;
+    --color-hud-gold: #f2b544;
+    --color-hud-red: #f2544e;
+
+    --color-hud-text-bright: #eaf5f0;
+    --color-hud-text: #d7e4de;
+    --color-hud-text-muted: #9fb3aa;
+    --color-hud-text-dim: #6b7d75;
+    --color-hud-text-faint: #4a5c54;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+body {
+    background-color: var(--color-hud-bg);
+    background-image: radial-gradient(120% 80% at 50% -10%, var(--color-hud-bg-glow), var(--color-hud-bg) 60%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+    /* Clipped-corner motif — top-right + bottom-left cut, used instead of border-radius on HUD panels */
+    .hud-clip {
+        clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+    }
+
+    .hud-clip-sm {
+        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    }
+
+    .hud-scanlines {
+        background-image: repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgb(0 0 0 / 0.16) 3px, rgb(0 0 0 / 0.16) 4px);
+        mix-blend-mode: overlay;
+        opacity: 0.55;
+    }
+
+    /* HUD "power-on" flicker — layered on top of the enter transition for modal panels */
+    .hud-flicker-in {
+        animation: hud-flicker 0.4s ease-out;
+    }
+}
+
+@keyframes hud-flicker {
+    0% {
+        box-shadow: 0 0 0 1px rgba(52, 227, 155, 0.8), 0 0 70px -6px rgba(52, 227, 155, 1);
+    }
+    30% {
+        box-shadow: 0 0 0 1px rgba(52, 227, 155, 0.1), 0 0 20px -8px rgba(52, 227, 155, 0.25);
+    }
+    55% {
+        box-shadow: 0 0 0 1px rgba(52, 227, 155, 0.55), 0 0 50px -8px rgba(52, 227, 155, 0.75);
+    }
+    100% {
+        box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.85), 0 0 76px -14px rgba(52, 227, 155, 0.4);
+    }
+}

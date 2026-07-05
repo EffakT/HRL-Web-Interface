@@ -1,0 +1,55 @@
+rules:
+  - id: blade-unescaped-output
+    languages: [generic]
+    severity: WARNING
+    message: >-
+      Unescaped Blade output ({!! !!}) found. This bypasses Laravel's automatic
+      XSS escaping — only use it for content you've explicitly sanitized (e.g. a
+      trusted rich-text field), never for raw user input or request data.
+    paths:
+      include:
+        - "resources/views/**/*.blade.php"
+    patterns:
+      - pattern: "{!! $X !!}"
+
+  - id: raw-sql-with-interpolation
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Raw SQL string with variable interpolation. Use Eloquent/query builder
+      parameter binding instead — string interpolation into SQL is a SQL
+      injection vector even if the value "looks" safe today.
+    patterns:
+      - pattern-either:
+          - pattern: DB::select("...$X...")
+          - pattern: DB::statement("...$X...")
+          - pattern: DB::raw("...$X...")
+
+  - id: hardcoded-credential-like-string
+    languages: [php]
+    severity: WARNING
+    message: >-
+      Possible hardcoded credential/secret. Use config()/env() referencing
+      .env instead of inlining secrets in PHP source.
+    patterns:
+      - pattern-either:
+          - pattern: $PASSWORD = "..."
+          - pattern: $SECRET = "..."
+          - pattern: $API_KEY = "..."
+    metavariable-regex:
+      metavariable: $PASSWORD
+      regex: (?i)(password|secret|api_key|apikey|token)
+
+  - id: livewire-mount-missing-validation-reminder
+    languages: [php]
+    severity: INFO
+    message: >-
+      Livewire mount() takes a route-bound parameter — if this ever becomes a
+      real (non-mock) lookup, validate/authorize it (404 on missing record,
+      policy check on ownership) rather than trusting the raw route value.
+    paths:
+      include:
+        - "app/Livewire/**/*.php"
+    patterns:
+      - pattern: |
+          function mount($PARAM) { ... }

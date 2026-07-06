@@ -38,3 +38,13 @@ it('excludes archived-server laps from global record references', function () {
         ->and($laps[0]['recordHolder'])->toBe('Active Record Holder')
         ->and($laps[0]['recordTime'])->toBe('1:05.00');
 });
+
+it('links Top Players to the server-scoped player profile, not the global one', function () {
+    $server = Server::factory()->create();
+    $map = Map::factory()->create();
+    $player = Player::factory()->create();
+    LapTime::factory()->create(['server_id' => $server->id, 'map_id' => $map->id, 'player_id' => $player->id]);
+
+    $this->get(route('servers.show', ['serverId' => $server->id]))
+        ->assertSee(route('servers.players.show', ['serverId' => $server->id, 'playerId' => $player->id]), escape: false);
+});

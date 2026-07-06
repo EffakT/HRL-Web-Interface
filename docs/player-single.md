@@ -55,6 +55,16 @@ A **limited, reverse-chronological feed** of this player's most recent laps — 
 
 Like [players-list.md](players-list.md), most of this page (Global Rank/Score, Points, Map Rank) depends on [global-ranking.md](global-ranking.md) being implemented first — see [roadmap.md](roadmap.md).
 
+## Server-scoped variant (added 2026-07-06, on request)
+
+`/servers/{serverId}/players/{playerId}` (`App\Livewire\Servers\ServerPlayerShow`) — reached by clicking a player from Server Single's Top Players list, rather than the global Players List. **Status: built, real data.**
+
+- **Header badges**: both scopes shown together, not one replacing the other — **Server Rank**/**Server Score** (`GlobalRanking::forPlayer($playerId, $serverId)` — the same "Server Score" variant Server Single's own Top Players table already uses) alongside **Global Rank**/**Global Score** (the same unscoped call `PlayerShow` uses) for context. A "VIEW GLOBAL PROFILE ›" link goes to the full `/players/{playerId}` page.
+- **Stats Card, Performance by Map, Recent Laps**: all isolated to laps on this one server — same underlying assembly as the global page (`App\Models\PlayerProfile::build()`, extracted from `PlayerShow` once this page needed the identical thing scoped, per [coding-standards.md](coding-standards.md)'s "extract on the second genuine duplicate" rule), just called with `$serverId` set. "Servers Played" is dropped from the Stats Card here — it's always 1 once scoped, not an interesting number.
+- **No Fav[orite] Servers section** — meaningless when the whole page is already one server.
+- **Course record references stay global, not server-scoped** — "record" always means the fastest lap anywhere in this app (see [decisions.md](decisions.md)), consistent with Server Single's own Latest Laps section, which already compares against the global record despite being a server page.
+- **404s for a player with no real ranking on this server** — reached only via a real link from an already-ranked row, so a direct URL hit for a player who's never raced here isn't a page worth rendering.
+
 ## Open items
 
 - Whether a full (not just "recent") lap-history view for one player is ever wanted — not requested, just flagging the gap.

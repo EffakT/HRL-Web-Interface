@@ -24,7 +24,7 @@
                     <span>#</span><span>PLAYER</span><span class="text-right">SCORE</span><span class="text-right">RECORDS</span><span class="text-right">MAPS</span><span class="text-right">LAPS</span>
                 </div>
                 @foreach ($rankedPlayers as $player)
-                    <a href="{{ route('players.show', ['playerId' => $player['id']]) }}"
+                    <a href="{{ route('servers.players.show', ['serverId' => $serverId, 'playerId' => $player['id']]) }}"
                        class="grid grid-cols-[52px_1fr_90px_90px_70px_70px] items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="text-[15px] font-bold text-hud-text-dim">{{ $player['rank'] }}</span>
                         <div class="min-w-0 truncate text-sm font-semibold text-hud-text">{{ $player['name'] }}</div>
@@ -53,7 +53,7 @@
             <!-- mobile list -->
             <div class="mt-8 tp:hidden">
                 @foreach ($rankedPlayers as $player)
-                    <a href="{{ route('players.show', ['playerId' => $player['id']]) }}"
+                    <a href="{{ route('servers.players.show', ['serverId' => $serverId, 'playerId' => $player['id']]) }}"
                        class="flex items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="w-6.5 flex-none text-[15px] font-bold text-hud-text-dim">{{ $player['rank'] }}</span>
                         <div class="min-w-0 flex-1 truncate text-sm font-semibold text-hud-text">{{ $player['name'] }}</div>

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Players;
+namespace App\Livewire\Servers;
 
 use App\Livewire\Concerns\HasLapDetailModal;
 use App\Livewire\Concerns\HasRecordVsRunnerUpReference;
@@ -8,13 +8,26 @@ use App\Models\GlobalRanking;
 use App\Models\LapTimeSplit;
 use App\Models\Player;
 use App\Models\PlayerProfile;
+use App\Models\Server;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-#[Layout('components.layout', ['title' => 'Player', 'active' => 'players'])]
-class PlayerShow extends Component
+/**
+ * A player's profile scoped to one server — reached by clicking a player from Server Single's
+ * Top Players list. Shows Server Rank/Score alongside Global Rank/Score for context (rather
+ * than only one or the other), and every stat (Performance by Map, Recent Laps, Stats Card)
+ * isolated to laps on this server — plus a link out to the full global profile
+ * (App\Livewire\Players\PlayerShow) for anyone who wants the complete picture. See
+ * docs/player-single.md and docs/decisions.md.
+ */
+#[Layout('components.layout', ['title' => 'Player', 'active' => 'servers'])]
+class ServerPlayerShow extends Component
 {
     use HasLapDetailModal, HasRecordVsRunnerUpReference;
+
+    public int $serverId;
+
+    public string $serverName;
 
     public string $playerId;
 
@@ -34,59 +47,43 @@ class PlayerShow extends Component
     /** Keys into $laps for the Recent Laps feed, in reverse-chronological order. */
     public array $recentLapKeys = [];
 
-    public array $favServers = [];
-
-    public function mount(string $playerId): void
+    public function mount(string $serverId, string $playerId): void
     {
+        $server = Server::findOrFail($serverId);
         $player = Player::findOrFail($playerId);
 
+        $this->serverId = $server->id;
+        $this->serverName = $server->name;
         $this->playerId = $playerId;
         $this->playerName = $player->name;
 
-        $ranking = GlobalRanking::forPlayer($player->id);
-        $perMap = collect($ranking['perMap'] ?? []);
+        $serverRanking = GlobalRanking::forPlayer($player->id, $server->id);
+
+        // Reached by clicking a real row in Server Single's Top Players list, so this player is
+        // always ranked on this server in practice — abort rather than render an empty profile
+        // for a direct URL hit on a player who's never actually raced here.
+        abort_if($serverRanking === null, 404);
+
+        $globalRanking = GlobalRanking::forPlayer($player->id);
 
         $this->playerInfo = [
-            'globalRank' => $ranking['rank'] ?? '—',
-            'globalScore' => $ranking['score'] ?? 0,
+            'serverRank' => $serverRanking['rank'],
+            'serverScore' => $serverRanking['score'],
+            'globalRank' => $globalRanking['rank'] ?? '—',
+            'globalScore' => $globalRanking['score'] ?? 0,
         ];
 
-        $profile = PlayerProfile::build($player, $ranking);
+        $profile = PlayerProfile::build($player, $serverRanking, $server->id);
         $this->laps = $profile['laps'];
         $this->performanceKeys = $profile['performanceKeys'];
         $this->recentLapKeys = $profile['recentLapKeys'];
+        $this->statsCard = $profile['statsCard'];
         $this->achievements = $profile['achievements'];
-
-        // All of this player's real laps (every attempt, not just per-map bests) — Fav Servers
-        // needs full lap volume grouped by server, not just PB rows.
-        $allLaps = $player->lapTimes()->whereHas('server')->with('server')->get();
-
-        $this->statsCard = [
-            ...$profile['statsCard'],
-            'serversPlayed' => $allLaps->pluck('server_id')->unique()->count(),
-        ];
-
-        // Fav[orite] Servers — sorted by lap count descending (assumption, see
-        // docs/player-single.md). bestRank is this player's best Map Rank among the maps whose
-        // PB was set on that server; null (rendered as "—") if none of their per-map bests
-        // happen to live on that server.
-        $bestRankByServer = $perMap->groupBy('serverId')->map(fn ($group) => $group->min('rank'));
-
-        $this->favServers = $allLaps->groupBy('server_id')
-            ->map(fn ($group, $serverId) => [
-                'serverId' => (int) $serverId,
-                'server' => $group->first()->server->name,
-                'laps' => $group->count(),
-                'bestRank' => $bestRankByServer[$serverId] ?? null,
-            ])
-            ->sortByDesc('laps')
-            ->values()
-            ->all();
     }
 
     /**
      * Real per-checkpoint split comparison against the map's course-record lap — same pattern
-     * as ServerShow, via the shared HasRecordVsRunnerUpReference trait.
+     * as PlayerShow/ServerShow, via the shared HasRecordVsRunnerUpReference trait.
      */
     public function getComparisonProperty(): array
     {
@@ -109,6 +106,6 @@ class PlayerShow extends Component
 
     public function render()
     {
-        return view('livewire.players.player-show');
+        return view('livewire.servers.server-player-show');
     }
 }

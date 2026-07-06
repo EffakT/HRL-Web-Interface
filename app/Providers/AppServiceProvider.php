@@ -30,8 +30,10 @@ class AppServiceProvider extends ServiceProvider
 
         // The lap-submission webhook (docs/database.md) is machine-to-machine, not a browsing
         // client — a busy server with several racers can legitimately submit far more often
-        // than 60/min, so it gets its own, more generous per-IP limit rather than sharing the
-        // public read API's budget.
-        RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip()));
+        // than 60/min, so it gets its own, more generous limit rather than sharing the public
+        // read API's budget. Keyed by ip+port (the submitted server identity), not IP alone —
+        // see docs/security.md's SEC-01 note — so multiple distinct game servers sharing one
+        // host's IP don't share a single budget.
+        RateLimiter::for('webhook', fn (Request $request) => Limit::perMinute(120)->by($request->ip().':'.$request->input('port')));
     }
 }

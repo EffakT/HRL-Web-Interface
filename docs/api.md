@@ -47,17 +47,19 @@ Live-queries the actual game server over UDP (see [database.md](database.md)'s "
 
 Fires `App\Events\LeaderboardUpdated` (`ShouldBroadcast`) only when `isNewRecord` — sets up roadmap item 16 (Reverb/Echo) without depending on it; with no broadcast driver wired up yet, this currently just logs.
 
-**No auth**, same as the read endpoints and the old app's equivalent — explicitly reconfirmed with the user during this rebuild rather than assumed. **Its own rate limit**: 120/min per IP (not the read API's 60/min) — see "Rate limiting" below.
+**No login/token-based auth**, same as the read endpoints and the old app's equivalent. It does now cross-check every submission against a live UDP query to the submitting game server (see [security.md](security.md)'s "SEC-01 — HRL query verification") — not a credential, but the closest thing to authentication available without TLS/HMAC support on the Lua side. **Its own rate limit**: 120/min per ip:port (not the read API's 60/min) — see "Rate limiting" below.
 
 ## Auth
 
-**Decided: none, for now.** The whole site is already a fully public leaderboard with no login system — these endpoints expose nothing the website itself doesn't already show. Per-user API tokens (the old app's approach) don't make sense to port until a real auth/account system exists (still an open question — see [roadmap.md](roadmap.md)). Rate limiting, not auth, is the actual protection against abuse (see below). Revisit if a future feature needs to distinguish *who* is calling the API, not just *how often*.
+**No login/API-token auth, still.** The whole site is already a fully public leaderboard with no login system — these endpoints expose nothing the website itself doesn't already show. Per-user API tokens (the old app's approach) don't make sense to port until a real auth/account system exists (still an open question — see [roadmap.md](roadmap.md)).
+
+The lap-submission webhook is the one exception to "rate limiting is the only protection" — a 2026-07-07 audit flagged the fully-open webhook as critical (SEC-01), so it now also requires a live UDP query cross-check (see [security.md](security.md)) before a submission is trusted, in addition to its rate limit. The read endpoints remain unauthenticated by design — they only expose data the site already shows publicly.
 
 ## Rate limiting
 
 The read endpoints: 60 requests/minute per IP, via Laravel's built-in `throttle:api` middleware (`RateLimiter::for('api', ...)` in `AppServiceProvider`). A starting point, not a measured/tuned value — revisit if real usage says otherwise.
 
-The webhook (`POST /laps`): its own, more generous `webhook` limiter — 120/min per IP — since it's machine-to-machine (a busy game server with several racers can legitimately submit far more often than a browsing client would). Explicitly opts out of the read API's `throttle:api` (`->withoutMiddleware('throttle:api')`) so the two budgets are independent.
+The webhook (`POST /laps`): its own, more generous `webhook` limiter — 120/min per **ip:port** (not IP alone, since 2026-07-07 — see [security.md](security.md)'s SEC-01 note, so multiple distinct game servers behind one host IP don't share a budget) — since it's machine-to-machine (a busy game server with several racers can legitimately submit far more often than a browsing client would). Explicitly opts out of the read API's `throttle:api` (`->withoutMiddleware('throttle:api')`) so the two budgets are independent.
 
 ## Versioning
 

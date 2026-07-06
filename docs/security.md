@@ -27,7 +27,27 @@ No formal security review has been done yet. Phase 2 real-data integration is un
 - **Auth** (`/login`, `/register`) — not built. No password hashing/session strategy beyond Laravel defaults has been exercised yet.
 - **Authorization** — no policies/gates exist yet since no models/auth exist. Once the claim-code ownership system (`users_players`/`users_servers`) is revisited, ownership-based authorization will need real policies (server/player owners being allowed to, e.g., delete their own laps — see [roadmap.md](roadmap.md) "Future Plans" ported from the old site).
 - ~~**Rate limiting** on the future public API~~ — **done (2026-07-06)**: 60/min per IP via Laravel's `throttle:api` for the read endpoints, 120/min per IP via its own `webhook` limiter for `POST /api/v1/laps`, see [api.md](api.md).
-- ~~**Webhook authentication**~~ — **confirmed and decided (2026-07-06)**: the old webhook had no authentication mechanism at all — any IP could POST fabricated laps. Rather than port this silently, it was surfaced to the user explicitly before the rebuild (add a shared-secret header vs. keep it open). **Decision: keep it open**, matching the old app. This remains a real gap — anyone who finds the endpoint can inject fake leaderboard entries — but it's now a deliberate, documented choice rather than an unexamined port. Revisit if abuse actually happens; see [database.md](database.md) and [decisions.md](decisions.md).
+- ~~**Webhook authentication**~~ — **superseded (2026-07-07), see below.** The 2026-07-06 decision to keep the webhook open (matching the old app) was reversed after a site audit flagged it as SEC-01/critical: an unauthenticated caller could fabricate leaderboard data outright.
+
+### SEC-01 — HRL query verification (added 2026-07-07)
+
+The webhook can't use TLS/HMAC on the game-server side — the Lua/SAPP script that submits laps isn't part of this repo and isn't known to have that capability. Instead, `App\Helpers\LapSubmissionVerifier` (used by `LapSubmissionController::store()`) cross-checks every submission against a **live UDP `\query` response from the same ip:port the HTTP request came from**, reusing the protocol already built for roadmap item 19 (`App\Helpers\QueryServer`, `App\Models\Server`'s live-query fields). This binds the HTTP submission to a game server that is actually running an HRL-aware script, currently on the submitted map, with the submitting player online — without needing any cryptography on the Lua side.
+
+The Lua script must publish these query_add fields (SAPP's existing `query_add <key> <value>` capability) alongside the standard ones (`hostname`, `mapname`, `player_0..N`, etc.):
+
+```text
+hrl_enabled = 1
+hrl_protocol = 1
+hrl_token = <short-lived random value, rotated periodically>
+```
+
+...and include the same `hrl_token` value as an `hrl_token` field in the HTTP submission body. `LapSubmissionVerifier::verify()` then requires, in order: a successful UDP query (one retry on failure), `hrl_enabled === '1'`, a supported `hrl_protocol` (config `webhook.hrl_query.supported_protocol`), a matching `hrl_token`, `mapname` matching the submitted `map_name`, and the submitted `player_name` appearing among the response's `player_0`/`player_1`/... values. Any failure returns a structured reason (`udp_timeout`, `missing_hrl_marker`, `protocol_unsupported`, `token_mismatch`, `map_mismatch`, `player_not_online`) that's logged.
+
+**Rollout note — `enforce` defaults to `false`** (`config/webhook.php`, env `WEBHOOK_HRL_VERIFY_ENFORCE`): a failed verification is logged but the lap is still recorded. This is deliberate, not a bug — real game servers are still running Lua scripts written before this feature existed, and none of them publish `hrl_*` fields yet. Flipping `enforce` to `true` before every active server's script is updated would silently reject every legitimate submission. Turn it on only once the rollout is confirmed complete (watch the warning logs for `missing_hrl_marker` from known-good servers dropping to zero).
+
+**What this doesn't protect against**: a server operator controls their own query responses and could fabricate activity *on their own server* (they already could, by running a real client and legitimately racing). An on-path attacker between this app and a legitimate server could still observe or alter plaintext HTTP/UDP traffic — this is verification of "a live HRL-aware game server is actually there," not encryption or non-repudiation. The audit's alternative (a local TLS-terminating relay per game-server host, HMAC/mTLS) would close that gap but requires real infrastructure work outside this repo on every game-server host; not pursued here.
+
+A short-window duplicate-payload guard (`Cache::add`, `config('webhook.duplicate_window_seconds')`, default 10s) runs independently of HRL verification — an identical (ip, port, player, map, time, token) payload arriving again within the window is rejected outright (`409`, `reason: duplicate_submission`), a cheap defense against naive replay or a Lua-side retry-on-timeout double-submitting the same lap.
 - **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data. The lap-submission webhook (2026-07-06) is the one exception so far — validated via `StoreLapTimeRequest`.
 
 ## Guidance going forward

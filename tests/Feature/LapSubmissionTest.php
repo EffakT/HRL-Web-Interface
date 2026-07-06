@@ -151,3 +151,53 @@ it('validates the payload', function () {
     submitLap(['player_time' => 'not-a-number'])->assertUnprocessable();
     submitLap(['map_name' => null])->assertUnprocessable();
 });
+
+// SEC-01 (docs/security.md) — HRL query verification. `enforce` defaults to false so these
+// don't need touching every other test above: an unverified submission still gets recorded,
+// just logged, since real game servers won't all have an updated Lua script on day one.
+it('still records the lap when HRL verification fails but enforcement is off (the default)', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery(['hostname' => 'Legacy Server', 'numplayers' => '1']); // no hrl_* fields
+
+    submitLap()->assertOk()->assertJson(['success' => true]);
+
+    expect(LapTime::count())->toBe(1);
+});
+
+it('rejects a submission that fails HRL verification once enforcement is on', function () {
+    config(['webhook.hrl_query.enforce' => true]);
+    fakeGameServerQuery(['hostname' => 'Legacy Server', 'numplayers' => '1']); // no hrl_* fields
+
+    submitLap()
+        ->assertStatus(403)
+        ->assertJson(['success' => false, 'reason' => 'missing_hrl_marker']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('accepts a submission that matches a live, HRL-enabled query response under enforcement', function () {
+    config(['webhook.hrl_query.enforce' => true]);
+    fakeGameServerQuery([
+        'hostname' => 'Real Halo Server',
+        'hrl_enabled' => '1',
+        'hrl_protocol' => '1',
+        'hrl_token' => 'secret-token',
+        'mapname' => 'bloodgulch',
+        'player_0' => 'Effakt',
+    ]);
+
+    submitLap(['hrl_token' => 'secret-token'])->assertOk()->assertJson(['success' => true]);
+
+    expect(LapTime::count())->toBe(1);
+});
+
+it('rejects an exact duplicate submission arriving again within the dedupe window', function () {
+    fakeGameServerQuery();
+
+    submitLap()->assertOk();
+    submitLap()
+        ->assertStatus(409)
+        ->assertJson(['success' => false, 'reason' => 'duplicate_submission']);
+
+    expect(LapTime::count())->toBe(1);
+});

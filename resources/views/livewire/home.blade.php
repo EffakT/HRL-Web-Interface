@@ -74,12 +74,13 @@
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Full re-design of the app</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Conversion to a Progressive Web App</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grid" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind.</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Enhanced lag detection, particularly ping stability measures (maybe EMA?)</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Server admin lap deletion</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability for players to delete their own laps</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Client-side tracking (Chimera, Maybe Optic support via HAC2)</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Support for Halo Custom Edition</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Record-break notifications via email, opt-in per server/map</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Client-side tracking (Chimera, Maybe Optic support via HAC2) - Currently in progress</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Support for Halo Custom Edition - testing process</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Record-break notifications via email, opt-in per server/map - is email the best solution? maybe push notifications via API?</li>
             </ul>
         </div>
 

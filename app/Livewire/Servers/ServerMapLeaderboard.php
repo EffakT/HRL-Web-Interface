@@ -9,6 +9,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Map;
 use App\Models\Server;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -48,6 +49,23 @@ class ServerMapLeaderboard extends Component
         $this->server = $server->name;
         $this->map = $map->label;
 
+        $this->loadLeaderboard($server, $map);
+    }
+
+    /**
+     * Live update (roadmap item 16) — a genuine PB/record on this exact server+map. The channel
+     * name embeds the component's own `serverParam`/`mapParam` properties, so Livewire only
+     * subscribes to this specific pairing, not every server's updates for this map (that's
+     * `MapLeaderboard`'s `maps.{mapId}` channel instead — see App\Events\LeaderboardUpdated).
+     */
+    #[On('echo-public:servers.{serverParam}.maps.{mapParam},leaderboard.updated')]
+    public function onLeaderboardUpdated(): void
+    {
+        $this->loadLeaderboard(Server::findOrFail($this->serverParam), Map::findOrFail($this->mapParam));
+    }
+
+    private function loadLeaderboard(Server $server, Map $map): void
+    {
         // Ranked leaderboard: one row per player, their best lap on this server+map. Ties go to
         // whoever set the time earliest (same tie-break precedent as global-ranking.md) — sorting
         // by time then created_at before taking the first occurrence per player achieves this.

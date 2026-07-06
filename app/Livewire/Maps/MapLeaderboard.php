@@ -8,6 +8,7 @@ use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Map;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -39,6 +40,23 @@ class MapLeaderboard extends Component
         $this->mapParam = $mapId;
         $this->map = $map->label;
 
+        $this->loadLeaderboard($map);
+    }
+
+    /**
+     * Live update (roadmap item 16) — a genuine PB/record on *any* server for this map. Unlike
+     * `ServerMapLeaderboard`'s server-scoped channel, this listens on the map-only channel
+     * (`maps.{mapId}`) since a PB on any server can change the global ranking — see
+     * App\Events\LeaderboardUpdated.
+     */
+    #[On('echo-public:maps.{mapParam},leaderboard.updated')]
+    public function onLeaderboardUpdated(): void
+    {
+        $this->loadLeaderboard(Map::findOrFail($this->mapParam));
+    }
+
+    private function loadLeaderboard(Map $map): void
+    {
         // Global ranked leaderboard: one best lap per player across every active server. Laps
         // belonging to soft-deleted servers are intentionally treated as nonexistent. Time ties go
         // to the earliest lap; id is the final deterministic tie-break for historical rows that

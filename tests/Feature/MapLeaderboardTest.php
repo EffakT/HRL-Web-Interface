@@ -179,3 +179,27 @@ it('paginates ranks after the fixed top-three podium', function () {
         ->and($pageTwo->last()['rank'])->toBe('20')
         ->and($component->get('selectedPlayerIndex'))->toBeNull();
 });
+
+// Roadmap item 16 — a real Reverb broadcast can't be exercised in a Pest test (no running
+// WebSocket server), but the listener method itself — what actually happens when the browser's
+// Echo client receives the event — is real component logic, and is tested directly.
+it('re-fetches the leaderboard when its live-update listener fires', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    $existingPlayer = Player::factory()->create(['name' => 'Existing Leader']);
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $existingPlayer->id, 'time' => 60]);
+
+    $component = Livewire::test(MapLeaderboard::class, ['mapId' => (string) $map->id]);
+    expect($component->get('players'))->toHaveCount(1);
+
+    // Simulate a new PB arriving via the webhook after the page already loaded — same real
+    // table, no need to mock the broadcast transport to prove the listener re-queries it.
+    $newPlayer = Player::factory()->create(['name' => 'New Leader']);
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $newPlayer->id, 'time' => 55]);
+
+    $component->call('onLeaderboardUpdated');
+
+    expect($component->get('players'))->toHaveCount(2)
+        ->and($component->get('players')[0]['name'])->toBe('New Leader');
+});

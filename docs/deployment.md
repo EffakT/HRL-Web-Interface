@@ -16,7 +16,17 @@
 
 ## Build process
 
-Frontend assets are compiled via Vite: `npm run build` (production) or `npm run dev`/`composer run dev` (local watching). **Any frontend change requires a rebuild** to be visible — if a change doesn't show up, check this first before debugging further.
+Frontend assets are compiled via Vite: `npm run build` (production) or `npm run dev`/`composer run dev` (local watching). **Any frontend change requires a rebuild** to be visible — if a change doesn't show up, check this first before debugging further. This includes `VITE_REVERB_*` env vars (see below) — they're baked in at build time, so changing one needs a rebuild too, not just a config cache clear.
+
+## Live updates (roadmap item 16) — three long-running processes required
+
+Real-time leaderboard updates (see [database.md](database.md)'s "Live leaderboard updates" section) depend on **three** separate long-running processes, all already part of `composer run dev` for local work — a production deploy needs equivalents for all three, not just the app server:
+
+1. **Reverb** (`php artisan reverb:start`) — the actual WebSocket server. Binds to `REVERB_SERVER_PORT` (defaults to `REVERB_PORT`'s value if unset). **This environment's default port 8080 was already taken by something else on the shared host** — moved to 8081 here (`REVERB_PORT`/`REVERB_SERVER_PORT` both set to 8081 in `.env`). Check for a conflict before assuming the default port is free anywhere else this app runs.
+2. **A queue worker** (`php artisan queue:work` or `queue:listen`) — broadcasting (`ShouldBroadcast`, not `ShouldBroadcastNow`) goes through the queue, not synchronously. Without a worker running, `LeaderboardUpdated` events queue up in the `jobs` table and never reach a browser — confirmed by testing this directly (see decisions.md).
+3. **Vite build with the correct `VITE_REVERB_*` values** — the frontend's `resources/js/echo.js` reads these at build time to know which host/port/scheme to connect to.
+
+In production, Reverb would typically sit behind a reverse proxy (nginx) terminating TLS and forwarding to Reverb's internal port — not yet set up, since this project has no production deploy yet (see "Cutover plan" below).
 
 ## Cutover plan (from original planning, not yet executed)
 

@@ -11,9 +11,10 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Fired only when a submitted lap is a genuine personal-best/course-record-worthy
  * improvement (not on every logged attempt) — see docs/database.md's "Webhook → job flow".
- * Broadcasting infrastructure (Reverb/Echo, roadmap item 16) isn't wired up yet, so with the
- * default `log` broadcast connection this currently just writes to the log — no frontend
- * listens yet. Public channel: this whole site is already a fully public leaderboard.
+ * Wired up to Reverb/Echo (roadmap item 16, see docs/database.md's "Live leaderboard updates"
+ * section) — `ServerMapLeaderboard` (nested) and `MapLeaderboard` (global) both listen and
+ * re-fetch their ranking on receipt. Public channels throughout: this whole site is already a
+ * fully public leaderboard, so there's nothing to authorize.
  */
 class LeaderboardUpdated implements ShouldBroadcast
 {
@@ -28,11 +29,19 @@ class LeaderboardUpdated implements ShouldBroadcast
         public int $position,
     ) {}
 
-    /** @return array<int, Channel> */
+    /**
+     * Two channels: the server-scoped one (`ServerMapLeaderboard`'s nested ranking, unaffected
+     * by other servers) and a map-only one (`MapLeaderboard`'s global ranking, which a PB on
+     * *any* server for this map can change). A single event fired once is broadcast on both —
+     * cheaper than firing two separate events for what's fundamentally one occurrence.
+     *
+     * @return array<int, Channel>
+     */
     public function broadcastOn(): array
     {
         return [
             new Channel("servers.{$this->serverId}.maps.{$this->mapId}"),
+            new Channel("maps.{$this->mapId}"),
         ];
     }
 

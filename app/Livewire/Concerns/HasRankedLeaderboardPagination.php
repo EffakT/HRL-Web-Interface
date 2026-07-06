@@ -10,7 +10,8 @@ trait HasRankedLeaderboardPagination
 {
     use WithPagination;
 
-    private const PLAYERS_PER_PAGE = 15;
+    // 10 per page, sub the podium, leaves 7 for the rest of the leaderboard
+    private const PLAYERS_PER_PAGE = 7;
 
     /**
      * `$pageName` lets a component run this alongside its own separately-paginated section

@@ -164,19 +164,20 @@ it('paginates ranks after the fixed top-three podium', function () {
     $component = Livewire::test(MapLeaderboard::class, ['mapId' => (string) $map->id]);
     $pageOne = $component->viewData('rankedPlayers');
 
+    // Podium (top 3) + 7 ranked rows per page = 10 driver rows visible on the initial screen.
     expect($pageOne->currentPage())->toBe(1)
         ->and($pageOne->total())->toBe(17)
-        ->and($pageOne->count())->toBe(15)
+        ->and($pageOne->count())->toBe(7)
         ->and($pageOne->first()['rank'])->toBe('04')
-        ->and($pageOne->last()['rank'])->toBe('18');
+        ->and($pageOne->last()['rank'])->toBe('10');
 
     $component->call('nextPage', 'page');
     $pageTwo = $component->viewData('rankedPlayers');
 
     expect($pageTwo->currentPage())->toBe(2)
-        ->and($pageTwo->count())->toBe(2)
-        ->and($pageTwo->first()['rank'])->toBe('19')
-        ->and($pageTwo->last()['rank'])->toBe('20')
+        ->and($pageTwo->count())->toBe(7)
+        ->and($pageTwo->first()['rank'])->toBe('11')
+        ->and($pageTwo->last()['rank'])->toBe('17')
         ->and($component->get('selectedPlayerIndex'))->toBeNull();
 });
 

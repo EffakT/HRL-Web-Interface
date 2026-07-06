@@ -42,6 +42,12 @@ class StoreLapTimeRequest extends FormRequest
             // verification (see docs/security.md, LapSubmissionVerifier) don't send this yet.
             // Its absence just means verification fails closed on 'token_mismatch'.
             'hrl_token' => ['nullable', 'string', 'max:64'],
+            // Optional idempotency key (SEC-01 audit follow-up, docs/security.md) — a client
+            // that generates one and resubmits the exact same value on a retry gets back the
+            // original response instead of either a duplicate lap or a bare rejection. Without
+            // one, the controller falls back to a content hash, which only dedupes exact-value
+            // resubmissions, not e.g. two genuinely distinct laps that happen to tie on time.
+            'submission_id' => ['nullable', 'string', 'max:64'],
             'splits' => ['nullable', 'array'],
             'splits.*.checkpoint_id' => ['required', 'integer'],
             'splits.*.duration' => ['required', 'numeric'],

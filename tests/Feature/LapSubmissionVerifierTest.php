@@ -45,14 +45,32 @@ it('verifies a submission that matches a live, HRL-enabled query response', func
     $verifier = new LapSubmissionVerifier(fakeQuery(validHrlResponse()));
 
     expect($verifier->verify('1.2.3.4', 2302, submissionData()))
-        ->toBe(['verified' => true, 'reason' => null]);
+        ->toBe(['verified' => true, 'reason' => null, 'response' => validHrlResponse()]);
 });
 
 it('fails closed when the UDP query itself fails', function () {
     $verifier = new LapSubmissionVerifier(fakeQuery(false));
 
     expect($verifier->verify('1.2.3.4', 2302, submissionData()))
-        ->toBe(['verified' => false, 'reason' => 'udp_timeout']);
+        ->toBe(['verified' => false, 'reason' => 'udp_timeout', 'response' => null]);
+});
+
+it('accepts the previous token during a rotation grace window', function () {
+    $verifier = new LapSubmissionVerifier(fakeQuery(validHrlResponse([
+        'hrl_token' => 'new-token',
+        'hrl_token_prev' => 'secret-token',
+    ])));
+
+    expect($verifier->verify('1.2.3.4', 2302, submissionData())['verified'])->toBeTrue();
+});
+
+it('does not treat an unrelated player_-prefixed key as an online-player slot', function () {
+    $verifier = new LapSubmissionVerifier(fakeQuery(validHrlResponse([
+        'player_0' => 'SomeoneElse',
+        'player_count' => 'Effakt',
+    ])));
+
+    expect($verifier->verify('1.2.3.4', 2302, submissionData())['reason'])->toBe('player_not_online');
 });
 
 it('rejects a server that does not publish the HRL marker (script not updated yet)', function () {

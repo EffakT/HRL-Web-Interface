@@ -17,7 +17,7 @@ class LapSubmissionVerifier
 
     /**
      * @param  array{map_name: string, player_name: string, hrl_token: string|null}  $data
-     * @return array{verified: bool, reason: ?string}
+     * @return array{verified: bool, reason: ?string, response: ?array<string, string>}
      */
     public function verify(string $ip, int $port, array $data): array
     {
@@ -30,38 +30,52 @@ class LapSubmissionVerifier
         }
 
         if (($response['hrl_enabled'] ?? null) !== '1') {
-            return $this->fail('missing_hrl_marker');
+            return $this->fail('missing_hrl_marker', $response);
         }
 
         if (($response['hrl_protocol'] ?? null) !== config('webhook.hrl_query.supported_protocol')) {
-            return $this->fail('protocol_unsupported');
+            return $this->fail('protocol_unsupported', $response);
         }
+
+        $submittedToken = $data['hrl_token'] ?? null;
 
         // Freshness/binding only, not a durable secret — UDP query responses are publicly
         // readable by anyone who queries the server, so this doesn't need (and isn't) constant
-        // time comparison the way a real HMAC/session secret would.
-        if (($response['hrl_token'] ?? null) === null || $response['hrl_token'] !== ($data['hrl_token'] ?? null)) {
-            return $this->fail('token_mismatch');
+        // time comparison the way a real HMAC/session secret would. Accepts either the current
+        // `hrl_token` or the immediately-previous `hrl_token_prev` (if the Lua script publishes
+        // one) — a rotating-token script and an in-flight lap submission racing a rotation
+        // boundary shouldn't fail a legitimate lap.
+        if ($submittedToken === null || ! in_array($submittedToken, array_filter([
+            $response['hrl_token'] ?? null,
+            $response['hrl_token_prev'] ?? null,
+        ]), true)) {
+            return $this->fail('token_mismatch', $response);
         }
 
         if (($response['mapname'] ?? null) !== $data['map_name']) {
-            return $this->fail('map_mismatch');
+            return $this->fail('map_mismatch', $response);
         }
 
+        // Exact `player_<number>` keys only — a future query extension with an unrelated
+        // `player_`-prefixed key (e.g. a hypothetical `player_count`) must not be treated as an
+        // online-player slot.
         $playerOnline = collect($response)
-            ->filter(fn ($value, string $key): bool => str_starts_with($key, 'player_'))
+            ->filter(fn ($value, string $key): bool => preg_match('/^player_\d+$/', $key) === 1)
             ->contains($data['player_name']);
 
         if (! $playerOnline) {
-            return $this->fail('player_not_online');
+            return $this->fail('player_not_online', $response);
         }
 
-        return ['verified' => true, 'reason' => null];
+        return ['verified' => true, 'reason' => null, 'response' => $response];
     }
 
-    /** @return array{verified: bool, reason: ?string} */
-    private function fail(string $reason): array
+    /**
+     * @param  ?array<string, string>  $response
+     * @return array{verified: bool, reason: ?string, response: ?array<string, string>}
+     */
+    private function fail(string $reason, ?array $response = null): array
     {
-        return ['verified' => false, 'reason' => $reason];
+        return ['verified' => false, 'reason' => $reason, 'response' => $response];
     }
 }

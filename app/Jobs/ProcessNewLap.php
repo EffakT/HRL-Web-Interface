@@ -53,11 +53,19 @@ class ProcessNewLap
 
     /**
      * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
+     * @param  ?array<string, string>  $liveQueryResponse  Already-fetched UDP query response (SEC-01's
+     *                                                     LapSubmissionVerifier queries the same ip:port
+     *                                                     before this job runs) — reused here instead of
+     *                                                     querying the server a second time. Null when
+     *                                                     verification is disabled/didn't run, or didn't
+     *                                                     get a response — resolveHostname() falls back
+     *                                                     to querying itself in that case, same as before.
      */
     public function __construct(
         private readonly string $ip,
         private readonly int $port,
         private readonly array $data,
+        private readonly ?array $liveQueryResponse = null,
     ) {}
 
     /**
@@ -179,7 +187,7 @@ class ProcessNewLap
      */
     private function resolveHostname(GameServerQuery $query): ?string
     {
-        $response = $query->query($this->ip, $this->port);
+        $response = $this->liveQueryResponse ?? $query->query($this->ip, $this->port);
 
         if ($response === false) {
             Log::warning('QueryServer failed, proceeding without a live hostname', [

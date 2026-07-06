@@ -31,11 +31,30 @@ return [
     | Duplicate submission window
     |--------------------------------------------------------------------------
     |
-    | An identical (ip, port, player, map, time, token) payload arriving again within this many
-    | seconds is rejected outright rather than recorded a second time — cheap protection against
-    | a naive replay or a Lua-side retry-on-timeout resubmitting the same lap.
+    | An identical (ip, port, player, map, time, token) payload — or, when the client sends one,
+    | a repeated `submission_id` — arriving again within this many seconds is treated as a retry:
+    | the ORIGINAL response is replayed rather than the lap being recorded a second time or the
+    | retry simply failing. See LapSubmissionController::store()'s idempotency handling.
     |
     */
     'duplicate_window_seconds' => 10,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook rate limiting (SEC-01 audit follow-up, docs/security.md)
+    |--------------------------------------------------------------------------
+    |
+    | Two limits apply together, not one instead of the other. `per_ip_port` alone can be
+    | trivially bypassed by an attacker rotating the (attacker-supplied, unverified at this
+    | layer) `port` value on every request to get a fresh allowance each time, while still
+    | forcing a real UDP query attempt per request. `per_ip` is the ceiling that rotation can't
+    | evade — set generously enough that one host legitimately running several distinct game
+    | servers isn't throttled by its neighbors' traffic.
+    |
+    */
+    'rate_limit' => [
+        'per_ip_per_minute' => env('WEBHOOK_RATE_LIMIT_PER_IP', 600),
+        'per_ip_port_per_minute' => env('WEBHOOK_RATE_LIMIT_PER_IP_PORT', 120),
+    ],
 
 ];

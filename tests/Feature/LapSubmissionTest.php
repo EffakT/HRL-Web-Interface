@@ -8,6 +8,7 @@ use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
 
@@ -191,13 +192,112 @@ it('accepts a submission that matches a live, HRL-enabled query response under e
     expect(LapTime::count())->toBe(1);
 });
 
-it('rejects an exact duplicate submission arriving again within the dedupe window', function () {
+it('replays the original response for an exact duplicate submission, without recording it twice', function () {
     fakeGameServerQuery();
 
-    submitLap()->assertOk();
+    $first = submitLap()->assertOk()->json();
+    $second = submitLap()->assertOk()->json();
+
+    expect($second)->toBe($first);
+    expect(LapTime::count())->toBe(1);
+});
+
+it('replays the original response for a repeated submission_id even if other fields differ', function () {
+    fakeGameServerQuery();
+
+    $first = submitLap(['submission_id' => 'retry-1'])->assertOk()->json();
+    // A real Lua-side retry always sends the exact same fields, but this proves the replay is
+    // keyed on submission_id specifically, not incidentally still matching the content hash.
+    $second = submitLap(['submission_id' => 'retry-1', 'player_time' => 99])->assertOk()->json();
+
+    expect($second)->toBe($first);
+    expect(LapTime::count())->toBe(1);
+});
+
+it('reports a genuine concurrent duplicate as 409 without ever completing processing', function () {
+    fakeGameServerQuery();
+
+    Cache::put('lap-submission:'.hash('sha256', json_encode([
+        '127.0.0.1', 2302, 'abc123', 'bloodgulch', 42.5, null,
+    ])), ['status' => 'processing'], now()->addSeconds(10));
+
     submitLap()
         ->assertStatus(409)
         ->assertJson(['success' => false, 'reason' => 'duplicate_submission']);
 
+    expect(LapTime::count())->toBe(0);
+});
+
+it('releases the idempotency reservation on a pre-commit failure so a real retry is not stuck', function () {
+    app()->bind(GameServerQuery::class, fn () => new class implements GameServerQuery
+    {
+        public function query(string $ip, int $port, int $timeoutSeconds = 2): array|false
+        {
+            throw new RuntimeException('simulated pre-commit failure');
+        }
+
+        public function getError(): ?string
+        {
+            return null;
+        }
+    });
+
+    submitLap(['submission_id' => 'retry-2'])->assertServerError();
+
+    fakeGameServerQuery();
+    submitLap(['submission_id' => 'retry-2'])->assertOk()->assertJson(['success' => true]);
+
     expect(LapTime::count())->toBe(1);
+});
+
+it('rate-limits by IP even when the caller rotates the port on every request', function () {
+    config(['webhook.rate_limit.per_ip_per_minute' => 2, 'webhook.rate_limit.per_ip_port_per_minute' => 100]);
+    fakeGameServerQuery();
+
+    submitLap(['port' => 1001])->assertOk();
+    submitLap(['port' => 1002])->assertOk();
+    submitLap(['port' => 1003])->assertStatus(429);
+});
+
+it('rate-limits by ip:port independently of the coarser per-IP ceiling', function () {
+    config(['webhook.rate_limit.per_ip_per_minute' => 1000, 'webhook.rate_limit.per_ip_port_per_minute' => 2]);
+    fakeGameServerQuery();
+
+    submitLap(['port' => 2302, 'player_hash' => 'p1'])->assertOk();
+    submitLap(['port' => 2302, 'player_hash' => 'p2'])->assertOk();
+    submitLap(['port' => 2302, 'player_hash' => 'p3'])->assertStatus(429);
+});
+
+it('does not query the game server a second time when HRL verification already fetched a live response', function () {
+    config(['webhook.hrl_query.enforce' => true]);
+
+    $query = new class implements GameServerQuery
+    {
+        public int $calls = 0;
+
+        public function query(string $ip, int $port, int $timeoutSeconds = 2): array|false
+        {
+            $this->calls++;
+
+            return [
+                'hostname' => 'Real Halo Server',
+                'hrl_enabled' => '1',
+                'hrl_protocol' => '1',
+                'hrl_token' => 'secret-token',
+                'mapname' => 'bloodgulch',
+                'player_0' => 'Effakt',
+            ];
+        }
+
+        public function getError(): ?string
+        {
+            return null;
+        }
+    };
+    app()->bind(GameServerQuery::class, fn () => $query);
+
+    submitLap(['hrl_token' => 'secret-token'])->assertOk();
+
+    expect(Server::sole()->name)->toBe('Real Halo Server');
+    expect($query->calls)->toBe(1);
 });

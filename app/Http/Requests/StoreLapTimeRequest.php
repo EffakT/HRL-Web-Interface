@@ -47,7 +47,11 @@ class StoreLapTimeRequest extends FormRequest
             // original response instead of either a duplicate lap or a bare rejection. Without
             // one, the controller falls back to a content hash, which only dedupes exact-value
             // resubmissions, not e.g. two genuinely distinct laps that happen to tie on time.
-            'submission_id' => ['nullable', 'string', 'max:64'],
+            // `min:8` is a minimum-entropy floor, not a format requirement — it's always
+            // namespaced by the submitting ip:port (LapSubmissionController), so this just
+            // guards against a trivially-short value like "1" that a naive incrementing counter
+            // might send.
+            'submission_id' => ['nullable', 'string', 'min:8', 'max:64'],
             'splits' => ['nullable', 'array'],
             'splits.*.checkpoint_id' => ['required', 'integer'],
             'splits.*.duration' => ['required', 'numeric'],

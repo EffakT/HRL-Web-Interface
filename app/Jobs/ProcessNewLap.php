@@ -10,6 +10,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -52,20 +53,25 @@ class ProcessNewLap
     private const RACE_TYPE_SUFFIXES = ['', 'Any Order', 'Rally'];
 
     /**
-     * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
-     * @param  ?array<string, string>  $liveQueryResponse  Already-fetched UDP query response (SEC-01's
-     *                                                     LapSubmissionVerifier queries the same ip:port
-     *                                                     before this job runs) — reused here instead of
-     *                                                     querying the server a second time. Null when
-     *                                                     verification is disabled/didn't run, or didn't
-     *                                                     get a response — resolveHostname() falls back
-     *                                                     to querying itself in that case, same as before.
+     * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, submission_id: string|null, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
+     * @param  array<string, string>|false|null  $liveQueryResponse  Already-fetched UDP query response
+     *                                                               (SEC-01's LapSubmissionVerifier queries the
+     *                                                               same ip:port before this job runs) — reused
+     *                                                               here instead of querying the server a second
+     *                                                               time. `null` means verification was disabled/
+     *                                                               didn't run — resolveHostname() falls back to
+     *                                                               querying itself, same as before. `false` means
+     *                                                               verification DID run and got no response at
+     *                                                               all — resolveHostname() does NOT retry a third
+     *                                                               time in that case (SEC-01 audit follow-up: the
+     *                                                               verifier's own retry already failed twice
+     *                                                               against the same ip:port).
      */
     public function __construct(
         private readonly string $ip,
         private readonly int $port,
         private readonly array $data,
-        private readonly ?array $liveQueryResponse = null,
+        private readonly array|false|null $liveQueryResponse = null,
     ) {}
 
     /**
@@ -75,75 +81,94 @@ class ProcessNewLap
     {
         $hostname = $this->resolveHostname($query);
         $mapLabel = $this->mapLabel($this->data['map_name'], $this->data['race_type']);
+        $submissionId = $this->data['submission_id'] ?? null;
 
-        $result = DB::transaction(function () use ($hostname, $mapLabel): array {
-            $server = Server::firstOrCreate(
-                ['ip' => $this->ip, 'port' => (string) $this->port],
-                ['name' => $hostname ?? "Unknown ({$this->ip}:{$this->port})"]
-            );
+        try {
+            $result = DB::transaction(function () use ($hostname, $mapLabel, $submissionId): array {
+                $server = Server::firstOrCreate(
+                    ['ip' => $this->ip, 'port' => (string) $this->port],
+                    ['name' => $hostname ?? "Unknown ({$this->ip}:{$this->port})"]
+                );
 
-            if ($hostname !== null && $server->name !== $hostname) {
-                $server->update(['name' => $hostname]);
+                if ($hostname !== null && $server->name !== $hostname) {
+                    $server->update(['name' => $hostname]);
+                }
+
+                $player = Player::firstOrCreate(
+                    ['hash' => hash('sha256', $this->data['player_hash'])],
+                    ['name' => $this->data['player_name']]
+                );
+
+                $map = Map::firstOrCreate(
+                    ['name' => $this->data['map_name']],
+                    ['label' => $mapLabel]
+                );
+
+                // syncWithoutDetaching checks for an existing pivot row before inserting, unlike the
+                // legacy insertOrIgnore-without-a-unique-constraint approach that silently inserted a
+                // fresh duplicate on every submission — see docs/database.md's "Duplicate pivot rows".
+                $server->players()->syncWithoutDetaching([$player->id]);
+                $server->maps()->syncWithoutDetaching([$map->id]);
+
+                $newTime = (float) $this->data['player_time'];
+
+                $bestTimeRaw = LapTime::where([
+                    'server_id' => $server->id,
+                    'map_id' => $map->id,
+                    'player_id' => $player->id,
+                ])->min('time');
+
+                $bestTime = $bestTimeRaw !== null ? (float) $bestTimeRaw : null;
+                $isNewRecord = $bestTime === null || $newTime < $bestTime;
+
+                // Logged unconditionally (see class docblock) — not gated on beating the existing
+                // best. `submission_id` is null for laps submitted without one (older Lua
+                // scripts) — the (server_id, submission_id) unique index (SEC-01 audit
+                // follow-up, see the add_submission_id_to_lap_times_table migration) treats
+                // multiple nulls as distinct, so this never collides for them.
+                $lapTime = LapTime::create([
+                    'server_id' => $server->id,
+                    'map_id' => $map->id,
+                    'player_id' => $player->id,
+                    'time' => $newTime,
+                    'submission_id' => $submissionId,
+                ]);
+
+                if (! empty($this->data['splits'])) {
+                    $now = now();
+
+                    LapTimeSplit::insert(array_map(fn (array $split): array => [
+                        'lap_time_id' => $lapTime->id,
+                        'checkpoint_id' => $split['checkpoint_id'],
+                        'duration' => $split['duration'],
+                        'start_time' => $split['startTime'] ?? null,
+                        'end_time' => $split['endTime'] ?? null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ], $this->data['splits']));
+                }
+
+                return [
+                    'server' => $server,
+                    'map' => $map,
+                    'player' => $player,
+                    'isNewRecord' => $isNewRecord,
+                    'newTime' => $newTime,
+                    'bestTime' => $isNewRecord ? $newTime : $bestTime,
+                ];
+            });
+        } catch (QueryException $e) {
+            // The DB-level source of truth for "was this exact submission already recorded,"
+            // independent of (and outlasting) the cache-based idempotency guard in
+            // LapSubmissionController — see docs/security.md's SEC-01 audit follow-up. Only
+            // meaningful when the client sent a real `submission_id`; a plain unique-constraint
+            // violation with no submission_id to explain it is a real error, not a duplicate.
+            if ($submissionId !== null && $this->isUniqueConstraintViolation($e)) {
+                return $this->replayDuplicateSubmission($submissionId);
             }
 
-            $player = Player::firstOrCreate(
-                ['hash' => hash('sha256', $this->data['player_hash'])],
-                ['name' => $this->data['player_name']]
-            );
-
-            $map = Map::firstOrCreate(
-                ['name' => $this->data['map_name']],
-                ['label' => $mapLabel]
-            );
-
-            // syncWithoutDetaching checks for an existing pivot row before inserting, unlike the
-            // legacy insertOrIgnore-without-a-unique-constraint approach that silently inserted a
-            // fresh duplicate on every submission — see docs/database.md's "Duplicate pivot rows".
-            $server->players()->syncWithoutDetaching([$player->id]);
-            $server->maps()->syncWithoutDetaching([$map->id]);
-
-            $newTime = (float) $this->data['player_time'];
-
-            $bestTimeRaw = LapTime::where([
-                'server_id' => $server->id,
-                'map_id' => $map->id,
-                'player_id' => $player->id,
-            ])->min('time');
-
-            $bestTime = $bestTimeRaw !== null ? (float) $bestTimeRaw : null;
-            $isNewRecord = $bestTime === null || $newTime < $bestTime;
-
-            // Logged unconditionally (see class docblock) — not gated on beating the existing best.
-            $lapTime = LapTime::create([
-                'server_id' => $server->id,
-                'map_id' => $map->id,
-                'player_id' => $player->id,
-                'time' => $newTime,
-            ]);
-
-            if (! empty($this->data['splits'])) {
-                $now = now();
-
-                LapTimeSplit::insert(array_map(fn (array $split): array => [
-                    'lap_time_id' => $lapTime->id,
-                    'checkpoint_id' => $split['checkpoint_id'],
-                    'duration' => $split['duration'],
-                    'start_time' => $split['startTime'] ?? null,
-                    'end_time' => $split['endTime'] ?? null,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ], $this->data['splits']));
-            }
-
-            return [
-                'server' => $server,
-                'map' => $map,
-                'player' => $player,
-                'isNewRecord' => $isNewRecord,
-                'newTime' => $newTime,
-                'bestTime' => $isNewRecord ? $newTime : $bestTime,
-            ];
-        });
+            throw $e;
+        }
 
         $leaderboardPosition = $this->leaderboardPosition(
             $result['server']->id,
@@ -180,6 +205,59 @@ class ProcessNewLap
     }
 
     /**
+     * A duplicate `submission_id` retry (see `handle()`'s catch block) never re-broadcasts and
+     * never re-derives "was this a new record" from scratch — it reports the CURRENT truth about
+     * the already-recorded lap (SEC-01 audit follow-up). This is a best-effort fallback for when
+     * the cache-based idempotency guard's stored original response is gone (restart, eviction, a
+     * very late retry) — the common case is still an exact cached-response replay, handled
+     * entirely in `LapSubmissionController`, before this job ever runs a second time.
+     *
+     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, topTime?: float, difference?: float}}
+     */
+    private function replayDuplicateSubmission(string $submissionId): array
+    {
+        $server = Server::where(['ip' => $this->ip, 'port' => (string) $this->port])->first();
+        $lapTime = $server !== null
+            ? LapTime::where('server_id', $server->id)->where('submission_id', $submissionId)->first()
+            : null;
+
+        // Should be unreachable — a unique-constraint violation on (server_id, submission_id)
+        // implies a matching row exists — but fail safely rather than fatal if it somehow isn't.
+        if ($lapTime === null) {
+            return [
+                'success' => false,
+                'isNewRecord' => false,
+                'lapTime' => 0.0,
+                'bestTime' => 0.0,
+                'leaderboardPosition' => ['position' => 0, 'total' => 0],
+            ];
+        }
+
+        $bestTime = (float) LapTime::where([
+            'server_id' => $lapTime->server_id,
+            'map_id' => $lapTime->map_id,
+            'player_id' => $lapTime->player_id,
+        ])->min('time');
+
+        return [
+            'success' => true,
+            'isNewRecord' => (float) $lapTime->time === $bestTime,
+            'lapTime' => round((float) $lapTime->time, 2),
+            'bestTime' => round($bestTime, 2),
+            'leaderboardPosition' => $this->leaderboardPosition($lapTime->server_id, $lapTime->map_id, $bestTime, (float) $lapTime->time),
+        ];
+    }
+
+    private function isUniqueConstraintViolation(QueryException $e): bool
+    {
+        // SQLSTATE 23000 ("integrity constraint violation") covers unique-constraint violations
+        // on both SQLite (this project's test/dev driver) and MySQL; Postgres reports 23505
+        // specifically. Broad enough to catch the real drivers this app runs on without matching
+        // unrelated query errors (which use different SQLSTATE classes entirely).
+        return in_array($e->getCode(), ['23000', '23505'], true);
+    }
+
+    /**
      * A failed live query no longer aborts the whole submission (the old app dropped the lap
      * entirely if the UDP query failed) — a temporary game-server query hiccup shouldn't
      * silently discard real lap data. A brand-new, never-before-seen server just gets a
@@ -187,6 +265,14 @@ class ProcessNewLap
      */
     private function resolveHostname(GameServerQuery $query): ?string
     {
+        if ($this->liveQueryResponse === false) {
+            // SEC-01 audit follow-up: LapSubmissionVerifier already tried this exact ip:port
+            // (with its own retry) and got nothing back — a third attempt here is essentially
+            // certain to fail too, and just burns another full timeout window. Treat as
+            // unresolved directly rather than querying again.
+            return null;
+        }
+
         $response = $this->liveQueryResponse ?? $query->query($this->ip, $this->port);
 
         if ($response === false) {

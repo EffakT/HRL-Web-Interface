@@ -15,9 +15,15 @@ class LapSubmissionVerifier
 {
     public function __construct(private readonly GameServerQuery $query) {}
 
+    /** Cache key marking an ip:port as having recently passed HRL query verification — shared between here, `LapSubmissionController` (which sets it), and `AppServiceProvider`'s webhook rate limiter (which reads it to pick a tier). */
+    public static function verifiedMarkerKey(string $ip, int|string $port): string
+    {
+        return "verified-webhook-source:{$ip}:{$port}";
+    }
+
     /**
      * @param  array{map_name: string, player_name: string, hrl_token: string|null}  $data
-     * @return array{verified: bool, reason: ?string, response: ?array<string, string>}
+     * @return array{verified: bool, reason: ?string, response: array<string, string>|false|null}
      */
     public function verify(string $ip, int $port, array $data): array
     {
@@ -26,7 +32,11 @@ class LapSubmissionVerifier
             ?: $this->query->query($ip, $port, config('webhook.hrl_query.timeout_seconds'));
 
         if ($response === false) {
-            return $this->fail('udp_timeout');
+            // `false`, not `null` — tells ProcessNewLap "verification already tried (with its
+            // own retry) and got nothing," so it doesn't waste a third UDP round-trip on the
+            // same certainly-unresponsive ip:port (SEC-01 audit follow-up). `null` is reserved
+            // for "verification didn't run at all," where a fresh query is still worth trying.
+            return $this->fail('udp_timeout', false);
         }
 
         if (($response['hrl_enabled'] ?? null) !== '1') {
@@ -71,10 +81,10 @@ class LapSubmissionVerifier
     }
 
     /**
-     * @param  ?array<string, string>  $response
-     * @return array{verified: bool, reason: ?string, response: ?array<string, string>}
+     * @param  array<string, string>|false|null  $response
+     * @return array{verified: bool, reason: ?string, response: array<string, string>|false|null}
      */
-    private function fail(string $reason, ?array $response = null): array
+    private function fail(string $reason, array|false|null $response = null): array
     {
         return ['verified' => false, 'reason' => $reason, 'response' => $response];
     }

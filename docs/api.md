@@ -47,7 +47,7 @@ Live-queries the actual game server over UDP (see [database.md](database.md)'s "
 
 Fires `App\Events\LeaderboardUpdated` (`ShouldBroadcast`) only when `isNewRecord` — sets up roadmap item 16 (Reverb/Echo) without depending on it; with no broadcast driver wired up yet, this currently just logs.
 
-**No login/token-based auth**, same as the read endpoints and the old app's equivalent. It does now cross-check every submission against a live UDP query to the submitting game server (see [security.md](security.md)'s "SEC-01 — HRL query verification") — not a credential, but the closest thing to authentication available without TLS/HMAC support on the Lua side. **Its own rate limits**: 120/min per ip:port plus a 600/min per-IP ceiling (not the read API's 60/min) — see "Rate limiting" below.
+**No login/token-based auth**, same as the read endpoints and the old app's equivalent. It does now cross-check every submission against a live UDP query to the submitting game server (see [security.md](security.md)'s "SEC-01 — HRL query verification") — not a credential, but the closest thing to authentication available without TLS/HMAC support on the Lua side. **Its own tiered rate limits** (not the read API's flat 60/min) — see "Rate limiting" below.
 
 ## Auth
 
@@ -59,7 +59,7 @@ The lap-submission webhook is the one exception to "rate limiting is the only pr
 
 The read endpoints: 60 requests/minute per IP, via Laravel's built-in `throttle:api` middleware (`RateLimiter::for('api', ...)` in `AppServiceProvider`). A starting point, not a measured/tuned value — revisit if real usage says otherwise.
 
-The webhook (`POST /laps`): its own, more generous `webhook` limiter, since it's machine-to-machine (a busy game server with several racers can legitimately submit far more often than a browsing client would). **Two limits apply together** (since 2026-07-07's SEC-01 follow-up — see [security.md](security.md)): 120/min per **ip:port** so multiple distinct game servers behind one host IP don't share a budget, plus a coarser 600/min per-IP ceiling that a caller can't evade by simply rotating the (unverified, at the rate-limit layer) `port` value on every request. Explicitly opts out of the read API's `throttle:api` (`->withoutMiddleware('throttle:api')`) so these budgets are independent of it.
+The webhook (`POST /laps`): its own, more generous, **tiered** `webhook` limiter (since 2026-07-07's second SEC-01 follow-up — see [security.md](security.md)), since it's machine-to-machine (a busy game server with several racers can legitimately submit far more often than a browsing client would). A source starts in the strict "unverified" tier (30/min per IP, 15/min per ip:port, 2/sec burst) and only earns the more generous "verified" tier (300/min, 120/min, 10/sec burst) once a request from that exact ip:port has actually passed HRL query verification — cached for 5 minutes. Verification itself still runs on every single request regardless of tier; the marker only ever raises the ceiling. Within either tier, the per-ip:port limit (so multiple distinct game servers behind one host IP don't share a budget) and the coarser per-IP ceiling (so rotating the unverified `port` value can't bypass the limit, even once "verified") both apply together. Explicitly opts out of the read API's `throttle:api` (`->withoutMiddleware('throttle:api')`) so these budgets are independent of it.
 
 ## Versioning
 

@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Helpers\GameServerQuery;
+use App\Helpers\LapSubmissionVerifier;
 use App\Helpers\QueryServer;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,16 +31,31 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
 
         // The lap-submission webhook (docs/database.md) is machine-to-machine, not a browsing
-        // client — a busy server with several racers can legitimately submit far more often
-        // than 60/min, so it gets its own, more generous limit rather than sharing the public
-        // read API's budget. Two limits apply together (SEC-01 audit follow-up, docs/security.md):
-        // a per ip:port limit (the submitted server identity) so multiple distinct game servers
-        // sharing one host's IP don't share a single budget, AND a coarser per-IP ceiling that
-        // an attacker can't evade by simply rotating the unverified `port` value on every
-        // request to get a fresh allowance each time.
-        RateLimiter::for('webhook', fn (Request $request) => [
-            Limit::perMinute(config('webhook.rate_limit.per_ip_per_minute'))->by('webhook-ip:'.$request->ip()),
-            Limit::perMinute(config('webhook.rate_limit.per_ip_port_per_minute'))->by('webhook-ip-port:'.$request->ip().':'.$request->input('port')),
-        ]);
+        // client, but per docs/security.md's SEC-01 audit follow-up it's also the one endpoint
+        // an attacker can force expensive UDP verification work on — so it gets its own tiered
+        // limiter rather than sharing the public read API's flat budget. A source starts in the
+        // strict "unverified" tier and only earns the more generous "verified" tier once a
+        // request from that exact ip:port has actually passed HRL query verification (the
+        // marker LapSubmissionController sets on success) — verification itself still runs on
+        // every request regardless of tier. Three limits apply together within whichever tier
+        // applies: a per-second burst allowance, a per-ip:port sustained allowance (the
+        // submitted server identity), and a coarser per-IP ceiling that rotating the
+        // (unverified, at this layer) `port` value on every request can't evade — that last one
+        // applies at both tiers specifically so running many ports can't bypass it even once
+        // "verified."
+        RateLimiter::for('webhook', function (Request $request) {
+            $ip = $request->ip();
+            $port = $request->input('port');
+
+            $tier = Cache::has(LapSubmissionVerifier::verifiedMarkerKey($ip, $port))
+                ? config('webhook.rate_limit.verified')
+                : config('webhook.rate_limit.unverified');
+
+            return [
+                Limit::perSecond($tier['burst_per_second'])->by('webhook-burst:'.$ip),
+                Limit::perMinute($tier['per_ip_per_minute'])->by('webhook-ip:'.$ip),
+                Limit::perMinute($tier['per_ip_port_per_minute'])->by('webhook-ip-port:'.$ip.':'.$port),
+            ];
+        });
     }
 }

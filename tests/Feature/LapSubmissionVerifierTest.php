@@ -51,8 +51,10 @@ it('verifies a submission that matches a live, HRL-enabled query response', func
 it('fails closed when the UDP query itself fails', function () {
     $verifier = new LapSubmissionVerifier(fakeQuery(false));
 
+    // `response` is `false`, not `null`, specifically — ProcessNewLap reads that as "verification
+    // already tried and got nothing" and skips a further UDP attempt of its own.
     expect($verifier->verify('1.2.3.4', 2302, submissionData()))
-        ->toBe(['verified' => false, 'reason' => 'udp_timeout', 'response' => null]);
+        ->toBe(['verified' => false, 'reason' => 'udp_timeout', 'response' => false]);
 });
 
 it('accepts the previous token during a rotation grace window', function () {
@@ -131,4 +133,11 @@ it('retries once before failing on a dropped UDP packet', function () {
     $verifier->verify('1.2.3.4', 2302, submissionData());
 
     expect($query->calls)->toBe(2);
+});
+
+it('builds the verified-marker cache key consistently for a given ip:port', function () {
+    expect(LapSubmissionVerifier::verifiedMarkerKey('1.2.3.4', 2302))
+        ->toBe(LapSubmissionVerifier::verifiedMarkerKey('1.2.3.4', 2302))
+        ->and(LapSubmissionVerifier::verifiedMarkerKey('1.2.3.4', 2302))
+        ->not->toBe(LapSubmissionVerifier::verifiedMarkerKey('1.2.3.4', 2303));
 });

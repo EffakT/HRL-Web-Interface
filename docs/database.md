@@ -33,7 +33,9 @@ players
   --    (which hash/session should "win"?), not something to silently collapse. See decisions.md.
 
 lap_times                 -- PB-PROGRESSION LOG, not full lap history (corrected 2026-07-06 — see below)
-  id, server_id, map_id, player_id, time, timestamps
+  id, server_id, map_id, player_id, time, submission_id (nullable, added 2026-07-07 — SEC-01
+    audit follow-up, see security.md; unique together with server_id, null for every lap
+    submitted without a client-supplied idempotency key), timestamps
   -- 1657 rows / 817 players, across 1613 distinct (player,map,server) groups — average 1.03
   --    rows per group, only 26 groups have more than one row. This is NOT "every lap ever
   --    driven" (that would show far more rows per group); it's confirmed (see below) that the

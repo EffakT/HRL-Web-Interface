@@ -24,15 +24,23 @@ class LapSubmissionController extends Controller
         $port = (int) $request->validated('port');
         $data = $request->validated();
 
-        // Idempotency key (SEC-01 audit follow-up, docs/security.md) — prefers the client's own
-        // `submission_id` when sent; falls back to a content hash of the fields that make two
-        // submissions "the same lap" otherwise. Either way, Cache::add() only succeeds the
-        // first time a key is set, so reservation is atomic against near-simultaneous retries.
-        $idempotencyKey = 'lap-submission:'.($data['submission_id'] ?? hash('sha256', json_encode([
-            $ip, $port, $data['player_hash'], $data['map_name'], $data['player_time'], $data['hrl_token'] ?? null,
-        ])));
+        // Idempotency key (SEC-01 audit follow-up, docs/security.md) — always namespaced by the
+        // submitting ip:port, even when the client sends its own `submission_id`. Without that
+        // namespace, two different game servers generating similar counters/IDs (a real
+        // possibility, not hypothetical — many scripts just count from 1) could collide and one
+        // server would receive the other's cached response, or believe its own lap was rejected
+        // as a duplicate. Falls back to a content hash of the fields that make two submissions
+        // "the same lap" when no `submission_id` is sent. Either way, Cache::add() only succeeds
+        // the first time a key is set, so reservation is atomic against near-simultaneous
+        // retries.
+        $submissionKey = $data['submission_id'] ?? hash('sha256', json_encode([
+            $data['player_hash'], $data['map_name'], $data['player_time'], $data['hrl_token'] ?? null,
+        ]));
+        $idempotencyKey = "lap-submission:{$ip}:{$port}:{$submissionKey}";
 
-        $reserved = Cache::add($idempotencyKey, ['status' => 'processing'], now()->addSeconds(config('webhook.duplicate_window_seconds')));
+        // Reservation and result-replay use deliberately different lifetimes (SEC-01 audit
+        // follow-up) — see config/webhook.php for why one shared 10s window was wrong for both.
+        $reserved = Cache::add($idempotencyKey, ['status' => 'processing'], now()->addSeconds(config('webhook.processing_reservation_seconds')));
 
         if (! $reserved) {
             $existing = Cache::get($idempotencyKey);
@@ -57,13 +65,17 @@ class LapSubmissionController extends Controller
             // Release the reservation on any pre-commit failure (verification's own network
             // call throwing, an unexpected exception inside ProcessNewLap, etc.) — leaving it
             // held for the rest of the window would make a legitimate retry fail with
-            // "duplicate_submission" for something that was never actually recorded.
+            // "duplicate_submission" for something that was never actually recorded. Note this
+            // cache guard is a convenience layer, not the durable source of truth for a
+            // `submission_id` specifically — see ProcessNewLap's (server_id, submission_id)
+            // unique-constraint handling for what actually prevents a duplicate lap row if this
+            // cache entry is ever lost (restart, eviction, a very late retry).
             Cache::forget($idempotencyKey);
 
             throw $e;
         }
 
-        Cache::put($idempotencyKey, ['status' => 'done', 'body' => $body, 'statusCode' => $statusCode], now()->addSeconds(config('webhook.duplicate_window_seconds')));
+        Cache::put($idempotencyKey, ['status' => 'done', 'body' => $body, 'statusCode' => $statusCode], now()->addSeconds(config('webhook.result_retention_seconds')));
 
         return response()->json($body, $statusCode);
     }
@@ -77,7 +89,17 @@ class LapSubmissionController extends Controller
             $verification = $verifier->verify($ip, $port, $data);
             $liveQueryResponse = $verification['response'];
 
-            if (! $verification['verified']) {
+            if ($verification['verified']) {
+                // Marks this ip:port as "recently verified" for the webhook rate limiter's
+                // tiered allowance (SEC-01 audit follow-up, AppServiceProvider) — verification
+                // still runs on every request regardless of tier; this only ever raises how much
+                // traffic a source is allowed, never skips the check itself.
+                Cache::put(
+                    LapSubmissionVerifier::verifiedMarkerKey($ip, $port),
+                    true,
+                    now()->addSeconds(config('webhook.rate_limit.verified_marker_ttl_seconds')),
+                );
+            } else {
                 Log::warning('Lap submission failed HRL query verification', [
                     'ip' => $ip,
                     'port' => $port,

@@ -28,6 +28,11 @@
         <env name="DB_URL" value=""/>
         <env name="GLOBAL_RANKING_VARIANT" value="sum"/>
         <env name="GLOBAL_RANKING_AVERAGE_CONFIDENCE_MAPS" value="2"/>
+        <!-- Generous by default so unrelated tests submitting a few laps back-to-back never
+             trip the webhook's real per-second burst limit; tests of the rate limiter itself
+             override these low via config() at runtime. See config/webhook.php. -->
+        <env name="WEBHOOK_RATE_LIMIT_UNVERIFIED_BURST" value="1000"/>
+        <env name="WEBHOOK_RATE_LIMIT_VERIFIED_BURST" value="1000"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

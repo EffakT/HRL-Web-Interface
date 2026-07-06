@@ -205,21 +205,33 @@ it('replays the original response for an exact duplicate submission, without rec
 it('replays the original response for a repeated submission_id even if other fields differ', function () {
     fakeGameServerQuery();
 
-    $first = submitLap(['submission_id' => 'retry-1'])->assertOk()->json();
+    $first = submitLap(['submission_id' => 'retry-00001'])->assertOk()->json();
     // A real Lua-side retry always sends the exact same fields, but this proves the replay is
     // keyed on submission_id specifically, not incidentally still matching the content hash.
-    $second = submitLap(['submission_id' => 'retry-1', 'player_time' => 99])->assertOk()->json();
+    $second = submitLap(['submission_id' => 'retry-00001', 'player_time' => 99])->assertOk()->json();
 
     expect($second)->toBe($first);
     expect(LapTime::count())->toBe(1);
 });
 
+it('does not let two different servers collide on a similar/identical submission_id', function () {
+    fakeGameServerQuery();
+
+    submitLap(['port' => 2302, 'submission_id' => 'counter-1'])->assertOk();
+    submitLap(['port' => 2303, 'submission_id' => 'counter-1'])->assertOk();
+
+    // Both recorded as separate laps on separate servers — the idempotency key (both the cache
+    // guard and the durable DB constraint) is namespaced by ip:port, so the same client-supplied
+    // submission_id from two different servers never collides.
+    expect(LapTime::count())->toBe(2);
+    expect(Server::count())->toBe(2);
+});
+
 it('reports a genuine concurrent duplicate as 409 without ever completing processing', function () {
     fakeGameServerQuery();
 
-    Cache::put('lap-submission:'.hash('sha256', json_encode([
-        '127.0.0.1', 2302, 'abc123', 'bloodgulch', 42.5, null,
-    ])), ['status' => 'processing'], now()->addSeconds(10));
+    $submissionKey = hash('sha256', json_encode(['abc123', 'bloodgulch', 42.5, null]));
+    Cache::put("lap-submission:127.0.0.1:2302:{$submissionKey}", ['status' => 'processing'], now()->addSeconds(10));
 
     submitLap()
         ->assertStatus(409)
@@ -242,16 +254,33 @@ it('releases the idempotency reservation on a pre-commit failure so a real retry
         }
     });
 
-    submitLap(['submission_id' => 'retry-2'])->assertServerError();
+    submitLap(['submission_id' => 'retry-00002'])->assertServerError();
 
     fakeGameServerQuery();
-    submitLap(['submission_id' => 'retry-2'])->assertOk()->assertJson(['success' => true]);
+    submitLap(['submission_id' => 'retry-00002'])->assertOk()->assertJson(['success' => true]);
+
+    expect(LapTime::count())->toBe(1);
+});
+
+it('durably prevents a duplicate lap row even if the idempotency cache entry is gone', function () {
+    fakeGameServerQuery();
+
+    submitLap(['submission_id' => 'durable-0001'])->assertOk();
+    // Simulates the cache entry being lost (restart, eviction, a very late retry) — the
+    // (server_id, submission_id) unique DB constraint is what actually prevents a second
+    // lap_times row in that case, not the cache.
+    Cache::flush();
+
+    submitLap(['submission_id' => 'durable-0001'])->assertOk()->assertJson(['success' => true]);
 
     expect(LapTime::count())->toBe(1);
 });
 
 it('rate-limits by IP even when the caller rotates the port on every request', function () {
-    config(['webhook.rate_limit.per_ip_per_minute' => 2, 'webhook.rate_limit.per_ip_port_per_minute' => 100]);
+    config([
+        'webhook.rate_limit.unverified.per_ip_per_minute' => 2,
+        'webhook.rate_limit.unverified.per_ip_port_per_minute' => 100,
+    ]);
     fakeGameServerQuery();
 
     submitLap(['port' => 1001])->assertOk();
@@ -260,12 +289,41 @@ it('rate-limits by IP even when the caller rotates the port on every request', f
 });
 
 it('rate-limits by ip:port independently of the coarser per-IP ceiling', function () {
-    config(['webhook.rate_limit.per_ip_per_minute' => 1000, 'webhook.rate_limit.per_ip_port_per_minute' => 2]);
+    config([
+        'webhook.rate_limit.unverified.per_ip_per_minute' => 1000,
+        'webhook.rate_limit.unverified.per_ip_port_per_minute' => 2,
+    ]);
     fakeGameServerQuery();
 
     submitLap(['port' => 2302, 'player_hash' => 'p1'])->assertOk();
     submitLap(['port' => 2302, 'player_hash' => 'p2'])->assertOk();
     submitLap(['port' => 2302, 'player_hash' => 'p3'])->assertStatus(429);
+});
+
+it('grants the more generous verified tier only after a request from that ip:port has actually verified', function () {
+    config([
+        'webhook.rate_limit.unverified.per_ip_port_per_minute' => 1,
+        'webhook.rate_limit.verified.per_ip_port_per_minute' => 100,
+    ]);
+
+    // The FIRST request from this ip:port is itself still charged against the strict
+    // "unverified" tier (the marker it sets only helps requests AFTER this one) — there's
+    // exactly enough of that tier's 1/min allowance for this single request to succeed.
+    fakeGameServerQuery([
+        'hostname' => 'Real Halo Server',
+        'hrl_enabled' => '1',
+        'hrl_protocol' => '1',
+        'hrl_token' => 'secret-token',
+        'mapname' => 'bloodgulch',
+        'player_0' => 'Effakt',
+    ]);
+    submitLap(['player_hash' => 'p1', 'hrl_token' => 'secret-token'])->assertOk();
+
+    // A second and third request from the SAME ip:port would have been blocked outright under
+    // the unverified ceiling of 1/min — they succeed here specifically because the first
+    // request's passing verification marked this source as verified for the limiter's benefit.
+    submitLap(['player_hash' => 'p2', 'hrl_token' => 'secret-token'])->assertOk();
+    submitLap(['player_hash' => 'p3', 'hrl_token' => 'secret-token'])->assertOk();
 });
 
 it('does not query the game server a second time when HRL verification already fetched a live response', function () {

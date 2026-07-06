@@ -29,6 +29,10 @@ class ServerPlayerShow extends Component
 
     public string $serverName;
 
+    public string $serverIp;
+
+    public string $serverPort;
+
     public string $playerId;
 
     public string $playerName;
@@ -54,6 +58,8 @@ class ServerPlayerShow extends Component
 
         $this->serverId = $server->id;
         $this->serverName = $server->name;
+        $this->serverIp = $server->ip;
+        $this->serverPort = $server->port;
         $this->playerId = $playerId;
         $this->playerName = $player->name;
 

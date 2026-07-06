@@ -26,9 +26,9 @@ class MostActiveServer
      * dynamically-shaped array without a PHPStan mismatch.
      *
      * @return array<int, array{
-     *     serverId: int, name: string, rank: int, activityScore: int, recencyBonus: int,
-     *     totalScore: int, uniquePlayers: int, mapsPlayed: int, validLaps: int,
-     *     players30d: int, players90d: int, lastLapAt: ?Carbon,
+     *     serverId: int, name: string, ip: string, port: string, rank: int, activityScore: int,
+     *     recencyBonus: int, totalScore: int, uniquePlayers: int, mapsPlayed: int,
+     *     validLaps: int, players30d: int, players90d: int, lastLapAt: ?Carbon,
      * }>
      */
     public static function scores(): array
@@ -79,6 +79,8 @@ class MostActiveServer
             return [
                 'serverId' => $server->id,
                 'name' => $server->name,
+                'ip' => $server->ip,
+                'port' => $server->port,
                 'rank' => 0,
                 'activityScore' => $activityScore,
                 'recencyBonus' => $recencyBonus,

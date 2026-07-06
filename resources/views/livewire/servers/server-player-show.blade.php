@@ -3,7 +3,7 @@
 
         <div class="flex flex-wrap items-end justify-between gap-6">
             <div>
-                <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// {{ $serverName }}</div>
+                <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// {{ $serverName }} <span class="text-hud-text-faint">({{ $serverIp }}:{{ $serverPort }})</span></div>
                 <h1 class="text-4xl font-bold uppercase leading-[0.98] text-hud-text-bright tp:text-5xl">{{ $playerName }}</h1>
             </div>
             <a href="{{ route('players.show', ['playerId' => $playerId]) }}"

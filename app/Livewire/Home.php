@@ -93,7 +93,7 @@ class Home extends Component
      * qualify — a server with zero real engagement in the last 90 days has nothing to show,
      * same "empty rather than fake" rule as every other highlight here.
      *
-     * @return list<array{rank: int, name: string, players30d: int, players90d: int, lastActive: string}>
+     * @return list<array{rank: int, name: string, ip: string, port: string, players30d: int, players90d: int, lastActive: string}>
      */
     private function mostActiveServers(): array
     {
@@ -103,6 +103,8 @@ class Home extends Component
             ->map(fn (array $server): array => [
                 'rank' => $server['rank'],
                 'name' => $server['name'],
+                'ip' => $server['ip'],
+                'port' => $server['port'],
                 'players30d' => $server['players30d'],
                 'players90d' => $server['players90d'],
                 'lastActive' => $server['lastLapAt'] !== null ? $server['lastLapAt']->diffForHumans() : '—',

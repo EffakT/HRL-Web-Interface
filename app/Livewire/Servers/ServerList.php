@@ -123,6 +123,8 @@ class ServerList extends Component
         return [
             'id' => $server->id,
             'name' => $server->name,
+            'ip' => $server->ip,
+            'port' => $server->port,
             'online' => $online,
             'map' => $map,
             'livePlayerCount' => $livePlayerCount,

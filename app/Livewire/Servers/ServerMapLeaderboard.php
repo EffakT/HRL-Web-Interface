@@ -28,6 +28,10 @@ class ServerMapLeaderboard extends Component
 
     public string $server;
 
+    public string $serverIp;
+
+    public string $serverPort;
+
     public string $map;
 
     public int $totalLaps = 0;
@@ -47,6 +51,8 @@ class ServerMapLeaderboard extends Component
         $this->serverParam = $serverId;
         $this->mapParam = $mapId;
         $this->server = $server->name;
+        $this->serverIp = $server->ip;
+        $this->serverPort = $server->port;
         $this->map = $map->label;
 
         $this->loadLeaderboard($server, $map);

@@ -44,7 +44,7 @@ Format: `{Map} - {Time} by {Player} on {Server} ({relative time} ago)`.
 
 Reuses [most-active-server.md](most-active-server.md)'s scoring, shown **top-3 podium style** — a third real use case for the podium visual pattern (after the Map Leaderboard and [players-list.md](players-list.md)'s Global Leaderboard), further reinforcing the podium-partial-extraction note already flagged in [coding-standards.md](coding-standards.md).
 
-Per server: Server name, Activity Rank, Unique Players (both 30-day *and* 90-day counts shown together), Last active time. Note the 30d/90d unique-player pair here is a **display-only** stat, independent from the Activity Score's own single 90-day window base metric — computing "unique players in the last 30 days" separately for display doesn't change or feed back into the score itself.
+Per server: Server name (with its `ip:port` shown underneath — see [server-single.md](server-single.md)'s "IP:Port identity" note, added 2026-07-07), Activity Rank, Unique Players (both 30-day *and* 90-day counts shown together), Last active time. Note the 30d/90d unique-player pair here is a **display-only** stat, independent from the Activity Score's own single 90-day window base metric — computing "unique players in the last 30 days" separately for display doesn't change or feed back into the score itself.
 
 ### 3. Fastest Improvements / New Breaks
 

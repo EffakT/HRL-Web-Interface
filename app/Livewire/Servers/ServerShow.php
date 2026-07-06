@@ -22,6 +22,10 @@ class ServerShow extends Component
 
     public string $serverName;
 
+    public string $serverIp;
+
+    public string $serverPort;
+
     public array $maps = [];
 
     public array $stats = [];
@@ -40,6 +44,8 @@ class ServerShow extends Component
 
         $this->serverId = $server->id;
         $this->serverName = $server->name;
+        $this->serverIp = $server->ip;
+        $this->serverPort = $server->port;
 
         // Per-map lap count + this server's best time, in one query rather than N+1 per map.
         // ->toBase() drops back to a plain query builder — these rows are aggregates (map_id,

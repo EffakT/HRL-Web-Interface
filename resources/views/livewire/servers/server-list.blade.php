@@ -25,6 +25,7 @@
                     @endif
                 </div>
                 <div class="truncate text-3xl font-bold tracking-[0.02em] text-white">{{ $featured['name'] }}</div>
+                <div class="mt-1 font-mono text-[10px] tracking-[0.05em] text-hud-text-faint">{{ $featured['ip'] }}:{{ $featured['port'] }}</div>
                 <div class="mt-2 font-mono text-[11px] text-hud-text-dim">NOW PLAYING · <span class="text-hud-cyan">{{ $featured['map'] }}</span></div>
             </div>
             <div class="flex flex-wrap items-start gap-y-4 gap-x-7">
@@ -59,6 +60,7 @@
                     <span class="mx-auto h-2.5 w-2.5 rounded-full {{ $server['online'] ? 'bg-hud-green shadow-[0_0_8px_rgba(52,227,155,.7)]' : 'bg-hud-text-faint' }}"></span>
                     <div class="min-w-0">
                         <div class="truncate text-sm font-semibold tracking-[0.02em] text-hud-text">{{ $server['name'] }}</div>
+                        <div class="truncate font-mono text-[9px] tracking-[0.05em] text-hud-text-faint">{{ $server['ip'] }}:{{ $server['port'] }}</div>
                     </div>
                     <span class="truncate font-mono text-[11px] {{ $server['online'] ? 'text-hud-cyan' : 'text-hud-text-faint' }}">{{ $server['map'] }}</span>
                     <div class="flex items-center gap-2.5">
@@ -84,6 +86,7 @@
                     <span class="h-2 w-2 flex-none rounded-full {{ $server['online'] ? 'bg-hud-green shadow-[0_0_8px_rgba(52,227,155,.7)]' : 'bg-hud-text-faint' }}"></span>
                     <div class="min-w-0 flex-1">
                         <div class="truncate text-sm font-semibold text-hud-text">{{ $server['name'] }}</div>
+                        <div class="truncate font-mono text-[9px] tracking-[0.05em] text-hud-text-faint">{{ $server['ip'] }}:{{ $server['port'] }}</div>
                         <div class="mt-0.5 truncate font-mono text-[9px] {{ $server['online'] ? 'text-hud-cyan' : 'text-hud-text-faint' }}">{{ $server['map'] }}</div>
                     </div>
                     <div class="flex-none text-right">

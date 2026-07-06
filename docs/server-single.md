@@ -37,6 +37,10 @@ Unchanged — see "Current state" above.
 
 **Renamed from "All Laps"** (see [decisions.md](decisions.md)) — a plain reverse-chronological **feed** of every lap on this server, paginated, newest first. Deliberately **not** deduplicated per (player, map): a player who ran 5 laps in a row shows up 5 times, which is correct for a feed (a brief dedup attempt was tried and reverted — see decisions.md). No filtering UI specified yet — map/player filters could be added later, but that's an implementation detail, not specced here.
 
+## IP:Port identity (added 2026-07-07)
+
+Every place a server's **name** is shown as its own identity label (not an incidental reference inside a table row about something else) also shows its `ip:port` right underneath/alongside it, matching the `Server::$ip`/`Server::$port` columns (see [database.md](database.md)) — this page's H1, the Servers List (`/servers`, featured card + table + mobile rows), the server-scoped Player Single variant's eyebrow, the nested Map Leaderboard's eyebrow, and Home's "Most Active Server" highlight card. Deliberately **not** added to secondary/contextual mentions of a server name inside another subject's table (e.g. the Global Leaderboard's per-row "winning server" subtitle, Player Single's Performance-by-Map/Fav Servers server column, the Lap Detail modal, or the Homepage "records"/"new content" highlight prose) — those are about a player or a lap, not about identifying a server, and repeating `ip:port` there would be clutter without adding useful context.
+
 ## Removed
 
 - **Top 3 Fastest Laps** — originally specced as the 3 fastest raw lap times across all maps on this server. Built, then removed after review: comparing raw times across maps with drastically different lengths (~60–120s in this project's mock data) doesn't produce a meaningful "top 3" — a fast lap on a short map and a fast lap on a long map aren't comparable without normalization, which was never in scope. No normalized replacement was requested; the section is simply gone. See [decisions.md](decisions.md).

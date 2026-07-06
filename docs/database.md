@@ -28,10 +28,15 @@ players
   --    today). Not fixed — merging same-name players is a real feature question of its own
   --    (which hash/session should "win"?), not something to silently collapse. See decisions.md.
 
-lap_times                 -- FULL HISTORY, kept forever (source of truth)
+lap_times                 -- PB-PROGRESSION LOG, not full lap history (corrected 2026-07-06 — see below)
   id, server_id, map_id, player_id, time, timestamps
-  -- 1657 rows / 817 players at last check (confirmed via Eloquent, see Models below).
-  --    Best-per-(player,map,server) is a derived MIN(time) query, never a stored/upserted row.
+  -- 1657 rows / 817 players, across 1613 distinct (player,map,server) groups — average 1.03
+  --    rows per group, only 26 groups have more than one row. This is NOT "every lap ever
+  --    driven" (that would show far more rows per group); it's confirmed (see below) that the
+  --    old webhook only inserts a row when a lap beats the player's existing best on that
+  --    server+map. Best-per-(player,map,server) is still a valid derived MIN(time) query —
+  --    that part of the architecture is unaffected — but "full history" was a wrong
+  --    characterization of what's actually stored. See decisions.md.
   -- ⚠️ created_at/updated_at are DATE columns, not DATETIME/TIMESTAMP — there is NO time-of-day
   --    precision on when a lap was submitted, only the day. Confirmed via `SHOW COLUMNS` and by
   --    querying real rows (every created_at reads as midnight). This is a real constraint, not
@@ -85,7 +90,9 @@ All models exist under `app/Models/`, one per real table, with matching factorie
 
 ## Duplicate pivot rows in `servers_maps` / `players_servers`
 
-Both pivot tables contain many duplicate `(server_id, map_id)` / `(player_id, server_id)` rows — confirmed on real data: one server had **207** `servers_maps` rows for only **9** distinct maps, and **201** `players_servers` rows for only **17** distinct players. Almost certainly the old app inserted a new pivot row every time it *saw* a map/player on a server again, rather than upserting or checking for an existing row first — not something to "fix" by deleting rows (that's real historical data of a kind, just not deduplicated), just something every consumer must account for.
+Both pivot tables contain many duplicate `(server_id, map_id)` / `(player_id, server_id)` rows — confirmed on real data: one server had **207** `servers_maps` rows for only **9** distinct maps, and **201** `players_servers` rows for only **17** distinct players.
+
+**Root cause confirmed 2026-07-06** by reading the old webhook job (`app/Jobs/ProcessNewLap.php-legacy`): it calls `DB::table('players_servers')->insertOrIgnore([...])` (and the same for `servers_maps`) on **every single lap submission**, not just the first time a pairing is seen. `insertOrIgnore` only skips a row when it would violate a unique/primary key constraint — but per `old_schema.md`, neither pivot table has a unique index on the pair columns, only a plain `KEY` (non-unique) on each FK individually. With no constraint to violate, `insertOrIgnore` silently inserts a fresh duplicate row every time — it was never actually deduplicating anything. Not something to "fix" by deleting rows (that's real historical data of a kind, just not deduplicated), just something every consumer must account for, and a concrete thing to actually fix (add a real unique constraint) if/when the pivot-writing logic is ported to the new webhook.
 
 **Consequence**: `Server::maps()`, `Server::players()`, `Map::servers()`, and `Player::servers()` all call `->distinct()` in their relation definition so `->get()` / eager loading return correctly deduplicated collections automatically — don't remove that. It's still not a plain count-safe relation, though: `$server->maps()->count()` (the aggregate shortcut) does **not** honor a column-less `->distinct()` and will return the raw (duplicated) row count. For counts, use `$server->maps()->distinct('maps.id')->count('maps.id')` — a bare `->distinct()->count()` silently gives the wrong number. Verified both forms against real data before relying on this pattern anywhere.
 
@@ -97,7 +104,7 @@ Two server rows (ids 3 and 4) are soft-deleted but still referenced by historica
 
 ## Key model decisions
 
-- **History = full `lap_times`, kept indefinitely.** No pruning, no separate PB-only table. This superseded an earlier (pre-schema-inspection) plan involving invented `lap_records`/`lap_record_splits`/`lap_events` tables — those never existed and are not being built. See [decisions.md](decisions.md) for why.
+- **History = `lap_times`, no separate PB-only table.** No pruning. This superseded an earlier (pre-schema-inspection) plan involving invented `lap_records`/`lap_record_splits`/`lap_events` tables — those never existed and are not being built. **Correction (2026-07-06)**: the *existing* real rows are a PB-progression log (one row per improvement), not literally every lap ever attempted, as originally believed — see decisions.md. **Decided**: the rebuilt webhook will log every future attempt, making this genuinely full history from that point forward.
 - **Splits are per-checkpoint** (`checkpoint_id` on `lap_time_splits`), richer than the originally-planned per-map `sector_number` + single time.
 - **"Most active" server**: superseded by the full spec in [most-active-server.md](most-active-server.md) (weighted activity score + recency bonus, 90-day rolling window) — this replaced the original rough placeholder ("ranked by `lap_times` row count in a rolling 30-min window"). Still replaces a separate `lap_events` table that was never built — no new table needed, it's a derived query over `lap_times`.
 - **Entity naming**: `Player`, not `Driver`/`Racer` — matches the old API's terminology. "Driver" is still used as a UI display label (see [glossary.md](glossary.md)).
@@ -105,19 +112,50 @@ Two server rows (ids 3 and 4) are soft-deleted but still referenced by historica
 - **Claim-code system** (`users_players`/`users_servers`): tables preserved as-is, no feature work planned around them until explicitly revisited.
 - **No multi-tenancy** — no `org_id`/league scoping anywhere.
 
-## Webhook → job flow (planned, not yet built)
+## Webhook → job flow
 
-The webhook/job mechanism already exists in the old app but **hasn't been inspected yet** (deferred — access pending). Planned flow once ported/rebuilt:
+### Old app's actual behavior (inspected 2026-07-06 via `app/Http/Controllers/ApiController.php-legacy` + `app/Jobs/ProcessNewLap.php-legacy`/`ProcessPlayerClaim.php-legacy`)
 
-1. Webhook controller validates payload, dispatches `ProcessLapSubmitted` job (fast response, non-blocking).
-2. Job:
-   - Upserts player if new (matches on `hash`, tentatively — confirm once payload shape is known).
-   - Inserts a new `lap_times` row — always insert, never upsert/overwrite.
-   - Inserts corresponding `lap_time_splits` rows.
-   - Checks whether the new lap is a PB and/or new course record (via the derived `MIN(time)` query) to decide whether to broadcast.
-   - If so, broadcasts `LeaderboardUpdated` (map+server scoped channel) via Reverb/Echo.
+These `-legacy` files are reference copies of the old app's controller/jobs, not part of the live app (non-`.php` extension, not autoloaded) — kept for inspection only.
 
-Open questions tracked in [roadmap.md](roadmap.md): exact webhook payload shape, how (or whether) `servers.current_map_id`-equivalent gets updated.
+1. `POST` webhook (`ApiController::newTime`) receives the game server's IP (from the request) + a JSON payload: `{map_label, map_name, player_hash, player_name, player_time, port, race_type, splits: [{checkpoint_id, duration, startTime, endTime}, ...]}`. A hardcoded IP-remap exists for a specific internal-network NAT quirk (`192.168.88.x` → a real public IP) — environment-specific, not portable as-is.
+2. `ProcessNewLap` job:
+   - **Live-queries the actual Halo game server over UDP** (a `QueryServer` helper) to fetch its current hostname — the server's `name` comes from this live query, not from the webhook payload.
+   - `Server::firstOrCreate(['ip' => ..., 'port' => ...], ['name' => $hostname])`, updates `name` if the live-queried hostname changed.
+   - `Player::firstOrCreate(['hash' => sha256($payload['player_hash'])], ['name' => $payload['player_name']])` — confirms the exact hash algorithm (`sha256` of the incoming raw hash, not stored raw).
+   - Attaches `players_servers`/`servers_maps` pivot rows via `insertOrIgnore` on **every** submission — see "Duplicate pivot rows" above for why this doesn't actually dedupe.
+   - `Map::firstOrCreate(['name' => $payload['map_name']], ['label' => $computedLabel])` — `label` is derived from a hardcoded machine-name → display-name alias dictionary (~18 known maps) plus a race-type suffix (`" - Any Order"` / `" - Rally"`), not copied from the payload. The alias table is in the legacy job file if it's needed again.
+   - **⚠️ Only inserts a `lap_times` row if `is_null($bestTime) || $newTime < $bestTime`** — i.e. only on a genuine personal-best improvement for that (player, map, server). Non-improving laps are validated (game-server query succeeds) but otherwise silently discarded — never written anywhere. This is the confirmed root cause of the "PB-progression log, not full history" correction above.
+   - Splits are only inserted alongside a new PB row (same conditional).
+   - Computes leaderboard position via a `MIN(time)`-grouped subquery — same derived-read approach this project already uses, not a stored rank.
+3. `ApiController::claimPlayer` + `ProcessPlayerClaim` job: a separate endpoint, hashes the incoming code the same way, finds the player's pending claim by code, and marks it claimed. Confirms claim codes are submitted through the same game-server-relay channel as lap times, not a website form. Still deferred — see scope.md — but useful context if it's ever revisited.
+
+### Rebuilt and live (2026-07-06)
+
+`POST /api/v1/laps` → `Api\V1\LapSubmissionController::store` → `App\Jobs\ProcessNewLap`. See [decisions.md](decisions.md) for the full implementation writeup; summary of what changed vs. the old app:
+
+- **No auth** — kept open, matching the old app. Explicitly re-confirmed with the user rather than ported silently (the old app never had any auth on this endpoint either). See [security.md](security.md).
+- **Logs every attempt, not just PB improvements** — `LapTime::create()` runs unconditionally now. `isNewRecord` is still computed (via the pre-insert `MIN(time)`) but only decides the response shape and whether to broadcast, not whether to write the row. Makes [most-active-server.md](most-active-server.md)'s "Valid Laps" metric genuinely meaningful instead of only ever seeing PB-improvement events.
+- **A failed live query no longer discards the lap.** The old app aborted the whole submission if the UDP query failed. Now: a failed query just logs a warning and the lap is still recorded — a brand-new server gets a placeholder name (`"Unknown (ip:port)"`) until a later successful query updates it; an already-known server just keeps its last-known name.
+- **Duplicate pivot rows fixed at the write site** — `$server->players()->syncWithoutDetaching([...])` / `->maps()->syncWithoutDetaching([...])` replace the old `insertOrIgnore`-with-no-unique-constraint approach (see "Duplicate pivot rows" above). No new duplicates get created going forward; existing duplicate rows are untouched.
+- **Broadcasts `App\Events\LeaderboardUpdated`** (`ShouldBroadcast`, public channel `servers.{serverId}.maps.{mapId}`) only when `isNewRecord`. Reverb/Echo (roadmap item 16) isn't wired up yet — with this environment's `BROADCAST_CONNECTION=log` default, this currently just logs. The event exists now so item 16 only needs a frontend listener, not a backend change.
+- **Not queued** — despite the class name, `ProcessNewLap` runs synchronously inside the request (matches what the *old* app's runtime actually did — it declared `ShouldQueue` but only ever called `->handle()` directly, never `::dispatch()`), because the game server needs its leaderboard position back in the same HTTP response.
+- **Rate-limited independently from the read API** — its own `webhook` limiter (120/min/IP, more generous than the read API's 60/min, since one busy server's IP can legitimately submit far more often than a browsing client would). See [api.md](api.md) and [security.md](security.md).
+- Map-label alias dictionary and race-type suffix logic ported verbatim into `ProcessNewLap::MAP_ALIASES`/`RACE_TYPE_SUFFIXES`.
+
+Still open: how/whether `servers.current_map_id`-equivalent gets updated (the old app doesn't have one either — it doesn't track "current map" at all, only "maps ever seen on this server" via the pivot) — this is roadmap item 19's territory, not this webhook's.
+
+### `QueryServer` UDP protocol — confirmed 2026-07-06
+
+`app/Helpers/QueryServer.php-legacy` (previously missing from the inspected legacy set, now recovered) is a **GameSpy-style server query client** — this is the standard query protocol used by Halo PC/Halo Custom Edition dedicated servers:
+
+- Opens a UDP socket to the server's `ip:port`, sends the literal 6-byte payload `\query` (backslash-prefixed, no trailing backslash — confirmed from the legacy `socket_send($sock, "\\query", 6, ...)` call), waits up to a timeout (2s default) for a response.
+- The response is one big string of backslash-delimited tokens (`explode("\\", $buffer)`), alternating key/value: e.g. `\hostname\Foo Server\numplayers\4\...\player_0\Name1\player_1\Name2\...\`. First token (index 0, before the leading `\`) is discarded.
+- `numplayers` lives at a **fixed offset (index 19)** in the split array in the legacy implementation — fragile (assumes every server response has an identical fixed key layout ahead of the player list), not a keyed lookup. A rebuild should parse this properly as actual key/value pairs first, then read `numplayers`/`hostname`/etc. by key instead of by hardcoded index — far less brittle against different Halo server builds/mods that might emit keys in a different order or add extra ones.
+- Player entries are indexed (`player_0`, `player_1`, ...) with parallel `score_N`/`ping_N`/`team_N` arrays offset by `numplayers * 2/4/6` slots respectively — same "positional, not keyed" fragility.
+- No authentication — this is a public, unauthenticated read-only query, same trust model as the site's own read API.
+
+This unblocks roadmap items 14 (webhook rebuild — server hostname lookup) and 19 (live server info — current map/player count, if the response includes a map field, still to be confirmed empirically against a real server) — no protocol reverse-engineering needed, only a modern (non-deprecated `socket_*`, Laravel-idiomatic) reimplementation with proper key/value parsing instead of the fragile fixed-offset approach.
 
 ## Global Player Ranking (planned)
 

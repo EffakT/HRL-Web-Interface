@@ -26,9 +26,9 @@ No formal security review has been done yet. Phase 2 real-data integration is un
 
 - **Auth** (`/login`, `/register`) — not built. No password hashing/session strategy beyond Laravel defaults has been exercised yet.
 - **Authorization** — no policies/gates exist yet since no models/auth exist. Once the claim-code ownership system (`users_players`/`users_servers`) is revisited, ownership-based authorization will need real policies (server/player owners being allowed to, e.g., delete their own laps — see [roadmap.md](roadmap.md) "Future Plans" ported from the old site).
-- ~~**Rate limiting** on the future public API~~ — **done (2026-07-06)**: 60/min per IP via Laravel's `throttle:api`, see [api.md](api.md). Still open for the webhook endpoint (not built yet — roadmap item 14).
-- **Webhook authentication** — the old webhook's auth mechanism (if any) hasn't been inspected yet.
-- **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data.
+- ~~**Rate limiting** on the future public API~~ — **done (2026-07-06)**: 60/min per IP via Laravel's `throttle:api` for the read endpoints, 120/min per IP via its own `webhook` limiter for `POST /api/v1/laps`, see [api.md](api.md).
+- ~~**Webhook authentication**~~ — **confirmed and decided (2026-07-06)**: the old webhook had no authentication mechanism at all — any IP could POST fabricated laps. Rather than port this silently, it was surfaced to the user explicitly before the rebuild (add a shared-secret header vs. keep it open). **Decision: keep it open**, matching the old app. This remains a real gap — anyone who finds the endpoint can inject fake leaderboard entries — but it's now a deliberate, documented choice rather than an unexamined port. Revisit if abuse actually happens; see [database.md](database.md) and [decisions.md](decisions.md).
+- **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data. The lap-submission webhook (2026-07-06) is the one exception so far — validated via `StoreLapTimeRequest`.
 
 ## Guidance going forward
 

@@ -11,9 +11,10 @@ Public API at `/docs` on the old site (Players, Maps, Servers endpoints). Known 
 ## Endpoints
 
 ```
-GET /api/v1/servers
-GET /api/v1/maps/{map}/leaderboard[?server={serverId}]
-GET /api/v1/laps/{lapTime}
+GET  /api/v1/servers
+GET  /api/v1/maps/{map}/leaderboard[?server={serverId}]
+GET  /api/v1/laps/{lapTime}
+POST /api/v1/laps
 ```
 
 ### `GET /api/v1/servers`
@@ -34,13 +35,29 @@ One specific lap's full detail — `id`, `time`, `time_formatted`, `player`, `ma
 
 **Not scoped to active servers** — deliberately different from the leaderboard endpoint above. A lap's historical existence doesn't depend on whether its server was later archived (matches this app's "full history, never pruned" philosophy), so this still returns the real server name even for an archived server. `LapTime::server()` is a plain (non-`withTrashed`) relation by design — every leaderboard read in this app treats an archived server's laps as nonexistent — so the controller loads the server explicitly with `withTrashed()` rather than changing that shared relation.
 
+### `POST /api/v1/laps`
+
+The lap-submission webhook — a Halo game server posting a completed lap (roadmap item 14, see [database.md](database.md)'s "Webhook → job flow" and [decisions.md](decisions.md) for the full rebuild writeup). Not part of the read API's request/response shape family above — this is a write endpoint aimed at game servers, not browsers.
+
+Body (flat JSON, no wrapper): `map_name`, `player_hash`, `player_name`, `player_time`, `port`, `race_type` (0/1/2, defaults to 0), `splits` (optional array of `{checkpoint_id, duration, startTime, endTime}`). `map_label` is accepted but ignored — the display label is always computed server-side from `map_name` via a hardcoded alias dictionary + race-type suffix.
+
+Response: `{success, isNewRecord, lapTime, bestTime, leaderboardPosition: {position, total, topTime?, difference?}}`. Every submitted lap is logged (not just personal-best improvements — a deliberate change from the old app, see [database.md](database.md)), but `isNewRecord` and the broadcast (below) still only fire on a genuine improvement.
+
+Live-queries the actual game server over UDP (see [database.md](database.md)'s "QueryServer UDP protocol") to fetch its real hostname — the server's stored `name` comes from this live query, not from the payload. A failed query no longer drops the lap (unlike the old app); it just falls back to a placeholder/existing name.
+
+Fires `App\Events\LeaderboardUpdated` (`ShouldBroadcast`) only when `isNewRecord` — sets up roadmap item 16 (Reverb/Echo) without depending on it; with no broadcast driver wired up yet, this currently just logs.
+
+**No auth**, same as the read endpoints and the old app's equivalent — explicitly reconfirmed with the user during this rebuild rather than assumed. **Its own rate limit**: 120/min per IP (not the read API's 60/min) — see "Rate limiting" below.
+
 ## Auth
 
 **Decided: none, for now.** The whole site is already a fully public leaderboard with no login system — these endpoints expose nothing the website itself doesn't already show. Per-user API tokens (the old app's approach) don't make sense to port until a real auth/account system exists (still an open question — see [roadmap.md](roadmap.md)). Rate limiting, not auth, is the actual protection against abuse (see below). Revisit if a future feature needs to distinguish *who* is calling the API, not just *how often*.
 
 ## Rate limiting
 
-60 requests/minute per IP, via Laravel's built-in `throttle:api` middleware (`RateLimiter::for('api', ...)` in `AppServiceProvider`). A starting point, not a measured/tuned value — revisit if real usage says otherwise.
+The read endpoints: 60 requests/minute per IP, via Laravel's built-in `throttle:api` middleware (`RateLimiter::for('api', ...)` in `AppServiceProvider`). A starting point, not a measured/tuned value — revisit if real usage says otherwise.
+
+The webhook (`POST /laps`): its own, more generous `webhook` limiter — 120/min per IP — since it's machine-to-machine (a busy game server with several racers can legitimately submit far more often than a browsing client would). Explicitly opts out of the read API's `throttle:api` (`->withoutMiddleware('throttle:api')`) so the two budgets are independent.
 
 ## Versioning
 

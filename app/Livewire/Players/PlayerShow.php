@@ -3,19 +3,22 @@
 namespace App\Livewire\Players;
 
 use App\Livewire\Concerns\HasLapDetailModal;
+use App\Livewire\Concerns\HasRecordVsRunnerUpReference;
+use App\Models\GlobalRanking;
+use App\Models\LapTime;
+use App\Models\LapTimeSplit;
+use App\Models\Player;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Player', 'active' => 'players'])]
 class PlayerShow extends Component
 {
-    use HasLapDetailModal;
+    use HasLapDetailModal, HasRecordVsRunnerUpReference;
 
     public string $playerId;
 
-    public string $playerName = 'VORTEX';
-
-    public string $playerTag = '[SR7]';
+    public string $playerName;
 
     public array $playerInfo = [];
 
@@ -25,78 +28,178 @@ class PlayerShow extends Component
 
     public array $laps = [];
 
+    /** Keys into $laps for the Performance by Map table, in per-map order. */
+    public array $performanceKeys = [];
+
+    /** Keys into $laps for the Recent Laps feed, in reverse-chronological order. */
+    public array $recentLapKeys = [];
+
     public array $favServers = [];
 
     public function mount(string $playerId): void
     {
-        // Mock data — a player's laps across maps/servers.
-        // TODO: replace with a real lap_times query scoped to this player once backend integration is wired up.
+        $player = Player::findOrFail($playerId);
+
         $this->playerId = $playerId;
+        $this->playerName = $player->name;
 
-        $rows = [
-            [1, 'Coldsnap Rally', 'Coldsnap Circuit [Classic]', '1:12.408', '28 JUN 2026', 22, 'VORTEX', '[SR7]', 1, 100],
-            [2, 'Bloodgulch Circuit', 'Bloodgulch Grand Prix', '1:24.902', '26 JUN 2026', 31, 'NeonHalo', '[NHC]', 2, 95],
-            [3, 'Timberland Loop', 'Timberland Rally Cross', '1:41.220', '24 JUN 2026', 40, 'GravLift', '[ODST]', 4, 86],
-            [4, 'HEH Sprint', 'Hang \'Em High Sprints', '0:58.311', '22 JUN 2026', 27, 'RedTeamRush', '[RED]', 1, 100],
-            [5, 'Danger Canyon', 'Danger Canyon Drift', '1:58.744', '21 JUN 2026', 55, 'SabreWing', '[SAB]', 7, 76],
-            [6, 'Sidewinder Circuit', 'Sidewinder Speedway 24/7', '1:03.774', '19 JUN 2026', 22, 'ODST_Mako', '[ODST]', 3, 90],
-        ];
+        $ranking = GlobalRanking::forPlayer($player->id);
+        $perMap = collect($ranking['perMap'] ?? []);
 
-        // "Performance by Map" (Map/PB/Map Rank/Points/Server) and the existing Lap Detail modal
-        // share this same array/index — every row here is this player's single best lap on that
-        // map, which is exactly what the modal's split comparison expects. "Recent Laps" below
-        // reuses this same array too rather than inventing a second selection index; with only
-        // one lap per map in this mock dataset, "recent" and "per-map PB" happen to coincide —
-        // at real scale a player would have many laps per map, so the two views would diverge.
-        $this->laps = array_map(fn ($r) => [
-            'mapId' => $r[0],
-            'map' => $r[1],
-            'server' => $r[2],
-            'time' => $r[3],
-            'date' => $r[4],
-            'ping' => $r[5],
-            'recordHolder' => $r[6],
-            'recordTag' => $r[7],
-            // Mock: this player's time happens to match the map record in this data set — TODO: derive for real once backend integration is wired up.
-            'recordTime' => $r[3],
-            'mapRank' => $r[8],
-            'points' => $r[9],
-        ], $rows);
-
-        // Player Info (header) — Global Rank/Score depend on global-ranking.md, not real yet.
         $this->playerInfo = [
-            'globalRank' => 1,
-            'globalScore' => 812,
+            'globalRank' => $ranking['rank'] ?? '—',
+            'globalScore' => $ranking['score'] ?? 0,
         ];
 
-        // Stats Card. "Num Records" and "Total valid laps" use the plain/current-state readings
-        // per docs/player-single.md (deliberately distinct from other pages' historical-reading
-        // "records" stats and from most-active-server.md's dedup'd "Valid Laps" — see glossary).
+        // Map record (global, across active servers) for every map this player has raced —
+        // same tie-break as every other real leaderboard read (earliest lap wins a time tie).
+        $recordsByMap = LapTime::whereIn('map_id', $perMap->pluck('mapId'))
+            ->whereHas('server')
+            ->with('player')
+            ->orderBy('time')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('map_id')
+            ->map(fn ($group) => $group->first());
+
+        // "Performance by Map" — this player's single best lap on each map, which is exactly
+        // what GlobalRanking::forPlayer()'s perMap breakdown already is. Feeds the shared Lap
+        // Detail modal via getComparisonProperty() below.
+        $this->laps = $perMap->map(function (array $row) use ($recordsByMap): array {
+            $record = $recordsByMap[$row['mapId']] ?? null;
+
+            return [
+                'mapId' => $row['mapId'],
+                'lapId' => $row['lapId'],
+                'recordLapId' => $record?->id,
+                'map' => $row['map'],
+                'server' => $row['server'],
+                'time' => $row['time'],
+                'date' => $row['setAt']?->diffForHumans() ?? '—',
+                'dateExact' => $row['setAt'] ? $row['setAt']->format('d M Y, H:i').' '.$row['setAt']->format('T') : '—',
+                'recordHolder' => $record?->player->name ?? '—',
+                'recordTime' => $record ? LapTime::formatSeconds($record->time) : '—',
+                'mapRank' => $row['rank'],
+                'points' => $row['points'],
+            ];
+        })->all();
+        $this->performanceKeys = array_keys($this->laps);
+
+        // All of this player's real laps (every attempt, not just per-map bests) — drives the
+        // Stats Card and Fav Servers, both of which need full lap volume, not just PB rows.
+        $allLaps = $player->lapTimes()->whereHas('server')->with('server')->get();
+
+        // Recent Laps — the player's actual last 10 attempts, chronological (not the per-map-PB
+        // ordering "Performance by Map" uses). Right now, historical lap_times rows are a
+        // personal-best-progression log (see docs/database.md), so this will often just be the
+        // same rows as Performance by Map in a different order — but the rebuilt webhook logs
+        // every attempt going forward (see docs/decisions.md), so this needs to genuinely handle
+        // laps that aren't a per-map best too. Those get appended to $laps under a new key
+        // (mapRank/points don't apply to a non-PB attempt) so the shared Lap Detail modal can
+        // still address them via openLap() regardless of which table opened them.
+        $recentLaps = LapTime::where('player_id', $player->id)
+            ->whereHas('server')
+            ->with(['map', 'server'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        $lapIdToKey = collect($this->laps)->mapWithKeys(fn (array $lap, int $key) => [$lap['lapId'] => $key]);
+
+        $this->recentLapKeys = $recentLaps
+            ->map(function (LapTime $lap) use ($lapIdToKey, $recordsByMap): int {
+                if ($lapIdToKey->has($lap->id)) {
+                    return $lapIdToKey[$lap->id];
+                }
+
+                $record = $recordsByMap[$lap->map_id] ?? null;
+                $key = count($this->laps);
+
+                $this->laps[$key] = [
+                    'mapId' => $lap->map_id,
+                    'lapId' => $lap->id,
+                    'recordLapId' => $record?->id,
+                    'map' => $lap->map->label,
+                    'server' => $lap->server->name,
+                    'time' => $lap->formattedTime(),
+                    'date' => $lap->created_at?->diffForHumans() ?? '—',
+                    'dateExact' => $lap->created_at ? $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T') : '—',
+                    'recordHolder' => $record?->player->name ?? '—',
+                    'recordTime' => $record ? LapTime::formatSeconds($record->time) : '—',
+                    'mapRank' => null,
+                    'points' => null,
+                ];
+                $lapIdToKey[$lap->id] = $key;
+
+                return $key;
+            })
+            ->all();
+
         $this->statsCard = [
-            'numRecords' => 2,
-            'top3Finishes' => 5,
-            'mapsCompleted' => count($rows),
-            'serversPlayed' => collect($rows)->pluck('2')->unique()->count(),
-            'totalValidLaps' => 412,
-            'firstSeen' => '14 JAN 2025',
-            'lastActive' => '12m ago',
+            'numRecords' => $ranking['firstPlaces'] ?? 0,
+            'top3Finishes' => $ranking['top3'] ?? 0,
+            'mapsCompleted' => $ranking['mapsPlayed'] ?? 0,
+            'serversPlayed' => $allLaps->pluck('server_id')->unique()->count(),
+            'totalValidLaps' => $allLaps->count(),
+            'firstSeen' => $allLaps->min('created_at')?->format('d M Y') ?? '—',
+            'lastActive' => $allLaps->max('created_at')?->diffForHumans() ?? '—',
         ];
 
-        // Best Performance — curated achievements, not a raw top-3-fastest-laps list. Raw times
-        // aren't comparable across maps of different lengths (see docs/decisions.md — the same
-        // reasoning that got Server Single's "Top 3 Fastest Laps" removed applies here too).
-        $this->achievements = [
-            'Holds the course record on HEH Sprint and Coldsnap Rally',
-            'Top 3 finish on 5 of 6 maps raced',
-            "Fastest player on the server's most active map, Coldsnap Rally",
-        ];
+        // Best Performance — curated, not a raw top-3-fastest-laps list (raw times aren't
+        // comparable across maps of different lengths, see docs/decisions.md). No dedicated
+        // curation algorithm exists yet, so this derives a couple of honest, real-number
+        // sentences from the same ranking data above rather than free-floating mock text.
+        $recordMaps = $perMap->where('rank', 1)->pluck('map');
+        $this->achievements = array_filter([
+            $recordMaps->isNotEmpty()
+                ? 'Holds the course record on '.$recordMaps->join(', ', ' and ').'.'
+                : null,
+            $perMap->isNotEmpty()
+                ? "Top 3 finish on {$this->statsCard['top3Finishes']} of {$this->statsCard['mapsCompleted']} maps raced."
+                : null,
+        ]) ?: ['No standout finishes yet — keep racing to climb the leaderboard.'];
 
-        // Fav[orite] Servers — sorted by lap count descending (assumption, see docs/player-single.md).
-        $this->favServers = [
-            ['serverId' => 1, 'server' => 'Coldsnap Circuit [Classic]', 'laps' => 168, 'bestRank' => 1],
-            ['serverId' => 6, 'server' => 'Sidewinder Speedway 24/7', 'laps' => 94, 'bestRank' => 2],
-            ['serverId' => 2, 'server' => 'Bloodgulch Grand Prix', 'laps' => 61, 'bestRank' => 1],
-        ];
+        // Fav[orite] Servers — sorted by lap count descending (assumption, see
+        // docs/player-single.md). bestRank is this player's best Map Rank among the maps whose
+        // PB was set on that server; null (rendered as "—") if none of their per-map bests
+        // happen to live on that server.
+        $bestRankByServer = $perMap->groupBy('serverId')->map(fn ($group) => $group->min('rank'));
+
+        $this->favServers = $allLaps->groupBy('server_id')
+            ->map(fn ($group, $serverId) => [
+                'serverId' => (int) $serverId,
+                'server' => $group->first()->server->name,
+                'laps' => $group->count(),
+                'bestRank' => $bestRankByServer[$serverId] ?? null,
+            ])
+            ->sortByDesc('laps')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Real per-checkpoint split comparison against the map's course-record lap — same pattern
+     * as ServerShow, via the shared HasRecordVsRunnerUpReference trait.
+     */
+    public function getComparisonProperty(): array
+    {
+        $lap = $this->laps[$this->selectedPlayerIndex] ?? $this->laps[0] ?? null;
+        $reference = $this->resolveComparisonReference($lap);
+
+        if (! $lap || ! $reference) {
+            return [];
+        }
+
+        return LapTimeSplit::compare($lap['lapId'], $reference['lapId']);
+    }
+
+    public function getComparisonReferenceProperty(): ?array
+    {
+        $lap = $this->laps[$this->selectedPlayerIndex] ?? $this->laps[0] ?? null;
+
+        return $this->resolveComparisonReference($lap);
     }
 
     public function render()

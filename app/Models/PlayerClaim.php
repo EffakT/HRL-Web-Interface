@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\PlayerClaimFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable(['user_id', 'player_id', 'claim_code', 'claimed_at'])]
 class PlayerClaim extends Model
 {
-    /** @use HasFactory<\Database\Factories\PlayerClaimFactory> */
+    /** @use HasFactory<PlayerClaimFactory> */
     use HasFactory, SoftDeletes;
 
     protected $table = 'users_players';

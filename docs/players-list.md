@@ -1,6 +1,6 @@
 # Players List Page
 
-The page listing all players (`/players`, `App\Livewire\Players\PlayerList` — see [architecture.md](architecture.md)). **Status: built (mock data)** — the old simple name/laps/best-lap table has been fully replaced with the Global Leaderboard described below. See [decisions.md](decisions.md).
+The page listing all players (`/players`, `App\Livewire\Players\PlayerList` — see [architecture.md](architecture.md)). **Status: built, wired to real data (2026-07-06)** — the old simple name/laps/best-lap table has been fully replaced with the Global Leaderboard described below, backed by `App\Models\GlobalRanking`. See [decisions.md](decisions.md).
 
 ## Design principle
 
@@ -12,7 +12,7 @@ Four stats, meant to make the page feel alive/current rather than static:
 
 - **Total players** — count of distinct players with a Global Score (i.e. at least one recorded lap), all-time.
 - **Active in last 30 days** — count of distinct players with at least one lap in the last 30 days. Note this reuses the same "windowed recency" pattern as [most-active-server.md](most-active-server.md)'s recency bonus — worth implementing with a shared helper/query rather than a second copy of "count distinct players active since X."
-- **Total records set** — same phrase, same open ambiguity already flagged in [server-single.md](server-single.md) ("current records held" vs. "historical record-breaking events"), just aggregated across every player/map instead of one server. **This page's framing is a useful data point for resolving that open question**: "make the page feel alive, instead of static" strongly suggests the **historical** reading (a growing, ever-increasing count of record-breaking moments) rather than the current-state reading (which, system-wide, reduces to little more than "how many maps have at least one lap" — a fairly static, unexciting number). Not resolving the open question here, but flagging this as evidence toward the historical interpretation — see [roadmap.md](roadmap.md). **Update**: [homepage.md](homepage.md)'s "Latest / Current Records" highlight block goes further than a hint — it can only be built at all on the historical reading (it needs to show discrete recent record-setting *events*, e.g. "1h ago," which the current-state reading has no way to produce). That's the strongest evidence yet, not just a tone-based inference.
+- **Total records set** — **resolved and implemented (2026-07-06)**: the historical reading, via `App\Models\RecordHistory::events()` — a real, ever-growing count of record-breaking events across every player/map (19 as of this writing), not "how many maps currently have at least one lap." See [roadmap.md](roadmap.md)'s "Number of records set" open question (now resolved) and [decisions.md](decisions.md).
 - **Average maps per player** — total (player, map) participations ÷ total players. Reuses the same "distinct (player, map) participation" counting principle already established in [most-active-server.md](most-active-server.md)'s "Valid Laps" definition, for the same reason: it's a meaningful per-player average precisely because it isn't raw lap volume.
 
 ## Top 3 podium
@@ -24,12 +24,13 @@ Reuses the existing podium visual style already built for the Map Leaderboard (`
 | Column | Definition |
 |---|---|
 | Position | Rank by Global Score, descending. |
-| Player | Player name (+ tag, per existing display convention). |
+| Player | Player name. (No clan/tag — dropped 2026-07-06 when wiring real data; no `tag` column exists in the real schema, see [decisions.md](decisions.md).) |
 | Score | Global Score — see [global-ranking.md](global-ranking.md). |
 | Records | Records currently held by this player — count of maps where their best lap is the current global course record. Uses the "current state" reading (cheap: compare each of the player's per-map bests against that map's global #1) — **not** the historical reading being considered for the info card's "Total records set" above. These two stats can legitimately use different definitions of "record" (one per-player current state, one system-wide historical count) — don't assume they need to match. |
 | Maps | "Maps with PBs" — count of distinct maps this player has a recorded lap on (every map a player has raced necessarily has a personal-best-for-that-player by definition, so this is equivalent to "maps played" / maps contributing to their Global Score, not a stricter subset). |
+| Laps | **Added 2026-07-06**, per explicit request to keep the same "# Records, # Laps, # Maps" stat set on every ranked-player display (see [server-single.md](server-single.md)'s Top Players, which shows the identical three). Total real laps (every attempt, any active server) — not deduplicated, a plain count. |
 | Active | Last activity date — most recent lap timestamp across all maps/servers for this player. |
-| Trend | Trending indicator (arrow) — **not yet designed, the one real open question on this page.** See below. |
+| ~~Trend~~ | **Removed from the table (2026-07-06)** when wiring real data — its mechanism (see below) is still undecided, and there's no real signal to show honestly in the meantime. Re-add once decided; see [decisions.md](decisions.md). |
 
 ## Open item: Trending indicator
 
@@ -43,5 +44,5 @@ This is the one column that doesn't reduce to "run a query against current data"
 ## Open items (summary)
 
 - Trending indicator mechanism (see above) — the main open question on this page.
-- "Total records set" (info card) vs. "Records" (table column) intentionally may use different definitions of "record" (historical vs. current-state) — confirm this is acceptable rather than confusing once both are visible on the same page.
+- ~~"Total records set" (info card) vs. "Records" (table column)~~ — both now implemented and real (2026-07-06), deliberately using different definitions (historical count vs. current-state per-player) — both live on the same page (19 vs. individual per-player counts) and this reads fine in practice, not confusing.
 - Podium partial extraction (cosmetic/implementation detail, not a design question).

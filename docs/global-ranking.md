@@ -1,6 +1,6 @@
 # Global Player Ranking
 
-**Status: planned, not yet implemented.** This doc is the spec — no `GlobalRanking` code, table, or route exists yet. See [roadmap.md](roadmap.md) for where this sits relative to other planned work.
+**Status: implemented (2026-07-06).** `App\Models\GlobalRanking` (not an Eloquent model — a stateless calculator, no table) implements this spec exactly as written below: fixed top-10 table, two-band interpolation for 11–50, full 5-level Global Score tie-break, and the scoped Server Score variant via an optional `$serverId` parameter. Consumers: Players List (`PlayerList`), Player Single (`PlayerShow`), and Server Single's Top Players (`ServerShow`). See [roadmap.md](roadmap.md) item 11 and [decisions.md](decisions.md) for implementation notes.
 
 ## Purpose
 
@@ -69,6 +69,10 @@ Round to the nearest whole point. Sample values:
 
 A player's **Global Score = the sum of their per-map points across every map** they have a recorded lap on (not an average — see "Design Goals" below for why sum was chosen over average).
 
+**A/B-able via config (added 2026-07-06)**: `config('ranking.global_score_variant')` (env `GLOBAL_RANKING_VARIANT`, default `sum`) switches between `sum` (this section, as originally spec'd) and `average` (points ÷ maps played, regularized — see below) without a code change — see [config/ranking.php](../config/ranking.php). This exists because real data surfaced a genuinely debatable case: a player with a flawless record on fewer maps can be out-scored by a player who's merely "very good" (rank 2-4) across more maps, under `sum` — see [decisions.md](decisions.md) for the concrete example. Both variants share the exact same per-map points table/tie-break; only the final aggregation differs. `average` isn't the "correct" answer, it's the alternative being compared against `sum` — no decision has been made yet on which one this project should settle on long-term.
+
+**`average` is a weighted (Bayesian) average, not a naive one.** A naive `points ÷ maps played` has its own opposite failure mode, also found on real data: a player who's raced exactly 1 map and got rank 1 on it scores a flat 100.0 — beating a player who holds the record on 6 of 9 maps (97.0) — because a 1-map sample can't be distinguished from a 9-map sample by a raw average. Regularized using the same idea as IMDB's "weighted rating": each player's own average is blended with the overall average across all ranked players, weighted by how many maps they've actually raced (`config('ranking.average_confidence_maps')`, default **2** — think of it as "2 virtual maps of average performance" assumed by default). A player with very few maps gets pulled hard toward the middle; the effect fades out as they race more of their own maps. See [decisions.md](decisions.md) for the exact real-data before/after, including why the default is 2 and not something larger like 5 — this project's real map pool is tiny (10 maps total), so a confidence constant close to that ceiling would mean nobody, even a maximally-engaged player, ever really escapes the pull.
+
 ## Per-map calculation
 
 For every map:
@@ -116,6 +120,7 @@ Four planned pages read from this algorithm's output: [players-list.md](players-
 
 ## Open items
 
-- Confirm the global-vs-nested leaderboard scope assumption above.
-- ~~Decide the UI surface for this~~ — **resolved**: `/players` becomes the primary surface, redesigned as a Global Leaderboard sorted by Global Score. See [players-list.md](players-list.md). Whether it also appears on `players.show` (the individual player page) is still open.
-- Decide recalculation strategy (full vs. incremental) once real backend queries exist.
+- Confirm the global-vs-nested leaderboard scope assumption above (implemented as specified — global scope for Global Score, server-scoped for Server Score — but never explicitly re-confirmed by the user post-implementation).
+- ~~Decide the UI surface for this~~ — **resolved**: `/players` becomes the primary surface, redesigned as a Global Leaderboard sorted by Global Score. See [players-list.md](players-list.md). It also appears on `players.show` (Global Rank/Score header badges, plus per-map Points/Map Rank in the Performance by Map table) — **resolved**, both surfaces implemented.
+- ~~Decide recalculation strategy (full vs. incremental) once real backend queries exist~~ — **resolved for now**: full recompute on every call (`GlobalRanking::scores()` re-derives from `lap_times` each time, no caching), per this doc's own stated default. Real-scale measurement: ~688 ranked players / ~9 maps computes in ~0.2s — revisit only if profiling at real scale says otherwise.
+- The 5th Global Score tiebreaker ("earliest achievement date") is interpreted as the earliest `created_at` among a player's per-map personal-best laps — the spec doesn't define this mechanism precisely, and no case in real data has been observed to actually reach this tiebreaker level (4 tiers up, ties are already vanishingly rare).

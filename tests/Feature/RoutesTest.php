@@ -1,19 +1,21 @@
 <?php
 
 use App\Models\Map;
+use App\Models\Player;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 // Automates what had been manual curl+status-code smoke testing throughout the build
 // (see docs/testing.md). Most pages still run on mock data, so any id resolves — but
-// servers.show and servers.maps.show are now wired to real Eloquent data (see docs/decisions.md),
-// so they need actual Server/Map rows with id=1 to exist. Replace each remaining hardcoded `1`
-// with a factory row as its page gets wired for real, same as these were.
+// servers.show, servers.maps.show, maps.show, and players.show are now wired to real Eloquent
+// data (see docs/decisions.md), so they need actual rows with id=1 to exist. Replace each
+// remaining hardcoded `1` with a factory row as its page gets wired for real, same as these were.
 uses(LazilyRefreshDatabase::class);
 
 beforeEach(function () {
     Server::factory()->create(['id' => 1, 'name' => 'Test Server Alpha']);
     Map::factory()->create(['id' => 1, 'label' => 'Test Map Alpha']);
+    Player::factory()->create(['id' => 1, 'name' => 'Test Player Alpha']);
 });
 
 it('renders every route successfully', function (string $uri) {

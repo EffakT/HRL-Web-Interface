@@ -2,77 +2,92 @@
 
 namespace App\Livewire\Players;
 
+use App\Livewire\Concerns\HasRankedLeaderboardPagination;
+use App\Models\GlobalRanking;
+use App\Models\LapTime;
+use App\Models\RecordHistory;
+use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Players', 'active' => 'players'])]
 class PlayerList extends Component
 {
+    use HasRankedLeaderboardPagination;
+
     public array $stats = [];
 
     public array $podium = [];
 
-    public array $rest = [];
+    /** Every ranked player, keyed 0-indexed by Global Score rank — top 3 render as the podium, rest are paginated via HasRankedLeaderboardPagination. */
+    public array $players = [];
 
     public function mount(): void
     {
-        // Mock data — redesigned per docs/players-list.md into a Global Leaderboard, replacing
-        // the old name/laps/best-lap table. Global Score itself is not real yet (see
-        // docs/global-ranking.md) — Phase 2. Same player roster used across the Map Leaderboard
-        // mock data for continuity.
-        $rows = [
-            [1, 'VORTEX', '[SR7]', 812, 6, 9, '12m ago', 'up', 0],
-            [2, 'NeonHalo', '[NHC]', 764, 4, 9, '2h ago', 'up', 1],
-            [3, 'GravLift', '[ODST]', 701, 3, 8, '38m ago', 'down', 1],
-            [4, 'RedTeamRush', '[RED]', 588, 2, 7, '5h ago', 'flat', 0],
-            [5, 'SabreWing', '[SAB]', 542, 1, 7, '1d ago', 'up', 2],
-            [6, 'ODST_Mako', '[ODST]', 501, 1, 6, '9h ago', 'down', 1],
-            [7, 'PelicanDown', '[PEL]', 467, 0, 6, '3d ago', 'flat', 0],
-            [8, 'CovyCrusher', '[COV]', 430, 0, 5, '4h ago', 'up', 3],
-            [9, 'SpartanII_04', '[S2]', 398, 0, 5, '6d ago', 'down', 2],
-            [10, 'WartHogWild', '[WHW]', 356, 0, 4, '2d ago', 'flat', 0],
-        ];
+        $rankings = collect(GlobalRanking::scores());
 
-        $players = array_map(fn ($r) => [
-            'id' => $r[0],
-            'rank' => $r[0],
-            'name' => $r[1],
-            'tag' => $r[2],
-            'score' => $r[3],
-            'records' => $r[4],
-            'maps' => $r[5],
-            'active' => $r[6],
-            'trendDirection' => $r[7],
-            'trendDelta' => $r[8],
-        ], $rows);
+        // Real, per-player "last active" (most recent lap on any active server) and total lap
+        // count (every attempt, any server) — each in one query rather than N+1 per player.
+        $lastActive = LapTime::query()
+            ->whereHas('server')
+            ->selectRaw('player_id, MAX(created_at) as last_active')
+            ->groupBy('player_id')
+            ->pluck('last_active', 'player_id');
+
+        $lapCounts = LapTime::query()
+            ->whereHas('server')
+            ->selectRaw('player_id, COUNT(*) as laps')
+            ->groupBy('player_id')
+            ->pluck('laps', 'player_id');
+
+        // No clan/tag field exists in the real schema (see docs/decisions.md — dropped
+        // everywhere else for the same reason). Trend indicator dropped too: its mechanism
+        // (periodic rank/score snapshots vs. a recent-activity proxy) is still an open roadmap
+        // question, and there's no real signal to show honestly in the meantime.
+        $this->players = $rankings
+            ->map(fn (array $p): array => [
+                'id' => $p['playerId'],
+                'rank' => $p['rank'],
+                'name' => $p['name'],
+                'score' => $p['score'],
+                'records' => $p['firstPlaces'],
+                'maps' => $p['mapsPlayed'],
+                'laps' => (int) ($lapCounts[$p['playerId']] ?? 0),
+                'active' => isset($lastActive[$p['playerId']])
+                    ? Carbon::parse($lastActive[$p['playerId']])->diffForHumans()
+                    : '—',
+            ])
+            ->all();
 
         // Top 3 podium — shaped for the shared podium partial (resources/views/livewire/partials/podium.blade.php).
+        // Same "# RECORDS · # MAPS · # LAPS" stat line as Server Single's Top Players podium, per
+        // explicit request to keep these consistent across every ranked-player display.
         $this->podium = array_map(fn (array $p): array => [
             'title' => $p['name'],
-            'subtitle' => $p['tag'],
+            'subtitle' => null,
             'value' => $p['score'],
-            'meta' => "{$p['records']} RECORDS · {$p['maps']} MAPS",
+            'meta' => "{$p['records']} RECORDS · {$p['maps']} MAPS · {$p['laps']} LAPS",
             'badge' => $p['rank'] === 1 ? '#1 GLOBAL' : null,
             'href' => route('players.show', ['playerId' => $p['id']]),
-        ], array_slice($players, 0, 3));
+        ], array_slice($this->players, 0, 3));
 
-        // Table below only lists rank 4+ — top 3 are already shown in the podium above.
-        $this->rest = array_slice($players, 3);
-
-        // Info card — four stats, meant to make the page feel alive/current. "Total records set"
-        // uses the historical-record-breaking-events reading per the doc's leaning (not formally
-        // decided project-wide — see docs/roadmap.md), deliberately different from the table's
-        // "Records" column below (which is current-state, per-player). Mock only either way.
         $this->stats = [
-            'totalPlayers' => 187,
-            'active30d' => 96,
-            'recordsSet' => 14,
-            'avgMapsPerPlayer' => round(collect($players)->avg('maps'), 1),
+            'totalPlayers' => count($this->players),
+            'active30d' => $lastActive->filter(fn ($date) => $date >= now()->subDays(30)->toDateTimeString())->count(),
+            // Historical reading (2026-07-06, via App\Models\RecordHistory) — a real,
+            // ever-growing count of record-breaking events over time, not "records currently
+            // held" (that's the per-player "Records" table column below, which deliberately
+            // keeps the current-state reading — see docs/roadmap.md's "Number of records set"
+            // open item and docs/players-list.md, which explicitly allows these two to differ).
+            'recordsSet' => count(RecordHistory::events()),
+            'avgMapsPerPlayer' => count($this->players) > 0 ? round($rankings->avg('mapsPlayed'), 1) : 0,
         ];
     }
 
     public function render()
     {
-        return view('livewire.players.player-list');
+        return view('livewire.players.player-list', [
+            'rankedPlayers' => $this->rankedPlayers(),
+        ]);
     }
 }

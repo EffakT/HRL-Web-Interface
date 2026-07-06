@@ -145,3 +145,37 @@ it('compares the global record lap against the runner-up using real splits', fun
         ->and($comparison[0]['refTime'])->toBe('5.500')
         ->and($comparison[0]['faster'])->toBeTrue();
 });
+
+it('paginates ranks after the fixed top-three podium', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+
+    foreach (range(1, 20) as $rank) {
+        $player = Player::factory()->create(['name' => 'Driver '.str_pad((string) $rank, 2, '0', STR_PAD_LEFT)]);
+
+        LapTime::factory()->create([
+            'map_id' => $map->id,
+            'server_id' => $server->id,
+            'player_id' => $player->id,
+            'time' => 59 + $rank,
+        ]);
+    }
+
+    $component = Livewire::test(MapLeaderboard::class, ['mapId' => (string) $map->id]);
+    $pageOne = $component->viewData('rankedPlayers');
+
+    expect($pageOne->currentPage())->toBe(1)
+        ->and($pageOne->total())->toBe(17)
+        ->and($pageOne->count())->toBe(15)
+        ->and($pageOne->first()['rank'])->toBe('04')
+        ->and($pageOne->last()['rank'])->toBe('18');
+
+    $component->call('nextPage', 'page');
+    $pageTwo = $component->viewData('rankedPlayers');
+
+    expect($pageTwo->currentPage())->toBe(2)
+        ->and($pageTwo->count())->toBe(2)
+        ->and($pageTwo->first()['rank'])->toBe('19')
+        ->and($pageTwo->last()['rank'])->toBe('20')
+        ->and($component->get('selectedPlayerIndex'))->toBeNull();
+});

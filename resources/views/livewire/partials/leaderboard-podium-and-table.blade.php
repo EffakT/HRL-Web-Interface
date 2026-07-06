@@ -1,6 +1,5 @@
-{{-- Expects: $players, $splits, $totalLaps (total raw laps, distinct from ranked drivers) --}}
-{{-- Table below only lists rank 4+ — top 3 are already shown in the podium above. --}}
-@php $rest = array_slice($players, 3, null, true); @endphp
+{{-- Expects: $players, $rankedPlayers paginator, $splits, $totalLaps.
+     Table below only lists rank 4+ — top 3 remain visible in the podium on every page. --}}
 
 <!-- podium -->
 @php $p = [1 => $players[1] ?? null, 0 => $players[0] ?? null, 2 => $players[2] ?? null]; @endphp
@@ -73,7 +72,7 @@
     <div class="grid grid-cols-[52px_1fr_96px_130px_100px] gap-3 border-b border-hud-green/16 px-3.5 py-2.5 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">
         <span>#</span><span>PLAYER</span><span>GAP</span><span class="text-right">LAP TIME</span><span class="text-right">DATE</span>
     </div>
-    @foreach ($rest as $index => $player)
+    @foreach ($rankedPlayers as $index => $player)
         <button type="button" wire:click="openLap({{ $index }})"
                 class="grid w-full grid-cols-[52px_1fr_96px_130px_100px] items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
             <span class="text-[15px] font-bold text-hud-text-dim">{{ $player['rank'] }}</span>
@@ -95,13 +94,28 @@
         </button>
     @endforeach
     <div class="flex items-center justify-between px-3.5 py-4 font-mono text-[10px] tracking-[0.1em] text-hud-text-dim">
-        <span>SHOWING {{ count($players) }} DRIVERS · {{ $totalLaps }} LAPS</span>
+        @if (count($players) > 3)
+            <span>SHOWING RANKS {{ $rankedPlayers->firstItem() + 3 }}–{{ $rankedPlayers->lastItem() + 3 }} / {{ count($players) }} DRIVERS · {{ $totalLaps }} LAPS</span>
+            <div class="flex items-center gap-3">
+                <button type="button" wire:click="previousPage('page')" @disabled($rankedPlayers->onFirstPage())
+                        class="cursor-pointer tracking-[0.14em] disabled:cursor-not-allowed disabled:text-hud-text-faint {{ $rankedPlayers->onFirstPage() ? '' : 'text-hud-text hover:text-hud-green' }}">
+                    ‹ PREV
+                </button>
+                <span>{{ $rankedPlayers->currentPage() }} / {{ $rankedPlayers->lastPage() }}</span>
+                <button type="button" wire:click="nextPage('page')" @disabled(! $rankedPlayers->hasMorePages())
+                        class="cursor-pointer tracking-[0.14em] disabled:cursor-not-allowed disabled:text-hud-text-faint {{ $rankedPlayers->hasMorePages() ? 'text-hud-text hover:text-hud-green' : '' }}">
+                    NEXT ›
+                </button>
+            </div>
+        @else
+            <span>SHOWING {{ count($players) }} DRIVERS · {{ $totalLaps }} LAPS</span>
+        @endif
     </div>
 </div>
 
 <!-- mobile list -->
 <div class="mt-8 tp:hidden">
-    @foreach ($rest as $index => $player)
+    @foreach ($rankedPlayers as $index => $player)
         <button type="button" wire:click="openLap({{ $index }})"
                 class="flex w-full items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
             <span class="w-6.5 text-[15px] font-bold text-hud-text-dim">{{ $player['rank'] }}</span>
@@ -113,3 +127,21 @@
         </button>
     @endforeach
 </div>
+
+<!-- mobile pagination -->
+@if (count($players) > 3)
+    <div class="flex items-center justify-between px-3.5 py-4 font-mono text-[10px] tracking-[0.1em] text-hud-text-dim tp:hidden">
+        <span>RANKS {{ $rankedPlayers->firstItem() + 3 }}–{{ $rankedPlayers->lastItem() + 3 }} / {{ count($players) }}</span>
+        <div class="flex items-center gap-3">
+            <button type="button" wire:click="previousPage('page')" @disabled($rankedPlayers->onFirstPage())
+                    class="cursor-pointer tracking-[0.14em] disabled:cursor-not-allowed disabled:text-hud-text-faint {{ $rankedPlayers->onFirstPage() ? '' : 'text-hud-text hover:text-hud-green' }}">
+                ‹ PREV
+            </button>
+            <span>{{ $rankedPlayers->currentPage() }} / {{ $rankedPlayers->lastPage() }}</span>
+            <button type="button" wire:click="nextPage('page')" @disabled(! $rankedPlayers->hasMorePages())
+                    class="cursor-pointer tracking-[0.14em] disabled:cursor-not-allowed disabled:text-hud-text-faint {{ $rankedPlayers->hasMorePages() ? 'text-hud-text hover:text-hud-green' : '' }}">
+                NEXT ›
+            </button>
+        </div>
+    </div>
+@endif

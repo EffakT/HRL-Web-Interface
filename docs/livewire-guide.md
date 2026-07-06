@@ -88,6 +88,12 @@ For modals that might contain a variable, potentially large number of rows (e.g.
 ```
 `min-h-0` on the flex-1 scroll container is required — without it, flexbox won't let the container shrink below its content's natural height, and `overflow-y-auto` never kicks in.
 
+## Paginating an in-memory ranked array while preserving modal indexes
+
+Map leaderboards compute and sort the complete best-per-player ranking before display, then keep the top-three podium fixed while paginating ranks 4+ through `HasRankedLeaderboardPagination`. The manual `LengthAwarePaginator` must use `array_slice(..., preserve_keys: true)`: those keys are indexes into the component's complete `$players` array, and `openLap($index)` depends on them. Reindexing each page from zero would open a different driver's modal.
+
+Use the same `previousPage('page')` / `nextPage('page')`, `@disabled($paginator->onFirstPage())`, and `@disabled(! $paginator->hasMorePages())` pattern as Server Single. Keep `cursor-pointer` plus `disabled:cursor-not-allowed` on both controls.
+
 ## The `cache` table dependency
 
 Every `wire:click` action goes through Livewire's checksum/rate-limiter, which reads the configured cache store. If `CACHE_STORE=database` and the `cache`/`cache_locks` tables don't exist, **every single Livewire interaction fatal-errors**, not just cache-related ones. See [decisions.md](decisions.md) for the incident and fix. If a fresh clone/deploy of this app throws a fatal error the moment you click anything interactive, check this first.

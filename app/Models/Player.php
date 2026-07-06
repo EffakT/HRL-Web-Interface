@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\PlayerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['name', 'hash', 'user_id'])]
 class Player extends Model
 {
-    /** @use HasFactory<\Database\Factories\PlayerFactory> */
+    /** @use HasFactory<PlayerFactory> */
     use HasFactory;
 
     /** @return BelongsTo<User, $this> */
@@ -22,7 +23,7 @@ class Player extends Model
     }
 
     /**
-     * @see \App\Models\Server::players() — `players_servers` has duplicate pivot rows, see docs/database.md.
+     * @see Server::players() — `players_servers` has duplicate pivot rows, see docs/database.md.
      *
      * @return BelongsToMany<Server, $this>
      */

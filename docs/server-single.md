@@ -1,6 +1,6 @@
 # Server Single Page
 
-The page listing all maps played on one server (`/servers/{serverId}`, `App\Livewire\Servers\ServerShow` — see [architecture.md](architecture.md)). **Status: built, and wired to real data** — Stats Card, Maps, and Latest Laps query the live `redesign_hrl` DB; Top Players (Server Score) is still mock, blocked on [global-ranking.md](global-ranking.md). See [decisions.md](decisions.md).
+The page listing all maps played on one server (`/servers/{serverId}`, `App\Livewire\Servers\ServerShow` — see [architecture.md](architecture.md)). **Status: built, fully wired to real data** — Stats Card, Maps, Latest Laps, and Top Players (Server Score) all query the live `redesign_hrl` DB. See [decisions.md](decisions.md).
 
 ## Current state
 
@@ -19,13 +19,15 @@ The page listing all maps played on one server (`/servers/{serverId}`, `App\Live
 
 ### Top Players (server-scoped ranking)
 
-Top 3 players **by performance on this server**, reusing the [global-ranking.md](global-ranking.md) Ranking Points algorithm — same points table/interpolation formula — but scoped to this server's own **nested leaderboards** instead of the global (all-servers) leaderboard. This is a natural extension of the existing algorithm, not a new one: same per-map points table, same "best lap per map only, once per map" rule, just computed against `/servers/{id}/maps/{id}` positions instead of `/maps/{id}` positions, and summed only across maps played *on this server* rather than across every map globally.
+**Implemented (2026-07-06).** Top 3 players **by performance on this server**, reusing the [global-ranking.md](global-ranking.md) Ranking Points algorithm — same points table/interpolation formula — but scoped to this server's own **nested leaderboards** instead of the global (all-servers) leaderboard, via `GlobalRanking::scores($serverId)`. Same per-map points table, same "best lap per map only, once per map" rule, just computed against `/servers/{id}/maps/{id}` positions instead of `/maps/{id}` positions, and summed only across maps played *on this server* rather than across every map globally.
 
 Call this a player's **Server Score** to distinguish it from **Global Score** (see [glossary.md](glossary.md)) — same formula, different leaderboard scope.
 
 For each of the top 3, also show:
 - **Total laps** — raw count of `lap_times` rows for that player on this server (a plain factual stat, deliberately *not* deduplicated the way [most-active-server.md](most-active-server.md)'s "Valid Laps" is — that dedup exists to prevent gaming a *score*; this is just "how many laps has this player driven here," where the raw count is the actually-interesting number).
-- **Average lap time** — mean of that player's `time` across all their laps on this server (all attempts, not just their per-map bests). **Flagged as an assumption**: could instead mean "average of their best lap per map" — the two give meaningfully different numbers (raw average pulls toward warm-up/practice laps; average-of-bests reflects skill ceiling only). Defaulting to raw average since it's the more literal reading of "average lap time," but confirm before implementing.
+- **Average lap time** — mean of that player's `time` across all their laps on this server (all attempts, not just their per-map bests). **Flagged as an assumption**: could instead mean "average of their best lap per map" — the two give meaningfully different numbers (raw average pulls toward warm-up/practice laps; average-of-bests reflects skill ceiling only). Defaulting to raw average since it's the more literal reading of "average lap time," implemented as such — revisit if this reads wrong in practice.
+
+**Ranked table beyond top 3 (added 2026-07-06, per explicit request)**: below the top-3 podium, every other player with a lap on this server is listed in a real ranked table (rank/name/Server Score/laps), paginated 15 rows per page — the same structure as the Global Leaderboard's ranks-4+ table (`HasRankedLeaderboardPagination`), just scoped to this server. Its pagination uses a distinct `players` query-string page name (`?players=2`) so it doesn't collide with Latest Laps' own pagination on the same page (`?page=2`, the Livewire default).
 
 ### Maps
 

@@ -3,18 +3,20 @@
 namespace App\Livewire\Servers;
 
 use App\Livewire\Concerns\HasLapDetailModal;
+use App\Livewire\Concerns\HasRankedLeaderboardPagination;
+use App\Livewire\Concerns\HasRecordVsRunnerUpReference;
+use App\Models\GlobalRanking;
 use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Server;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 #[Layout('components.layout', ['title' => 'Server', 'active' => 'servers'])]
 class ServerShow extends Component
 {
-    use HasLapDetailModal, WithPagination;
+    use HasLapDetailModal, HasRankedLeaderboardPagination, HasRecordVsRunnerUpReference;
 
     public int $serverId;
 
@@ -25,6 +27,9 @@ class ServerShow extends Component
     public array $stats = [];
 
     public array $topPlayers = [];
+
+    /** Every player ranked by Server Score on this server — HasRankedLeaderboardPagination slices ranks 4+ from this. */
+    public array $players = [];
 
     /** Current page's Latest Laps rows, indexed the same as rendered — read by the Lap Detail modal via $selectedPlayerIndex. */
     public array $latestLaps = [];
@@ -75,15 +80,44 @@ class ServerShow extends Component
             'activePlayers90d' => $baseQuery()->where('created_at', '>=', now()->subDays(90))->distinct('player_id')->count('player_id'),
         ];
 
-        // Top Players — "Server Score": depends on global-ranking.md's algorithm (not implemented
-        // for real yet — see roadmap.md item 11). Mock values only until that's built. Ids match
-        // the shared mock player roster used elsewhere (Map Leaderboard, Players List) so the
-        // podium links resolve to the same mock player pages.
-        $this->topPlayers = [
-            ['title' => 'VORTEX', 'subtitle' => '[SR7]', 'value' => 284, 'meta' => '412 LAPS · 1:18.402 AVG', 'badge' => 'TOP SCORE', 'href' => route('players.show', ['playerId' => 1])],
-            ['title' => 'NeonHalo', 'subtitle' => '[NHC]', 'value' => 251, 'meta' => '388 LAPS · 1:21.117 AVG', 'href' => route('players.show', ['playerId' => 2])],
-            ['title' => 'GravLift', 'subtitle' => '[ODST]', 'value' => 219, 'meta' => '355 LAPS · 1:24.960 AVG', 'href' => route('players.show', ['playerId' => 3])],
-        ];
+        // Top Players — "Server Score" (docs/global-ranking.md's "Scoped variant"): the same
+        // points formula as the Global Leaderboard, applied to this server's own nested per-map
+        // leaderboards only, via GlobalRanking::scores($serverId). Every ranked player is kept
+        // (not just the top 3) so the table below the podium can show ranks 4+, same structure
+        // as the Global Leaderboard (see HasRankedLeaderboardPagination).
+        $serverRanking = GlobalRanking::scores($server->id);
+
+        $playerLapCounts = LapTime::where('server_id', $server->id)
+            ->whereIn('player_id', array_column($serverRanking, 'playerId'))
+            ->selectRaw('player_id, COUNT(*) as laps')
+            ->groupBy('player_id')
+            ->toBase()
+            ->get()
+            ->keyBy('player_id');
+
+        // Same "# Records, # Laps, # Maps" stat set as the Global Leaderboard, per explicit
+        // request to keep ranked-player displays consistent — 'records'/'maps' come straight off
+        // GlobalRanking's per-scope firstPlaces/mapsPlayed, already scoped to this server.
+        $this->players = collect($serverRanking)
+            ->map(fn (array $player): array => [
+                'id' => $player['playerId'],
+                'rank' => $player['rank'],
+                'name' => $player['name'],
+                'score' => $player['score'],
+                'records' => $player['firstPlaces'],
+                'maps' => $player['mapsPlayed'],
+                'laps' => (int) ($playerLapCounts[$player['playerId']]->laps ?? 0),
+            ])
+            ->all();
+
+        $this->topPlayers = array_map(fn (array $player): array => [
+            'title' => $player['name'],
+            'subtitle' => null,
+            'value' => $player['score'],
+            'meta' => "{$player['records']} RECORDS · {$player['maps']} MAPS · {$player['laps']} LAPS",
+            'badge' => $player['rank'] === 1 ? 'TOP SCORE' : null,
+            'href' => route('players.show', ['playerId' => $player['id']]),
+        ], array_slice($this->players, 0, 3));
     }
 
     /**
@@ -177,45 +211,13 @@ class ServerShow extends Component
         return $this->resolveComparisonReference($lap);
     }
 
-    private function resolveComparisonReference(?array $lap): ?array
-    {
-        if (! $lap || ! $lap['recordLapId']) {
-            return null;
-        }
-
-        if ($lap['lapId'] !== $lap['recordLapId']) {
-            return [
-                'lapId' => $lap['recordLapId'],
-                'name' => $lap['recordHolder'],
-                'time' => $lap['recordTime'],
-                'label' => 'MAP RECORD',
-            ];
-        }
-
-        $runnerUp = LapTime::with('player')
-            ->where('map_id', $lap['mapId'])
-            ->whereHas('server')
-            ->where('id', '!=', $lap['lapId'])
-            ->orderBy('time')
-            ->orderBy('created_at')
-            ->first();
-
-        if (! $runnerUp) {
-            return null;
-        }
-
-        return [
-            'lapId' => $runnerUp->id,
-            'name' => $runnerUp->player->name,
-            'time' => $runnerUp->formattedTime(),
-            'label' => 'RUNNER-UP',
-        ];
-    }
-
     public function render()
     {
         return view('livewire.servers.server-show', [
             'laps' => $this->laps(),
+            // Distinct page name ('players') so this doesn't collide with Latest Laps' own
+            // pagination, which uses the default 'page' name on the same component.
+            'rankedPlayers' => $this->rankedPlayers('players'),
         ]);
     }
 }

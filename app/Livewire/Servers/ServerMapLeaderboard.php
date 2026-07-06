@@ -3,6 +3,7 @@
 namespace App\Livewire\Servers;
 
 use App\Livewire\Concerns\HasLapDetailModal;
+use App\Livewire\Concerns\HasRankedLeaderboardPagination;
 use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Map;
@@ -18,7 +19,7 @@ use Livewire\Component;
 #[Layout('components.layout', ['title' => 'Map Leaderboard', 'active' => 'servers'])]
 class ServerMapLeaderboard extends Component
 {
-    use HasLapDetailModal;
+    use HasLapDetailModal, HasRankedLeaderboardPagination;
 
     public string $serverParam;
 
@@ -155,6 +156,8 @@ class ServerMapLeaderboard extends Component
 
     public function render()
     {
-        return view('livewire.servers.server-map-leaderboard');
+        return view('livewire.servers.server-map-leaderboard', [
+            'rankedPlayers' => $this->rankedPlayers(),
+        ]);
     }
 }

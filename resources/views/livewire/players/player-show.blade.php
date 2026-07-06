@@ -4,7 +4,6 @@
         <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// PLAYER</div>
         <div class="flex items-baseline gap-3">
             <h1 class="text-4xl font-bold uppercase leading-[0.98] text-hud-text-bright tp:text-5xl">{{ $playerName }}</h1>
-            <span class="font-mono text-[13px] text-hud-text-dim">{{ $playerTag }}</span>
         </div>
         <div class="mt-4 flex flex-wrap gap-2.5">
             <span class="border border-hud-green/16 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-hud-text-muted">GLOBAL RANK #{{ $playerInfo['globalRank'] }}</span>
@@ -46,8 +45,9 @@
                 <div class="grid grid-cols-[1fr_120px_90px_80px_1fr] gap-3 border-b border-hud-green/16 px-3.5 py-2.5 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">
                     <span>MAP</span><span class="text-right">PB</span><span class="text-right">MAP RANK</span><span class="text-right">POINTS</span><span>SERVER</span>
                 </div>
-                @foreach ($laps as $index => $lap)
-                    <button type="button" wire:click="openLap({{ $index }})"
+                @foreach ($performanceKeys as $key)
+                    @php $lap = $laps[$key]; @endphp
+                    <button type="button" wire:click="openLap({{ $key }})"
                             class="grid w-full grid-cols-[1fr_120px_90px_80px_1fr] items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="text-sm font-semibold tracking-[0.02em] text-hud-text">{{ $lap['map'] }}</span>
                         <span class="text-right font-mono text-[14px] font-bold text-hud-text-bright">{{ $lap['time'] }}</span>
@@ -60,8 +60,9 @@
 
             <!-- mobile list -->
             <div class="tp:hidden">
-                @foreach ($laps as $index => $lap)
-                    <button type="button" wire:click="openLap({{ $index }})"
+                @foreach ($performanceKeys as $key)
+                    @php $lap = $laps[$key]; @endphp
+                    <button type="button" wire:click="openLap({{ $key }})"
                             class="w-full border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-semibold text-hud-text">{{ $lap['map'] }}</span>
@@ -88,7 +89,7 @@
                        class="grid grid-cols-[1fr_120px_120px] items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="truncate text-sm font-semibold text-hud-text">{{ $server['server'] }}</span>
                         <span class="text-right font-mono text-[13px] font-bold text-hud-text">{{ number_format($server['laps']) }}</span>
-                        <span class="text-right font-mono text-[13px] font-bold text-hud-text-bright">#{{ $server['bestRank'] }}</span>
+                        <span class="text-right font-mono text-[13px] font-bold text-hud-text-bright">{{ $server['bestRank'] ? '#'.$server['bestRank'] : '—' }}</span>
                     </a>
                 @endforeach
             </div>
@@ -98,7 +99,7 @@
                        class="flex items-center justify-between gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="min-w-0 flex-1 truncate text-sm font-semibold text-hud-text">{{ $server['server'] }}</span>
                         <div class="flex-none text-right">
-                            <div class="font-mono text-sm font-bold text-hud-text-bright">#{{ $server['bestRank'] }}</div>
+                            <div class="font-mono text-sm font-bold text-hud-text-bright">{{ $server['bestRank'] ? '#'.$server['bestRank'] : '—' }}</div>
                             <div class="mt-0.5 font-mono text-[9px] text-hud-text-dim">{{ number_format($server['laps']) }} LAPS</div>
                         </div>
                     </a>
@@ -106,9 +107,10 @@
             </div>
         </div>
 
-        <!-- Recent Laps: bounded feed, reuses the same array/index as Performance by Map above
-             (see PlayerShow::mount() note — at real scale this would be a distinct, larger,
-             chronologically-sorted dataset rather than one row per map). -->
+        <!-- Recent Laps: this player's actual last attempts, reverse-chronological — a genuinely
+             distinct dataset from Performance by Map above, not the same rows reordered (see
+             PlayerShow::mount()). Addresses into the same shared $laps array via $recentLapKeys
+             so the Lap Detail modal opens the right row regardless of which table triggered it. -->
         <div class="mt-10">
             <div class="mb-4 font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// RECENT LAPS</div>
 
@@ -117,8 +119,9 @@
                 <div class="grid grid-cols-[1fr_1fr_130px_120px] gap-3 border-b border-hud-green/16 px-3.5 py-2.5 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">
                     <span>MAP</span><span>SERVER</span><span class="text-right">TIME</span><span class="text-right">DATE</span>
                 </div>
-                @foreach ($laps as $index => $lap)
-                    <button type="button" wire:click="openLap({{ $index }})"
+                @foreach ($recentLapKeys as $key)
+                    @php $lap = $laps[$key]; @endphp
+                    <button type="button" wire:click="openLap({{ $key }})"
                             class="grid w-full grid-cols-[1fr_1fr_130px_120px] items-center gap-3 border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <span class="truncate text-sm font-semibold tracking-[0.02em] text-hud-text">{{ $lap['map'] }}</span>
                         <span class="truncate font-mono text-[11px] text-hud-text-dim">{{ $lap['server'] }}</span>
@@ -130,8 +133,9 @@
 
             <!-- mobile list -->
             <div class="tp:hidden">
-                @foreach ($laps as $index => $lap)
-                    <button type="button" wire:click="openLap({{ $index }})"
+                @foreach ($recentLapKeys as $key)
+                    @php $lap = $laps[$key]; @endphp
+                    <button type="button" wire:click="openLap({{ $key }})"
                             class="w-full border-b border-white/5 border-l-2 border-l-transparent px-3.5 py-3.5 text-left transition hover:border-l-hud-green hover:bg-hud-green/7">
                         <div class="flex items-center justify-between">
                             <span class="text-sm font-semibold text-hud-text">{{ $lap['map'] }}</span>

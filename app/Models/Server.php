@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\ServerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable(['ip', 'port', 'name', 'type', 'notify_outage', 'notify_outage_last'])]
 class Server extends Model
 {
-    /** @use HasFactory<\Database\Factories\ServerFactory> */
+    /** @use HasFactory<ServerFactory> */
     use HasFactory, SoftDeletes;
 
     protected function casts(): array

@@ -100,6 +100,43 @@ it('prefers a fresh successful live query over the lap-history proxy for online 
         ->and($row['map'])->toBe('Live Map');
 });
 
+it('still shows a reachable-but-empty server as online in the table, with its live map', function () {
+    $liveMap = Map::factory()->create(['label' => 'Empty Server Map']);
+
+    $server = Server::factory()->create([
+        'current_map_id' => $liveMap->id,
+        'live_player_count' => 0,
+        'queried_at' => now()->subMinute(),
+        'query_successful' => true,
+    ]);
+
+    $row = collect(Livewire::test(ServerList::class)->get('servers'))->firstWhere('id', $server->id);
+
+    // The table's "online" means "the server process is reachable" — that's still true even
+    // with nobody on it. The stricter "someone's actually racing" bar only applies to the
+    // featured card (see the next test).
+    expect($row['online'])->toBeTrue()
+        ->and($row['map'])->toBe('Empty Server Map');
+});
+
+it('does not feature a reachable-but-empty server as online, even with a fresh successful query', function () {
+    $liveMap = Map::factory()->create(['label' => 'Empty Server Map']);
+
+    Server::factory()->create([
+        'current_map_id' => $liveMap->id,
+        'live_player_count' => 0,
+        'queried_at' => now()->subMinute(),
+        'query_successful' => true,
+    ]);
+
+    $featured = Livewire::test(ServerList::class)->get('featured');
+
+    // The featured card means "you could join a race right now" — a reachable server with
+    // nobody on it doesn't qualify, even though the table row above still shows it as online.
+    expect($featured['online'])->toBeFalse()
+        ->and($featured['map'])->toBe('Empty Server Map');
+});
+
 it('treats a fresh failed live query as authoritative for online status, falling back to the proxy map', function () {
     $lastKnownMap = Map::factory()->create(['label' => 'Last Known Map']);
     $player = Player::factory()->create();

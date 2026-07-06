@@ -39,7 +39,10 @@ class ServerList extends Component
         //   scheduled job UDP-queries each server and stores the result; a recent successful
         //   query wins. Falls back to the pre-existing recency proxies ("has a lap in the last
         //   24h" / most recent lap's map) when no live data exists yet or it's gone stale
-        //   (server unreachable for a while, or the scheduler hasn't run) — see buildRow().
+        //   (server unreachable for a while, or the scheduler hasn't run) — see buildRow(). The
+        //   table's "online" means "the server process is reachable"; the featured card is
+        //   held to a stricter bar ("you could join a race right now") requiring a live player
+        //   count > 0 when fresh live data exists — see the featured-card override below.
         // - No player-capacity (`players_now`/`players_max`) columns — the "load" bar is now
         //   relative to the busiest server in this list, not a literal capacity percentage.
         // - "Most active" uses the real Activity Score algorithm (docs/most-active-server.md,
@@ -60,6 +63,14 @@ class ServerList extends Component
 
         $this->featured = collect($this->servers)->firstWhere('id', $topServerId)
             ?? $this->servers[0] ?? [];
+
+        // The featured card is held to a stricter "online" bar than the table rows: "you could
+        // join a race right now," not merely "the server process is reachable." Only applies
+        // when we actually have a fresh live player count to check — otherwise the card keeps
+        // the same recency-proxy value as everyone else.
+        if (($this->featured['livePlayerCount'] ?? null) !== null) {
+            $this->featured['online'] = $this->featured['livePlayerCount'] > 0;
+        }
 
         $this->onlineCount = collect($this->servers)->where('online', true)->count();
         $this->totalPlayers = LapTime::distinct('player_id')->count('player_id');
@@ -91,11 +102,18 @@ class ServerList extends Component
             ? $server->currentMap->label
             : ($lastLap !== null && $lastLap->map !== null ? $lastLap->map->label : '—');
 
+        // Only meaningful when a fresh, successful query actually happened — null otherwise, so
+        // the featured-card override in mount() knows not to second-guess the recency proxy.
+        $livePlayerCount = $queriedRecently && $server->query_successful
+            ? ($server->live_player_count ?? 0)
+            : null;
+
         return [
             'id' => $server->id,
             'name' => $server->name,
             'online' => $online,
             'map' => $map,
+            'livePlayerCount' => $livePlayerCount,
             'players' => number_format($players),
             'playersRaw' => $players,
             'laps' => number_format($laps),

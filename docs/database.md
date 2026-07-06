@@ -17,6 +17,12 @@ servers
   --    minute) live-queries each server and stores the result here rather than live-fetching
   --    per request. All four nullable: a server never successfully queried yet (or currently
   --    unreachable) just has nulls, and consumers fall back to the lap-history-derived proxy.
+  -- unique (ip, port) identity, enforced at the DB level (added 2026-07-07 — SEC-01 audit
+  --    follow-up, see security.md) via a generated `active_since` column
+  --    (`COALESCE(deleted_at, <sentinel>)`) and a unique index on (ip, port, active_since) —
+  --    NOT a plain unique(ip, port), which would permanently block that ip:port from ever being
+  --    reused after the server is archived. `active_since` is a DB-internal indexing column
+  --    only; the app never reads or writes it directly.
 
 maps
   id, name, label, timestamps

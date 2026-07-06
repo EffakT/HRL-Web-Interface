@@ -24,31 +24,49 @@ class LapSubmissionController extends Controller
         $port = (int) $request->validated('port');
         $data = $request->validated();
 
-        // Idempotency key (SEC-01 audit follow-up, docs/security.md) — always namespaced by the
-        // submitting ip:port, even when the client sends its own `submission_id`. Without that
-        // namespace, two different game servers generating similar counters/IDs (a real
-        // possibility, not hypothetical — many scripts just count from 1) could collide and one
-        // server would receive the other's cached response, or believe its own lap was rejected
-        // as a duplicate. Falls back to a content hash of the fields that make two submissions
-        // "the same lap" when no `submission_id` is sent. Either way, Cache::add() only succeeds
-        // the first time a key is set, so reservation is atomic against near-simultaneous
-        // retries.
-        $submissionKey = $data['submission_id'] ?? hash('sha256', json_encode([
-            $data['player_hash'], $data['map_name'], $data['player_time'], $data['hrl_token'] ?? null,
+        // Canonical content hash — identifies "the fields that make two submissions the same
+        // lap," independent of whether a `submission_id` was sent. Used two ways below: as the
+        // idempotency key itself when no `submission_id` is present, and (SEC-01 audit
+        // follow-up) as a stored fingerprint to catch a reused `submission_id` whose actual lap
+        // content has changed, which would otherwise silently replay a stale response instead of
+        // recording (or flagging) a genuinely different lap.
+        $contentHash = hash('sha256', json_encode([
+            $data['player_hash'], $data['map_name'], $data['player_time'], $data['hrl_token'] ?? null, $data['splits'] ?? null,
         ]));
+
+        // Idempotency key — always namespaced by the submitting ip:port, even when the client
+        // sends its own `submission_id`. Without that namespace, two different game servers
+        // generating similar counters/IDs (a real possibility, not hypothetical — many scripts
+        // just count from 1) could collide and one server would receive the other's cached
+        // response, or believe its own lap was rejected as a duplicate.
+        $submissionKey = $data['submission_id'] ?? $contentHash;
         $idempotencyKey = "lap-submission:{$ip}:{$port}:{$submissionKey}";
 
         // Reservation and result-replay use deliberately different lifetimes (SEC-01 audit
         // follow-up) — see config/webhook.php for why one shared 10s window was wrong for both.
-        $reserved = Cache::add($idempotencyKey, ['status' => 'processing'], now()->addSeconds(config('webhook.processing_reservation_seconds')));
+        // Cache::add() only succeeds the first time a key is set, so this reservation is atomic
+        // against near-simultaneous retries.
+        $reserved = Cache::add(
+            $idempotencyKey,
+            ['status' => 'processing', 'contentHash' => $contentHash],
+            now()->addSeconds(config('webhook.processing_reservation_seconds')),
+        );
 
         if (! $reserved) {
             $existing = Cache::get($idempotencyKey);
 
+            // A `submission_id` reused with genuinely different lap content (SEC-01 audit
+            // follow-up) — silently replaying the OLD response would hide that the new attempt
+            // was never actually recorded; a plain duplicate_submission would look identical to
+            // a real in-flight race. Neither is correct, so this gets its own distinct reason.
+            if (($existing['contentHash'] ?? null) !== $contentHash) {
+                return response()->json(['success' => false, 'reason' => 'idempotency_conflict'], 409);
+            }
+
             // A terminal outcome (success or a rejected verification) already exists for this
             // exact key — replay it verbatim rather than either double-recording the lap or
-            // bouncing a legitimate retry with a bare error (the previous version of this
-            // guard did the latter, which meant a client that legitimately didn't see its own
+            // bouncing a legitimate retry with a bare error (an earlier version of this guard
+            // did the latter, which meant a client that legitimately didn't see its own
             // successful response had no way to safely retry). Only a request that's still
             // mid-flight (or one whose in-flight reservation was never cleaned up — see the
             // catch block below) reports as a genuine duplicate.
@@ -75,7 +93,11 @@ class LapSubmissionController extends Controller
             throw $e;
         }
 
-        Cache::put($idempotencyKey, ['status' => 'done', 'body' => $body, 'statusCode' => $statusCode], now()->addSeconds(config('webhook.result_retention_seconds')));
+        Cache::put(
+            $idempotencyKey,
+            ['status' => 'done', 'body' => $body, 'statusCode' => $statusCode, 'contentHash' => $contentHash],
+            now()->addSeconds(config('webhook.result_retention_seconds')),
+        );
 
         return response()->json($body, $statusCode);
     }
@@ -88,18 +110,21 @@ class LapSubmissionController extends Controller
         if (config('webhook.hrl_query.enabled')) {
             $verification = $verifier->verify($ip, $port, $data);
             $liveQueryResponse = $verification['response'];
+            $verifiedMarkerKey = LapSubmissionVerifier::verifiedMarkerKey($ip, $port);
 
             if ($verification['verified']) {
                 // Marks this ip:port as "recently verified" for the webhook rate limiter's
                 // tiered allowance (SEC-01 audit follow-up, AppServiceProvider) — verification
                 // still runs on every request regardless of tier; this only ever raises how much
                 // traffic a source is allowed, never skips the check itself.
-                Cache::put(
-                    LapSubmissionVerifier::verifiedMarkerKey($ip, $port),
-                    true,
-                    now()->addSeconds(config('webhook.rate_limit.verified_marker_ttl_seconds')),
-                );
+                Cache::put($verifiedMarkerKey, true, now()->addSeconds(config('webhook.rate_limit.verified_marker_ttl_seconds')));
             } else {
+                // Revoke immediately on ANY failure (SEC-01 audit follow-up), not just let the
+                // marker expire naturally — otherwise a source could verify once, then stop
+                // answering UDP entirely, and keep the generous "verified" rate-limit tier for
+                // up to the marker's full TTL while forcing timeout work on every request.
+                Cache::forget($verifiedMarkerKey);
+
                 Log::warning('Lap submission failed HRL query verification', [
                     'ip' => $ip,
                     'port' => $port,

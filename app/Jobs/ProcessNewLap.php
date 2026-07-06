@@ -10,7 +10,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -84,90 +84,23 @@ class ProcessNewLap
         $submissionId = $this->data['submission_id'] ?? null;
 
         try {
-            $result = DB::transaction(function () use ($hostname, $mapLabel, $submissionId): array {
-                $server = Server::firstOrCreate(
-                    ['ip' => $this->ip, 'port' => (string) $this->port],
-                    ['name' => $hostname ?? "Unknown ({$this->ip}:{$this->port})"]
-                );
-
-                if ($hostname !== null && $server->name !== $hostname) {
-                    $server->update(['name' => $hostname]);
-                }
-
-                $player = Player::firstOrCreate(
-                    ['hash' => hash('sha256', $this->data['player_hash'])],
-                    ['name' => $this->data['player_name']]
-                );
-
-                $map = Map::firstOrCreate(
-                    ['name' => $this->data['map_name']],
-                    ['label' => $mapLabel]
-                );
-
-                // syncWithoutDetaching checks for an existing pivot row before inserting, unlike the
-                // legacy insertOrIgnore-without-a-unique-constraint approach that silently inserted a
-                // fresh duplicate on every submission — see docs/database.md's "Duplicate pivot rows".
-                $server->players()->syncWithoutDetaching([$player->id]);
-                $server->maps()->syncWithoutDetaching([$map->id]);
-
-                $newTime = (float) $this->data['player_time'];
-
-                $bestTimeRaw = LapTime::where([
-                    'server_id' => $server->id,
-                    'map_id' => $map->id,
-                    'player_id' => $player->id,
-                ])->min('time');
-
-                $bestTime = $bestTimeRaw !== null ? (float) $bestTimeRaw : null;
-                $isNewRecord = $bestTime === null || $newTime < $bestTime;
-
-                // Logged unconditionally (see class docblock) — not gated on beating the existing
-                // best. `submission_id` is null for laps submitted without one (older Lua
-                // scripts) — the (server_id, submission_id) unique index (SEC-01 audit
-                // follow-up, see the add_submission_id_to_lap_times_table migration) treats
-                // multiple nulls as distinct, so this never collides for them.
-                $lapTime = LapTime::create([
-                    'server_id' => $server->id,
-                    'map_id' => $map->id,
-                    'player_id' => $player->id,
-                    'time' => $newTime,
-                    'submission_id' => $submissionId,
-                ]);
-
-                if (! empty($this->data['splits'])) {
-                    $now = now();
-
-                    LapTimeSplit::insert(array_map(fn (array $split): array => [
-                        'lap_time_id' => $lapTime->id,
-                        'checkpoint_id' => $split['checkpoint_id'],
-                        'duration' => $split['duration'],
-                        'start_time' => $split['startTime'] ?? null,
-                        'end_time' => $split['endTime'] ?? null,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ], $this->data['splits']));
-                }
-
-                return [
-                    'server' => $server,
-                    'map' => $map,
-                    'player' => $player,
-                    'isNewRecord' => $isNewRecord,
-                    'newTime' => $newTime,
-                    'bestTime' => $isNewRecord ? $newTime : $bestTime,
-                ];
-            });
-        } catch (QueryException $e) {
-            // The DB-level source of truth for "was this exact submission already recorded,"
-            // independent of (and outlasting) the cache-based idempotency guard in
-            // LapSubmissionController — see docs/security.md's SEC-01 audit follow-up. Only
-            // meaningful when the client sent a real `submission_id`; a plain unique-constraint
-            // violation with no submission_id to explain it is a real error, not a duplicate.
-            if ($submissionId !== null && $this->isUniqueConstraintViolation($e)) {
+            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId));
+        } catch (UniqueConstraintViolationException $e) {
+            // Two DIFFERENT unique constraints can land here (SEC-01 audit follow-up) — they
+            // need different responses, so check which one actually fired rather than assuming:
+            if ($submissionId !== null && $this->violatesSubmissionIdUniqueness($e)) {
+                // The DB-level source of truth for "was this exact submission already
+                // recorded," independent of (and outlasting) the cache-based idempotency guard
+                // in LapSubmissionController — see docs/security.md.
                 return $this->replayDuplicateSubmission($submissionId);
             }
 
-            throw $e;
+            // Not the submission_id constraint — must be `servers`' (ip, port, deleted_at)
+            // constraint (the only other unique index this transaction can hit): a concurrent
+            // first-ever submission for this exact ip:port already created the Server row
+            // between this request's read and write. That row exists now, so simply retrying
+            // the whole transaction once succeeds via firstOrCreate()'s SELECT finding it.
+            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId));
         }
 
         $leaderboardPosition = $this->leaderboardPosition(
@@ -201,6 +134,89 @@ class ProcessNewLap
             'lapTime' => round($result['newTime'], 2),
             'bestTime' => round($result['bestTime'], 2),
             'leaderboardPosition' => $leaderboardPosition,
+        ];
+    }
+
+    /**
+     * The actual server/player/map/lap-creation work, extracted so `handle()` can run it inside
+     * a fresh `DB::transaction()` a second time (SEC-01 audit follow-up) if the first attempt's
+     * `Server::firstOrCreate()` loses a race with a concurrent first-ever submission for the
+     * same ip:port — see `handle()`'s catch block.
+     *
+     * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float}
+     */
+    private function recordLap(?string $hostname, string $mapLabel, ?string $submissionId): array
+    {
+        $server = Server::firstOrCreate(
+            ['ip' => $this->ip, 'port' => (string) $this->port],
+            ['name' => $hostname ?? "Unknown ({$this->ip}:{$this->port})"]
+        );
+
+        if ($hostname !== null && $server->name !== $hostname) {
+            $server->update(['name' => $hostname]);
+        }
+
+        $player = Player::firstOrCreate(
+            ['hash' => hash('sha256', $this->data['player_hash'])],
+            ['name' => $this->data['player_name']]
+        );
+
+        $map = Map::firstOrCreate(
+            ['name' => $this->data['map_name']],
+            ['label' => $mapLabel]
+        );
+
+        // syncWithoutDetaching checks for an existing pivot row before inserting, unlike the
+        // legacy insertOrIgnore-without-a-unique-constraint approach that silently inserted a
+        // fresh duplicate on every submission — see docs/database.md's "Duplicate pivot rows".
+        $server->players()->syncWithoutDetaching([$player->id]);
+        $server->maps()->syncWithoutDetaching([$map->id]);
+
+        $newTime = (float) $this->data['player_time'];
+
+        $bestTimeRaw = LapTime::where([
+            'server_id' => $server->id,
+            'map_id' => $map->id,
+            'player_id' => $player->id,
+        ])->min('time');
+
+        $bestTime = $bestTimeRaw !== null ? (float) $bestTimeRaw : null;
+        $isNewRecord = $bestTime === null || $newTime < $bestTime;
+
+        // Logged unconditionally (see class docblock) — not gated on beating the existing best.
+        // `submission_id` is null for laps submitted without one (older Lua scripts) — the
+        // (server_id, submission_id) unique index (SEC-01 audit follow-up, see the
+        // add_submission_id_to_lap_times_table migration) treats multiple nulls as distinct, so
+        // this never collides for them.
+        $lapTime = LapTime::create([
+            'server_id' => $server->id,
+            'map_id' => $map->id,
+            'player_id' => $player->id,
+            'time' => $newTime,
+            'submission_id' => $submissionId,
+        ]);
+
+        if (! empty($this->data['splits'])) {
+            $now = now();
+
+            LapTimeSplit::insert(array_map(fn (array $split): array => [
+                'lap_time_id' => $lapTime->id,
+                'checkpoint_id' => $split['checkpoint_id'],
+                'duration' => $split['duration'],
+                'start_time' => $split['startTime'] ?? null,
+                'end_time' => $split['endTime'] ?? null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $this->data['splits']));
+        }
+
+        return [
+            'server' => $server,
+            'map' => $map,
+            'player' => $player,
+            'isNewRecord' => $isNewRecord,
+            'newTime' => $newTime,
+            'bestTime' => $isNewRecord ? $newTime : $bestTime,
         ];
     }
 
@@ -248,13 +264,19 @@ class ProcessNewLap
         ];
     }
 
-    private function isUniqueConstraintViolation(QueryException $e): bool
+    /**
+     * Distinguishes which of `lap_times`' TWO unique constraints actually fired (SEC-01 audit
+     * follow-up) — `UniqueConstraintViolationException::$columns`/`$index` tell us precisely,
+     * rather than assuming from a generic SQLSTATE code the way an earlier version of this
+     * method did (which couldn't have told a real submission_id collision apart from some other
+     * integrity error, e.g. a foreign-key violation, misreporting either as a safe-to-replay
+     * duplicate). SQLite populates `$columns` (no index name); MySQL/Postgres populate `$index`
+     * (the constraint/key name) instead — checking both covers every driver this app runs on.
+     */
+    private function violatesSubmissionIdUniqueness(UniqueConstraintViolationException $e): bool
     {
-        // SQLSTATE 23000 ("integrity constraint violation") covers unique-constraint violations
-        // on both SQLite (this project's test/dev driver) and MySQL; Postgres reports 23505
-        // specifically. Broad enough to catch the real drivers this app runs on without matching
-        // unrelated query errors (which use different SQLSTATE classes entirely).
-        return in_array($e->getCode(), ['23000', '23505'], true);
+        return in_array('submission_id', $e->columns, true)
+            || str_contains($e->index ?? '', 'submission_id');
     }
 
     /**

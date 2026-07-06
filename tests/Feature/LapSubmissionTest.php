@@ -7,6 +7,7 @@ use App\Models\LapTime;
 use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
@@ -165,11 +166,18 @@ it('still records the lap when HRL verification fails but enforcement is off (th
     expect(LapTime::count())->toBe(1);
 });
 
+it('requires a submission_id once HRL enforcement is on', function () {
+    config(['webhook.hrl_query.enforce' => true]);
+    fakeGameServerQuery();
+
+    submitLap(['hrl_token' => 'secret-token'])->assertUnprocessable();
+});
+
 it('rejects a submission that fails HRL verification once enforcement is on', function () {
     config(['webhook.hrl_query.enforce' => true]);
     fakeGameServerQuery(['hostname' => 'Legacy Server', 'numplayers' => '1']); // no hrl_* fields
 
-    submitLap()
+    submitLap(['submission_id' => 'enforced-001'])
         ->assertStatus(403)
         ->assertJson(['success' => false, 'reason' => 'missing_hrl_marker']);
 
@@ -187,7 +195,7 @@ it('accepts a submission that matches a live, HRL-enabled query response under e
         'player_0' => 'Effakt',
     ]);
 
-    submitLap(['hrl_token' => 'secret-token'])->assertOk()->assertJson(['success' => true]);
+    submitLap(['hrl_token' => 'secret-token', 'submission_id' => 'enforced-002'])->assertOk()->assertJson(['success' => true]);
 
     expect(LapTime::count())->toBe(1);
 });
@@ -202,15 +210,28 @@ it('replays the original response for an exact duplicate submission, without rec
     expect(LapTime::count())->toBe(1);
 });
 
-it('replays the original response for a repeated submission_id even if other fields differ', function () {
+it('replays the original response for a genuine retry with a repeated submission_id', function () {
     fakeGameServerQuery();
 
     $first = submitLap(['submission_id' => 'retry-00001'])->assertOk()->json();
-    // A real Lua-side retry always sends the exact same fields, but this proves the replay is
-    // keyed on submission_id specifically, not incidentally still matching the content hash.
-    $second = submitLap(['submission_id' => 'retry-00001', 'player_time' => 99])->assertOk()->json();
+    // Identical payload, same submission_id — a real Lua-side retry after a lost HTTP response.
+    $second = submitLap(['submission_id' => 'retry-00001'])->assertOk()->json();
 
     expect($second)->toBe($first);
+    expect(LapTime::count())->toBe(1);
+});
+
+it('rejects a reused submission_id whose lap content has actually changed (SEC-01 audit follow-up)', function () {
+    fakeGameServerQuery();
+
+    submitLap(['submission_id' => 'retry-00001'])->assertOk();
+    // Same submission_id, but a materially different lap (a bug or a colliding ID, not a
+    // legitimate retry) — silently replaying the first response would hide that this second
+    // attempt was never actually recorded.
+    submitLap(['submission_id' => 'retry-00001', 'player_time' => 99])
+        ->assertStatus(409)
+        ->assertJson(['success' => false, 'reason' => 'idempotency_conflict']);
+
     expect(LapTime::count())->toBe(1);
 });
 
@@ -230,8 +251,12 @@ it('does not let two different servers collide on a similar/identical submission
 it('reports a genuine concurrent duplicate as 409 without ever completing processing', function () {
     fakeGameServerQuery();
 
-    $submissionKey = hash('sha256', json_encode(['abc123', 'bloodgulch', 42.5, null]));
-    Cache::put("lap-submission:127.0.0.1:2302:{$submissionKey}", ['status' => 'processing'], now()->addSeconds(10));
+    $contentHash = hash('sha256', json_encode(['abc123', 'bloodgulch', 42.5, null, null]));
+    Cache::put(
+        "lap-submission:127.0.0.1:2302:{$contentHash}",
+        ['status' => 'processing', 'contentHash' => $contentHash],
+        now()->addSeconds(10),
+    );
 
     submitLap()
         ->assertStatus(409)
@@ -326,6 +351,56 @@ it('grants the more generous verified tier only after a request from that ip:por
     submitLap(['player_hash' => 'p3', 'hrl_token' => 'secret-token'])->assertOk();
 });
 
+it('revokes the verified rate-limit marker immediately on a failed verification, not just lets it expire', function () {
+    config([
+        'webhook.hrl_query.enforce' => false,
+        'webhook.rate_limit.unverified.per_ip_port_per_minute' => 1,
+        'webhook.rate_limit.verified.per_ip_port_per_minute' => 100,
+    ]);
+
+    // First request passes real verification and earns the generous "verified" tier.
+    fakeGameServerQuery([
+        'hostname' => 'Real Halo Server',
+        'hrl_enabled' => '1',
+        'hrl_protocol' => '1',
+        'hrl_token' => 'secret-token',
+        'mapname' => 'bloodgulch',
+        'player_0' => 'Effakt',
+    ]);
+    submitLap(['player_hash' => 'p1', 'hrl_token' => 'secret-token'])->assertOk();
+
+    // Second request from the same ip:port fails verification (the "server" stopped answering
+    // HRL fields) — enforcement is off, so it's still recorded, but the verified marker should
+    // be revoked as part of processing this failure, not left to expire on its own 5-minute TTL.
+    fakeGameServerQuery(['hostname' => 'Legacy Server', 'numplayers' => '1']);
+    submitLap(['player_hash' => 'p2'])->assertOk();
+
+    // A third request immediately exceeds the strict unverified ceiling of 1/min (2 requests
+    // already counted against it) — proving the marker was actually gone, not still granting
+    // the 100/min verified allowance it would take for this to succeed.
+    submitLap(['player_hash' => 'p3'])->assertStatus(429);
+});
+
+it('rejects a duplicate (ip, port) at the database level, even for an already-soft-deleted server', function () {
+    // Schema-level proof for the servers.(ip, port, deleted_at) unique constraint (SEC-01 audit
+    // follow-up) — the real concurrent-request race it guards against (two simultaneous
+    // first-ever submissions for a brand-new ip:port both passing Server::firstOrCreate()'s
+    // SELECT before either INSERT commits) isn't reproducible in a single-threaded test, but the
+    // constraint itself, and that it doesn't wrongly block a *soft-deleted* server's old
+    // ip:port from being reused, are.
+    Server::factory()->create(['ip' => '10.0.0.1', 'port' => '2302']);
+
+    expect(fn () => Server::factory()->create(['ip' => '10.0.0.1', 'port' => '2302']))
+        ->toThrow(UniqueConstraintViolationException::class);
+
+    $archived = Server::factory()->create(['ip' => '10.0.0.2', 'port' => '2302']);
+    $archived->delete();
+
+    // A genuinely new server reusing an archived one's old (ip, port) is NOT blocked — the
+    // constraint includes deleted_at specifically so this stays possible.
+    expect(fn () => Server::factory()->create(['ip' => '10.0.0.2', 'port' => '2302']))->not->toThrow(Throwable::class);
+});
+
 it('does not query the game server a second time when HRL verification already fetched a live response', function () {
     config(['webhook.hrl_query.enforce' => true]);
 
@@ -354,7 +429,7 @@ it('does not query the game server a second time when HRL verification already f
     };
     app()->bind(GameServerQuery::class, fn () => $query);
 
-    submitLap(['hrl_token' => 'secret-token'])->assertOk();
+    submitLap(['hrl_token' => 'secret-token', 'submission_id' => 'enforced-003'])->assertOk();
 
     expect(Server::sole()->name)->toBe('Real Halo Server');
     expect($query->calls)->toBe(1);

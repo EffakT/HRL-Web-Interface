@@ -1,6 +1,6 @@
 # Homepage
 
-**Status: planned, not yet built.** The current homepage (`welcome.blade.php`) is the ported old-site "about" content (Future Plans, Known Issues, changelog — see [decisions.md](decisions.md)) with none of what's below. This doc describes a full redesign around live community data.
+**Status: built, fully wired to real data (2026-07-06)** — every highlight block is real, including Latest/Current Records (the last one, via `App\Models\RecordHistory`'s historical replay). See [decisions.md](decisions.md) for the implementation notes.
 
 ## App hierarchy (applies app-wide, not just this page)
 
@@ -32,17 +32,23 @@ In practice, blocks 1–3 will usually all have *something* to show, so they'll 
 
 ### 1. Latest / Current Records
 
+**Status: implemented for real (2026-07-06)**, via `App\Models\RecordHistory::recent()` — see [decisions.md](decisions.md) for the chronological-replay mechanism and real-data verification (19 historical events found, oldest from 2020).
+
 Format: `{Map} - {Time} by {Player} on {Server} ({relative time} ago)`.
 
 **This block is the strongest evidence yet for resolving the historical-vs-current-state "records" ambiguity** raised in [server-single.md](server-single.md), [players-list.md](players-list.md), and [roadmap.md](roadmap.md): to show *when* a record was set as a discrete recent event, this genuinely requires the **historical record-breaking-events** reading (a point-in-time derivation of "was this lap a new best at the moment it was submitted"), not just "which maps currently have this as their best time." There's no way to build this specific block on the current-state reading alone. This doesn't retroactively decide the other still-open instances of that question, but it's a real data point: at least one planned feature *needs* the historical interpretation to exist.
 
 ### 2. Most Active Server
 
+**Status: implemented for real (2026-07-06).** Only servers with genuine activity (`totalScore > 0` — see [most-active-server.md](most-active-server.md)) qualify; shows fewer than 3 (or none) rather than padding with inactive servers.
+
 Reuses [most-active-server.md](most-active-server.md)'s scoring, shown **top-3 podium style** — a third real use case for the podium visual pattern (after the Map Leaderboard and [players-list.md](players-list.md)'s Global Leaderboard), further reinforcing the podium-partial-extraction note already flagged in [coding-standards.md](coding-standards.md).
 
 Per server: Server name, Activity Rank, Unique Players (both 30-day *and* 90-day counts shown together), Last active time. Note the 30d/90d unique-player pair here is a **display-only** stat, independent from the Activity Score's own single 90-day window base metric — computing "unique players in the last 30 days" separately for display doesn't change or feed back into the score itself.
 
 ### 3. Fastest Improvements / New Breaks
+
+**Status: implemented for real (2026-07-06)**, via `App\Models\GlobalRanking`'s new `$excludeLapId` parameter and `mapRank()` helper — see [decisions.md](decisions.md) for the exact mechanism and real-data verification. Shows up to one item per sub-item below (not one per player); a sub-item is simply omitted if nothing in the window qualifies. **"Biggest improvement" and "largest rank jump" both require the resulting rank to actually earn points** (`GlobalRanking::pointsForRank() > 0`, i.e. rank ≤50) — without this, a new player could sandbag a deliberately bad first lap (trivially becomes their "PB," nothing existed to beat) then submit a merely-average one to fake a huge-looking improvement/jump despite an uncompetitive result. Found on real data, not hypothetical — see [decisions.md](decisions.md).
 
 Three sub-items:
 - Biggest PB improvement this week — e.g. "PlayerX improved Timberland time by −3.2s (new position)."
@@ -53,17 +59,21 @@ Three sub-items:
 
 ### 4. New Maps / Servers
 
-Any map or server created within the recency window — straightforward `created_at` check (`maps`/`servers` tables already have timestamps — see [database.md](database.md)).
+**Status: implemented for real (2026-07-06).** Any map or server created within the recency window — straightforward `created_at` check (`maps`/`servers` tables already have timestamps — see [database.md](database.md)). Real `created_at` values are preserved from the original data (not bulk-import artifacts — verified per-row dates ranging 2018–2026), so this is a genuine "was this actually added recently" check, not a false positive waiting to happen.
 
 ### 5. Player Achievements (lightweight)
 
-- First record for a player (their first-ever course record, of any kind).
-- Lap count milestones (e.g. crossing 1,000 total laps).
-- First appearance in Top 10 / Top 3 (global).
+**Status: implemented for real, all three sub-items (the first one landed 2026-07-06 once `App\Models\RecordHistory` existed).**
+
+- First record for a player (their first-ever course record, of any kind) — **implemented**, via `App\Models\RecordHistory` — checks whether one of this week's laps is that player's earliest-ever record-breaking event.
+- Lap count milestones (e.g. crossing 1,000 total laps) — **implemented**, but the milestone list is calibrated to this project's real (small) scale: `[10, 25, 50, 100, 250, 500, 1000]`, since the most laps any real player has ever raced is in the dozens as of 2026-07-06, not the thousands the doc's original example assumed.
+- First appearance in Top 10 / Top 3 (global) — **implemented**, same technique as block 3's equivalent item. The same real event can legitimately surface in both blocks if both are selected on the same load — not deduplicated across blocks, see [decisions.md](decisions.md).
 
 Same "compare against state minus the latest event" pattern as block 3 applies here too — no stored snapshots needed to detect "did their most recent lap push them over a milestone or into the Top 10."
 
 ### 6. Live Stats Snapshot
+
+**Status: implemented for real (2026-07-06).**
 
 - Total laps (all-time).
 - Active players (30d / 90d).

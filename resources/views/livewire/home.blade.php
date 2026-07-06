@@ -18,10 +18,19 @@
         </div>
     </div>
 
-    <!-- Latest Highlights: up to 3 of 6 candidate blocks, selection logic lives in Home::mount() -->
+    <!-- Latest Highlights: up to 3 of 6 candidate blocks, selection logic lives in Home::mount().
+         Column count matches however many actually qualified this round — 2 cards split 50/50
+         rather than sitting in a 3-column grid with a dangling empty third column. -->
     <div class="mt-12">
         <div class="mb-4 font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// LATEST HIGHLIGHTS</div>
-        <div class="grid grid-cols-1 gap-5 tl:grid-cols-3">
+        @php
+            $highlightColumns = match (count($highlights)) {
+                1 => 'tl:grid-cols-1',
+                2 => 'tl:grid-cols-2',
+                default => 'tl:grid-cols-3',
+            };
+        @endphp
+        <div class="grid grid-cols-1 gap-5 {{ $highlightColumns }}">
             @foreach ($highlights as $highlight)
                 @include('livewire.partials.highlights.' . $highlight['type'], ['data' => $highlight['data']])
             @endforeach

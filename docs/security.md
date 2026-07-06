@@ -106,6 +106,8 @@ New tests: `LapSubmissionHashTest.php` gained a case proving native-numeric and 
 
 Operationally, HRL enforcement remains off during the Lua rollout, so SEC-01 is not closed yet. Nginx/PHP-FPM concurrency protection also remains a deployment prerequisite outside this repo.
 
+**Deployment note (2026-07-07):** the deployed PHP-FPM pool is confirmed configured for **30 workers**. Recorded here as the concrete concurrency ceiling this repo's rate limits sit behind — Laravel's `RateLimiter` caps request *rate* per key (IP/ip:port), not the number of PHP workers occupied at once across all sources, so this number is the actual backstop against the UDP-exhaustion risk described above. Not yet cross-checked against the current tiered rate-limit numbers for headroom.
+
 - **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data. The lap-submission webhook (2026-07-06) is the one exception so far — validated via `StoreLapTimeRequest`.
 
 ## Guidance going forward

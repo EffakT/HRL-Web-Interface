@@ -10,9 +10,13 @@ The dev DB (`redesign_hrl` in MySQL) is a **real import of the production data**
 
 ```
 servers
-  id, ip, port, name, type, notify_outage, notify_outage_last, deleted_at, timestamps
-  -- no current_map_id column; "current map" must be derived (most recent lap_times row per server)
-  --    or a column added later if a live signal from the game server exists
+  id, ip, port, name, type, notify_outage, notify_outage_last,
+  current_map_id, live_player_count, queried_at, query_successful, deleted_at, timestamps
+  -- current_map_id/live_player_count/queried_at/query_successful added 2026-07-06 (roadmap
+  --    item 19, migration add_live_query_fields_to_servers_table) — a scheduled job (every
+  --    minute) live-queries each server and stores the result here rather than live-fetching
+  --    per request. All four nullable: a server never successfully queried yet (or currently
+  --    unreachable) just has nulls, and consumers fall back to the lap-history-derived proxy.
 
 maps
   id, name, label, timestamps
@@ -143,7 +147,7 @@ These `-legacy` files are reference copies of the old app's controller/jobs, not
 - **Rate-limited independently from the read API** — its own `webhook` limiter (120/min/IP, more generous than the read API's 60/min, since one busy server's IP can legitimately submit far more often than a browsing client would). See [api.md](api.md) and [security.md](security.md).
 - Map-label alias dictionary and race-type suffix logic ported verbatim into `ProcessNewLap::MAP_ALIASES`/`RACE_TYPE_SUFFIXES`.
 
-Still open: how/whether `servers.current_map_id`-equivalent gets updated (the old app doesn't have one either — it doesn't track "current map" at all, only "maps ever seen on this server" via the pivot) — this is roadmap item 19's territory, not this webhook's.
+~~Still open: how/whether `servers.current_map_id`-equivalent gets updated~~ — **resolved, see roadmap item 19 below** (a scheduled live query, separate from this webhook).
 
 ### `QueryServer` UDP protocol — confirmed 2026-07-06
 
@@ -155,7 +159,30 @@ Still open: how/whether `servers.current_map_id`-equivalent gets updated (the ol
 - Player entries are indexed (`player_0`, `player_1`, ...) with parallel `score_N`/`ping_N`/`team_N` arrays offset by `numplayers * 2/4/6` slots respectively — same "positional, not keyed" fragility.
 - No authentication — this is a public, unauthenticated read-only query, same trust model as the site's own read API.
 
-This unblocks roadmap items 14 (webhook rebuild — server hostname lookup) and 19 (live server info — current map/player count, if the response includes a map field, still to be confirmed empirically against a real server) — no protocol reverse-engineering needed, only a modern (non-deprecated `socket_*`, Laravel-idiomatic) reimplementation with proper key/value parsing instead of the fragile fixed-offset approach.
+This unblocked roadmap items 14 (webhook rebuild — server hostname lookup) and 19 (live server info) — no protocol reverse-engineering needed, only a modern (non-deprecated `socket_*`, Laravel-idiomatic) reimplementation with proper key/value parsing instead of the fragile fixed-offset approach.
+
+**Real response fields confirmed empirically (2026-07-06)** by querying the actual production server (id 7, `hrl.effakt.info`/114.23.254.181:2302 — genuinely live and reachable, ~5ms response time) with the rebuilt `App\Helpers\QueryServer`:
+
+```
+hostname, gamever, hostport, maxplayers, password, mapname, dedicated, gamemode,
+game_classic, numplayers, gametype, teamplay, gamevariant, fraglimit, player_flags,
+game_flags, team_t0, team_t1, score_t0, score_t1, final, queryid, sapp, sapp_flags,
+nextmap, nextmode
+```
+
+The `sapp` key (`"10.2.1 PC"`) confirms this is a Halo PC dedicated server running [SAPP](http://halo.isimaster.com/) (a third-party server-side scripting/patch mod) — that's how the custom `HRLRace` game variant (`gamevariant`) and race-specific behavior (lap submission, etc.) are implemented on top of stock Halo PC.
+
+Two fields matter for roadmap item 19: **`mapname`** (e.g. `"bloodgulch"`) matches this app's `maps.name` column format exactly — the same machine-name already used everywhere else (webhook payload, alias dictionary) — and **`numplayers`**. No confirmed empirical need to guess at a key name; item 19 is built directly against these two.
+
+## Live server info (roadmap item 19) — done 2026-07-06
+
+`App\Console\Commands\RefreshLiveServerInfo` (`app:refresh-live-server-info`), scheduled every minute via `routes/console.php`, live-queries every active (non-archived) server and stores the result on new `servers` columns: `current_map_id` (nullable FK to `maps`, resolved by matching the response's `mapname` against `maps.name` — **never fabricates a new `Map` row** if unmatched, since a `Map` is only ever created from an actual lap submission, per `ProcessNewLap`), `live_player_count` (from `numplayers`), `queried_at`, `query_successful`.
+
+A scheduled job rather than live-per-request, per the reasoning already flagged when this item was added: a UDP query has real latency and can time out, unlike this app's other "derive fresh in PHP" calculators (`GlobalRanking`, `MostActiveServer`) which are cheap in-process DB aggregates with no failure mode.
+
+**A failed query never wipes previously-known good data** — only `queried_at`/`query_successful` update; `current_map_id`/`live_player_count` are left at their last value. `ServerList` (the only current consumer) treats a **fresh** (≤5 minutes — a generous margin over the 1-minute schedule) successful query as authoritative for both "online" and "now playing," but a **fresh failed** query is still treated as authoritative for "online" specifically (it just directly confirmed the server is unreachable — more trustworthy than a lap-recency guess) while falling back to the lap-history-derived proxy for "map" (a failed query has no live map to report). Once live data goes stale (no query in >5 minutes — scheduler not running, or not yet run for a brand-new server), both fields fall back to the pre-existing proxies entirely.
+
+`live_player_count` is stored but not yet surfaced in the UI — `ServerList`'s existing `players`/`playersRaw` fields mean "distinct players who have ever played here" (an all-time roster size used for the relative "load" bar), a different concept from "currently connected right now." Introducing a second, differently-scoped player-count concept into that card was left as a follow-up display decision rather than folded into this task.
 
 ## Global Player Ranking (planned)
 

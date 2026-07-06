@@ -11,6 +11,14 @@ use Livewire\Component;
 #[Layout('components.layout', ['title' => 'Servers', 'active' => 'servers'])]
 class ServerList extends Component
 {
+    /**
+     * How recent a live query (roadmap item 19, `App\Console\Commands\RefreshLiveServerInfo`,
+     * scheduled every minute) needs to be before its stored result is trusted over the
+     * lap-history-derived proxy below. A generous margin over the 1-minute schedule so a missed
+     * run or two doesn't immediately flip a server back to "unknown."
+     */
+    private const LIVE_DATA_FRESHNESS_MINUTES = 5;
+
     public array $featured;
 
     public array $servers;
@@ -27,16 +35,17 @@ class ServerList extends Component
         // are either dropped or replaced with an honest derived proxy — see docs/database.md
         // and docs/decisions.md:
         // - No `region` column on `servers` — dropped entirely, not fabricated.
-        // - No live online/heartbeat signal — "online" here means "has a lap in the last 24h",
-        //   a recency proxy, not a real-time status check against the game server.
-        // - No `current_map_id` column — "now playing" is derived from each server's most
-        //   recent lap's map, per the approach already documented in docs/database.md.
+        // - "online" and "now playing" prefer a genuinely live signal (roadmap item 19) — a
+        //   scheduled job UDP-queries each server and stores the result; a recent successful
+        //   query wins. Falls back to the pre-existing recency proxies ("has a lap in the last
+        //   24h" / most recent lap's map) when no live data exists yet or it's gone stale
+        //   (server unreachable for a while, or the scheduler hasn't run) — see buildRow().
         // - No player-capacity (`players_now`/`players_max`) columns — the "load" bar is now
         //   relative to the busiest server in this list, not a literal capacity percentage.
         // - "Most active" uses the real Activity Score algorithm (docs/most-active-server.md,
         //   roadmap item 12) — Unique Players × 10 + Valid Laps × 1 + Maps Played × 20 over a
         //   90-day window, plus a recency bonus, computed fresh via App\Models\MostActiveServer.
-        $servers = Server::all();
+        $servers = Server::with('currentMap')->get();
 
         $rows = $servers->map(fn (Server $server) => $this->buildRow($server))->values();
 
@@ -67,11 +76,26 @@ class ServerList extends Component
             ? $server->lapTimes()->where('map_id', $lastLap->map_id)->min('time')
             : null;
 
+        $queriedRecently = $server->queried_at !== null
+            && $server->queried_at->gte(now()->subMinutes(self::LIVE_DATA_FRESHNESS_MINUTES));
+
+        // A recent successful query wins outright (it's a direct answer). A recent *failed*
+        // query is still more trustworthy than the recency proxy for "online" specifically —
+        // it just confirmed the server is unreachable right now — but falls back to the proxy
+        // for "map", since a failed query has no live map to report.
+        $online = $queriedRecently
+            ? (bool) $server->query_successful
+            : ($lastLap !== null && $lastLap->created_at !== null && $lastLap->created_at->gte(now()->subDay()));
+
+        $map = $queriedRecently && $server->query_successful && $server->currentMap !== null
+            ? $server->currentMap->label
+            : ($lastLap !== null && $lastLap->map !== null ? $lastLap->map->label : '—');
+
         return [
             'id' => $server->id,
             'name' => $server->name,
-            'online' => $lastLap !== null && $lastLap->created_at !== null && $lastLap->created_at->gte(now()->subDay()),
-            'map' => $lastLap !== null && $lastLap->map !== null ? $lastLap->map->label : '—',
+            'online' => $online,
+            'map' => $map,
             'players' => number_format($players),
             'playersRaw' => $players,
             'laps' => number_format($laps),

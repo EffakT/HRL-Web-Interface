@@ -3,6 +3,7 @@
 use App\Events\LapSubmitted;
 use App\Events\LeaderboardUpdated;
 use App\Helpers\GameServerQuery;
+use App\Jobs\ProcessNewLap;
 use App\Models\LapTime;
 use App\Models\Map;
 use App\Models\Player;
@@ -235,6 +236,72 @@ it('rejects a reused submission_id whose lap content has actually changed (SEC-0
     expect(LapTime::count())->toBe(1);
 });
 
+it('rejects a reused submission_id whose content has changed even after the cache entry is gone (SEC-01 audit follow-up)', function () {
+    fakeGameServerQuery();
+
+    submitLap(['submission_id' => 'retry-00003'])->assertOk();
+
+    // Simulate the cache-based idempotency guard's copy having expired/been evicted/lost to a
+    // restart — the only remaining source of truth is the durable submission_hash stored on
+    // the recorded lap itself.
+    Cache::flush();
+
+    submitLap(['submission_id' => 'retry-00003', 'player_time' => 77])
+        ->assertStatus(409)
+        ->assertJson(['success' => false, 'reason' => 'idempotency_conflict']);
+
+    expect(LapTime::count())->toBe(1);
+});
+
+it('replays a genuine retry with a repeated submission_id even after the cache entry is gone', function () {
+    fakeGameServerQuery();
+
+    submitLap(['submission_id' => 'retry-00004'])->assertOk();
+    Cache::flush();
+
+    submitLap(['submission_id' => 'retry-00004'])
+        ->assertOk()
+        ->assertJson(['success' => true]);
+
+    expect(LapTime::count())->toBe(1);
+});
+
+it('classifies unique-constraint violations by their actual index/columns, not by elimination', function () {
+    $submissionIdViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `lap_times` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'lap_times_server_id_submission_id_unique'"),
+    );
+    $submissionIdViolation->columns = ['submission_id'];
+    $submissionIdViolation->index = 'lap_times_server_id_submission_id_unique';
+
+    $serverIdentityViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `servers` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'servers_ip_port_active_since_unique'"),
+    );
+    $serverIdentityViolation->columns = ['ip', 'port', 'active_since'];
+    $serverIdentityViolation->index = 'servers_ip_port_active_since_unique';
+
+    $unrelatedViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `something_else` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'something_else_unique'"),
+    );
+    $unrelatedViolation->columns = ['some_other_column'];
+    $unrelatedViolation->index = 'something_else_unique';
+
+    $job = new ProcessNewLap(ip: '127.0.0.1', port: 2302, data: []);
+    $violatesSubmissionId = (new ReflectionMethod($job, 'violatesSubmissionIdUniqueness'))->getClosure($job);
+    $violatesServerIdentity = (new ReflectionMethod($job, 'violatesServerIdentityUniqueness'))->getClosure($job);
+
+    expect($violatesSubmissionId($submissionIdViolation))->toBeTrue();
+    expect($violatesServerIdentity($submissionIdViolation))->toBeFalse();
+
+    expect($violatesSubmissionId($serverIdentityViolation))->toBeFalse();
+    expect($violatesServerIdentity($serverIdentityViolation))->toBeTrue();
+
+    expect($violatesSubmissionId($unrelatedViolation))->toBeFalse();
+    expect($violatesServerIdentity($unrelatedViolation))->toBeFalse();
+});
+
 it('does not let two different servers collide on a similar/identical submission_id', function () {
     fakeGameServerQuery();
 
@@ -251,7 +318,7 @@ it('does not let two different servers collide on a similar/identical submission
 it('reports a genuine concurrent duplicate as 409 without ever completing processing', function () {
     fakeGameServerQuery();
 
-    $contentHash = hash('sha256', json_encode(['abc123', 'bloodgulch', 42.5, null, null]));
+    $contentHash = hash('sha256', json_encode(['abc123', 'Effakt', 'bloodgulch', 0, 42.5, null, []]));
     Cache::put(
         "lap-submission:127.0.0.1:2302:{$contentHash}",
         ['status' => 'processing', 'contentHash' => $contentHash],

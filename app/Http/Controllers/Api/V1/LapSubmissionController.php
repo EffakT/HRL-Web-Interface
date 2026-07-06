@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\LapSubmissionConflictException;
+use App\Helpers\LapSubmissionHash;
 use App\Helpers\LapSubmissionVerifier;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLapTimeRequest;
@@ -24,15 +26,15 @@ class LapSubmissionController extends Controller
         $port = (int) $request->validated('port');
         $data = $request->validated();
 
-        // Canonical content hash — identifies "the fields that make two submissions the same
-        // lap," independent of whether a `submission_id` was sent. Used two ways below: as the
-        // idempotency key itself when no `submission_id` is present, and (SEC-01 audit
-        // follow-up) as a stored fingerprint to catch a reused `submission_id` whose actual lap
-        // content has changed, which would otherwise silently replay a stale response instead of
-        // recording (or flagging) a genuinely different lap.
-        $contentHash = hash('sha256', json_encode([
-            $data['player_hash'], $data['map_name'], $data['player_time'], $data['hrl_token'] ?? null, $data['splits'] ?? null,
-        ]));
+        // Canonical content hash (App\Helpers\LapSubmissionHash) — identifies "the fields that
+        // make two submissions the same lap," independent of whether a `submission_id` was
+        // sent. Used two ways below: as the idempotency key itself when no `submission_id` is
+        // present, and (SEC-01 audit follow-up) as a stored fingerprint to catch a reused
+        // `submission_id` whose actual lap content has changed, which would otherwise silently
+        // replay a stale response instead of recording (or flagging) a genuinely different lap.
+        // ProcessNewLap computes and persists the same fingerprint for the durable,
+        // cache-independent version of this same check.
+        $contentHash = LapSubmissionHash::compute($data);
 
         // Idempotency key — always namespaced by the submitting ip:port, even when the client
         // sends its own `submission_id`. Without that namespace, two different game servers
@@ -143,6 +145,16 @@ class LapSubmissionController extends Controller
         // (SEC-01 audit follow-up) — see ProcessNewLap's constructor docblock.
         $job = new ProcessNewLap(ip: $ip, port: $port, data: $data, liveQueryResponse: $liveQueryResponse);
 
-        return [app()->call([$job, 'handle']), 200];
+        try {
+            $body = app()->call([$job, 'handle']);
+        } catch (LapSubmissionConflictException) {
+            // The durable, database-backed counterpart to this method's own cache-based
+            // idempotency-conflict check above (SEC-01 audit follow-up) — reached when a reused
+            // `submission_id` with different content is detected only after the cache entry for
+            // the original submission has expired, been evicted, or the app restarted.
+            return [['success' => false, 'reason' => 'idempotency_conflict'], 409];
+        }
+
+        return [$body, 200];
     }
 }

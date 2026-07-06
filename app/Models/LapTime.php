@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * component reads as midnight) since that detail was never captured for them; there's no way
  * to recover it retroactively. See docs/database.md's "Known constraint" section.
  */
-#[Fillable(['server_id', 'map_id', 'player_id', 'time', 'submission_id'])]
+#[Fillable(['server_id', 'map_id', 'player_id', 'time', 'submission_id', 'submission_hash'])]
 class LapTime extends Model
 {
     /** @use HasFactory<LapTimeFactory> */

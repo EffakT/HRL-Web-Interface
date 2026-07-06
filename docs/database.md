@@ -41,7 +41,12 @@ players
 lap_times                 -- PB-PROGRESSION LOG, not full lap history (corrected 2026-07-06 — see below)
   id, server_id, map_id, player_id, time, submission_id (nullable, added 2026-07-07 — SEC-01
     audit follow-up, see security.md; unique together with server_id, null for every lap
-    submitted without a client-supplied idempotency key), timestamps
+    submitted without a client-supplied idempotency key), submission_hash (nullable char(64),
+    added 2026-07-07 — SEC-01 fourth follow-up; canonical content fingerprint from
+    App\Helpers\LapSubmissionHash, compared against an incoming resubmission's fingerprint when
+    a submission_id collides, so a genuinely different payload reusing the same submission_id
+    returns 409 instead of silently replaying the old lap; null for rows recorded before this
+    column existed), timestamps
   -- 1657 rows / 817 players, across 1613 distinct (player,map,server) groups — average 1.03
   --    rows per group, only 26 groups have more than one row. This is NOT "every lap ever
   --    driven" (that would show far more rows per group); it's confirmed (see below) that the

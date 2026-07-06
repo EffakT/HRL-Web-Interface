@@ -4,7 +4,9 @@ namespace App\Jobs;
 
 use App\Events\LapSubmitted;
 use App\Events\LeaderboardUpdated;
+use App\Exceptions\LapSubmissionConflictException;
 use App\Helpers\GameServerQuery;
+use App\Helpers\LapSubmissionHash;
 use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Map;
@@ -82,9 +84,10 @@ class ProcessNewLap
         $hostname = $this->resolveHostname($query);
         $mapLabel = $this->mapLabel($this->data['map_name'], $this->data['race_type']);
         $submissionId = $this->data['submission_id'] ?? null;
+        $contentHash = LapSubmissionHash::compute($this->data);
 
         try {
-            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId));
+            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId, $contentHash));
         } catch (UniqueConstraintViolationException $e) {
             // Two DIFFERENT unique constraints can land here (SEC-01 audit follow-up) — they
             // need different responses, so check which one actually fired rather than assuming:
@@ -92,15 +95,21 @@ class ProcessNewLap
                 // The DB-level source of truth for "was this exact submission already
                 // recorded," independent of (and outlasting) the cache-based idempotency guard
                 // in LapSubmissionController — see docs/security.md.
-                return $this->replayDuplicateSubmission($submissionId);
+                return $this->replayDuplicateSubmission($submissionId, $contentHash);
             }
 
-            // Not the submission_id constraint — must be `servers`' (ip, port, deleted_at)
-            // constraint (the only other unique index this transaction can hit): a concurrent
-            // first-ever submission for this exact ip:port already created the Server row
-            // between this request's read and write. That row exists now, so simply retrying
-            // the whole transaction once succeeds via firstOrCreate()'s SELECT finding it.
-            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId));
+            // Only `servers`' (ip, port, active_since) constraint is expected to land here
+            // otherwise (SEC-01 audit follow-up) — checked explicitly rather than assumed, so a
+            // future unrelated unique constraint can't be silently mishandled as this race: a
+            // concurrent first-ever submission for this exact ip:port already created the Server
+            // row between this request's read and write. That row exists now, so simply
+            // retrying the whole transaction once succeeds via firstOrCreate()'s SELECT finding
+            // it.
+            if (! $this->violatesServerIdentityUniqueness($e)) {
+                throw $e;
+            }
+
+            $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId, $contentHash));
         }
 
         $leaderboardPosition = $this->leaderboardPosition(
@@ -145,7 +154,7 @@ class ProcessNewLap
      *
      * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float}
      */
-    private function recordLap(?string $hostname, string $mapLabel, ?string $submissionId): array
+    private function recordLap(?string $hostname, string $mapLabel, ?string $submissionId, string $contentHash): array
     {
         $server = Server::firstOrCreate(
             ['ip' => $this->ip, 'port' => (string) $this->port],
@@ -194,6 +203,7 @@ class ProcessNewLap
             'player_id' => $player->id,
             'time' => $newTime,
             'submission_id' => $submissionId,
+            'submission_hash' => $contentHash,
         ]);
 
         if (! empty($this->data['splits'])) {
@@ -228,9 +238,18 @@ class ProcessNewLap
      * very late retry) — the common case is still an exact cached-response replay, handled
      * entirely in `LapSubmissionController`, before this job ever runs a second time.
      *
+     *
      * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, topTime?: float, difference?: float}}
+     *
+     * @throws LapSubmissionConflictException if the reused submission_id's stored content
+     *                                        fingerprint no longer matches this request's
+     *                                        (SEC-01 audit follow-up) — the cache-based guard
+     *                                        already catches this while its own copy of the
+     *                                        hash is still live; this is the durable fallback
+     *                                        for once that has expired, been evicted, or the
+     *                                        app has restarted.
      */
-    private function replayDuplicateSubmission(string $submissionId): array
+    private function replayDuplicateSubmission(string $submissionId, string $contentHash): array
     {
         $server = Server::where(['ip' => $this->ip, 'port' => (string) $this->port])->first();
         $lapTime = $server !== null
@@ -247,6 +266,12 @@ class ProcessNewLap
                 'bestTime' => 0.0,
                 'leaderboardPosition' => ['position' => 0, 'total' => 0],
             ];
+        }
+
+        // `submission_hash` is null for laps recorded before this column existed — nothing to
+        // compare against, so fall through to the ordinary replay rather than reject.
+        if ($lapTime->submission_hash !== null && $lapTime->submission_hash !== $contentHash) {
+            throw new LapSubmissionConflictException;
         }
 
         $bestTime = (float) LapTime::where([
@@ -277,6 +302,19 @@ class ProcessNewLap
     {
         return in_array('submission_id', $e->columns, true)
             || str_contains($e->index ?? '', 'submission_id');
+    }
+
+    /**
+     * Confirms a unique-constraint violation is specifically `servers`' `(ip, port,
+     * active_since)` identity index (SEC-01 audit follow-up), rather than assuming it by
+     * elimination — a future unrelated unique constraint on this table would otherwise be
+     * silently mishandled as this race and retried instead of surfaced. SQLite populates
+     * `$columns` (no index name); MySQL/Postgres populate `$index` instead.
+     */
+    private function violatesServerIdentityUniqueness(UniqueConstraintViolationException $e): bool
+    {
+        return in_array('active_since', $e->columns, true)
+            || str_contains($e->index ?? '', 'servers_ip_port_active_since_unique');
     }
 
     /**

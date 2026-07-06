@@ -16,12 +16,17 @@ class LapSubmissionHash
      */
     public static function compute(array $data): string
     {
+        // Validated request input can carry numeric fields as either a native type or a numeric
+        // string (Laravel's `numeric`/`integer` rules accept "42.5"/"2" without coercing them) —
+        // cast every one to a canonical type before hashing so two semantically identical
+        // submissions (SEC-01 audit follow-up) can't hash differently just because one arrived
+        // as a JSON number and the other as a string.
         $splits = collect($data['splits'] ?? [])
             ->map(fn (array $split): array => [
-                'checkpoint_id' => $split['checkpoint_id'],
-                'duration' => $split['duration'],
-                'startTime' => $split['startTime'] ?? null,
-                'endTime' => $split['endTime'] ?? null,
+                'checkpoint_id' => (int) $split['checkpoint_id'],
+                'duration' => (float) $split['duration'],
+                'startTime' => isset($split['startTime']) ? (float) $split['startTime'] : null,
+                'endTime' => isset($split['endTime']) ? (float) $split['endTime'] : null,
             ])
             ->sortBy('checkpoint_id')
             ->values()
@@ -31,8 +36,8 @@ class LapSubmissionHash
             $data['player_hash'],
             $data['player_name'],
             $data['map_name'],
-            $data['race_type'],
-            $data['player_time'],
+            (int) $data['race_type'],
+            (float) $data['player_time'],
             $data['hrl_token'] ?? null,
             $splits,
         ]));

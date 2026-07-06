@@ -113,6 +113,19 @@ it('stores splits alongside the lap', function () {
     expect(LapTime::sole()->splits)->toHaveCount(2);
 });
 
+it('rejects splits with a duplicate checkpoint_id (SEC-01 audit follow-up)', function () {
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 10.5, 'startTime' => 0, 'endTime' => 10.5],
+            ['checkpoint_id' => 1, 'duration' => 11.0, 'startTime' => 0, 'endTime' => 11.0],
+        ],
+    ])->assertUnprocessable();
+
+    expect(LapTime::count())->toBe(0);
+});
+
 it('broadcasts LeaderboardUpdated only when the lap is a genuine improvement', function () {
     fakeGameServerQuery();
     Event::fake([LeaderboardUpdated::class]);

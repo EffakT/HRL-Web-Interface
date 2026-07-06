@@ -870,3 +870,15 @@ A fifth audit pass verified the deployed MySQL schema directly (the generated `a
 New tests: a durable (cache-flushed) version of both the conflict-detection and genuine-retry cases in `LapSubmissionTest.php`, a reflection-based test exercising both unique-violation classifier methods against constructed exceptions for all three index shapes, and a new `LapSubmissionHashTest.php` for the hash's field coverage and split-order normalization. 133 → 137 tests, 331 → 349 assertions.
 
 Nothing in this round changes the rollout status: `webhook.hrl_query.enforce` stays off until the Lua rollout is confirmed complete, and nginx/PHP-FPM concurrency protection is still an outside-this-repo deployment prerequisite.
+
+## SEC-01 fifth follow-up, same day (2026-07-07) — canonicalizing the content hash's numeric inputs
+
+A sixth audit pass confirmed the `submission_hash` column deployed correctly and found one real narrow gap plus a doc drift, both fixed directly (no open-ended decisions this round).
+
+`LapSubmissionHash::compute()` hashed validated request fields as-is. Laravel's `numeric`/`integer` validation rules accept a numeric string (`"42.5"`, `"2"`) without ever coercing it to a native type — so a real request could reach the hash with `player_time` or a split's `checkpoint_id` as either a number or an equivalent string, and those two semantically identical submissions would hash differently, defeating the whole point of the fingerprint. Fixed by casting every numeric field (`race_type`, `player_time`, and each split's `checkpoint_id`/`duration`/`startTime`/`endTime`) to a canonical type before hashing.
+
+The audit also pointed out that sorting splits by `checkpoint_id` alone doesn't fully canonicalize a payload if two splits claim the *same* checkpoint — their relative order is still payload-dependent. Rather than invent a secondary sort key for an already-nonsensical payload, added `distinct` to `StoreLapTimeRequest`'s `splits.*.checkpoint_id` rule so such a submission is rejected outright (`422`) before it ever reaches the hash.
+
+Also corrected the `add_submission_hash_to_lap_times_table` migration's docblock, which said laps without a `submission_id` have no fingerprint — the actual code hashes every new lap regardless; only rows recorded before the column existed have `null`.
+
+New tests: a native-vs-numeric-string equivalence case in `LapSubmissionHashTest.php`, and a duplicate-checkpoint `422` case in `LapSubmissionTest.php`. 137 → 139 tests, 349 → 352 assertions.

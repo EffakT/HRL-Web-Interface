@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\Schema;
  * LapSubmissionHash) alongside each lap, so a reused `submission_id` can be checked for a
  * content mismatch even after the cache-based idempotency guard's copy has expired, been
  * evicted, or the app restarted — see LapSubmissionController/ProcessNewLap and
- * docs/security.md. Nullable because existing laps and laps submitted without a
- * `submission_id` have no fingerprint to compare against.
+ * docs/security.md. Every new lap gets a fingerprint regardless of whether it has a
+ * `submission_id`; nullable only because laps recorded before this column existed have none to
+ * compare against.
  */
 return new class extends Migration
 {

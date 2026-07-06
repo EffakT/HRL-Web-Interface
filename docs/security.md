@@ -94,6 +94,16 @@ A fifth audit pass reviewed `c529742`, inspected the deployed MySQL schema direc
 
 New tests: `LapSubmissionTest.php` gained cases for a content mismatch surviving a `Cache::flush()` (durable path), a genuine retry still replaying correctly after the same flush, and a reflection-based test exercising `violatesSubmissionIdUniqueness()`/`violatesServerIdentityUniqueness()` against constructed exceptions for all three index shapes (submission_id, server identity, and an unrelated/future index). A new `LapSubmissionHashTest.php` covers the hash including `race_type`/`player_name` and normalizing split order. 133 → 137 tests, 331 → 349 assertions.
 
+#### Fifth follow-up hardening (2026-07-07, same day, commit `aeef9e4` reviewed again)
+
+A sixth audit pass confirmed the deployed `submission_hash` column and found one remaining narrow correctness gap, plus a doc-comment drift:
+
+1. **`LapSubmissionHash` didn't canonicalize numeric types before hashing (Low)** — Laravel's `numeric`/`integer` validation rules accept a numeric string without coercing it, so a request that validates cleanly could reach the hash helper with e.g. `player_time` as `42.5` or `"42.5"`, or a split's `checkpoint_id` as `2` or `"2"` — two semantically identical submissions that would hash differently. Fixed: `compute()` now casts `race_type`/checkpoint IDs to `int` and `player_time`/split durations/timestamps to `float` before hashing.
+2. **Equal-checkpoint splits stayed payload-order-dependent (Low, related)** — nothing rejected two splits claiming the same `checkpoint_id`, so sorting by that key alone doesn't fully canonicalize such a payload. Fixed at the source: `StoreLapTimeRequest` now applies Laravel's `distinct` rule to `splits.*.checkpoint_id`, rejecting the payload outright (`422`) rather than trying to define an ordering for an already-ambiguous submission.
+3. **Migration doc-comment drift** — the `add_submission_hash_to_lap_times_table` migration's docblock said laps submitted without a `submission_id` have no fingerprint; the actual code stores `submission_hash` on every new lap regardless. Corrected — only laps recorded *before this column existed* have none.
+
+New tests: `LapSubmissionHashTest.php` gained a case proving native-numeric and numeric-string variants of the same submission hash identically; `LapSubmissionTest.php` gained a case for the duplicate-checkpoint `422`. 137 → 139 tests, 349 → 352 assertions.
+
 Operationally, HRL enforcement remains off during the Lua rollout, so SEC-01 is not closed yet. Nginx/PHP-FPM concurrency protection also remains a deployment prerequisite outside this repo.
 
 - **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data. The lap-submission webhook (2026-07-06) is the one exception so far — validated via `StoreLapTimeRequest`.

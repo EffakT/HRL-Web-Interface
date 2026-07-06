@@ -56,7 +56,11 @@ class StoreLapTimeRequest extends FormRequest
             // script's submissions rely only on the weaker content-hash fallback, same as today.
             'submission_id' => [config('webhook.hrl_query.enforce') ? 'required' : 'nullable', 'string', 'min:8', 'max:64'],
             'splits' => ['nullable', 'array'],
-            'splits.*.checkpoint_id' => ['required', 'integer'],
+            // `distinct` (SEC-01 audit follow-up) rejects a payload with two splits claiming
+            // the same checkpoint — without it, equal-key split ordering in
+            // App\Helpers\LapSubmissionHash would stay payload-order-dependent, and a submitted
+            // lap's checkpoint progression would be ambiguous.
+            'splits.*.checkpoint_id' => ['required', 'integer', 'distinct'],
             'splits.*.duration' => ['required', 'numeric'],
             'splits.*.startTime' => ['nullable', 'numeric'],
             'splits.*.endTime' => ['nullable', 'numeric'],

@@ -1,6 +1,6 @@
 # Most Active Server Algorithm
 
-**Status: planned, not yet implemented.** This doc is the spec — no scoring code, table, or scheduled job exists yet. See [roadmap.md](roadmap.md) for sequencing.
+**Status: implemented for real (2026-07-06)**, except the scheduled recalculation job (see "Recalculation cadence" below — deliberately not built, live queries are fast enough at real scale). `App\Models\MostActiveServer` implements the Activity Score, recency bonus, tie-break, and display-only 30d/90d unique-player pair exactly as specced below. Wired into `ServerList`'s featured card and Homepage's Most Active Server highlight. See [decisions.md](decisions.md) for real-data verification and [roadmap.md](roadmap.md) for sequencing.
 
 **Supersedes** the earlier placeholder definition in [database.md](database.md) ("ranked by `lap_times` row count in a rolling 30-min window, tie-broken by most recent lap") — that was a rough stand-in written before this full spec existed. This doc is now the source of truth for "most active server."
 
@@ -53,7 +53,7 @@ If two servers have the same total score (Activity Score + Recency Bonus):
 
 ## Recalculation cadence
 
-Spec says "recalculated periodically" without a specific interval. **Not decided yet** — a reasonable default would be an hourly scheduled recalculation (Laravel's scheduler), balancing freshness against not re-running a 90-day-window aggregate query too often, but this needs a real decision once the query is actually implemented and its cost is known (see [performance.md](performance.md) for the project's general "measure before optimizing" stance).
+Spec says "recalculated periodically" without a specific interval. **Resolved for now (2026-07-06)**: no scheduled job — `MostActiveServer::scores()` computes live on every call, same "derive, don't cache" precedent as `GlobalRanking`. At real current scale (3 active servers, a handful of laps per week) this is trivially fast; a scheduled job is only worth building once profiling at real scale says a live query is actually too slow (see [performance.md](performance.md)).
 
 ## Design Goals
 
@@ -65,8 +65,8 @@ The algorithm should:
 
 ## Open items
 
-- Exact recalculation interval (see above).
+- ~~Exact recalculation interval~~ — **resolved**: no scheduled job, computed live (see above).
 - Lap validity / anti-cheat mechanism (see above) — tracked as a future problem, not blocking this spec.
 - Whether the 90-day base window and the 90-day recency-bonus tier should actually be different lengths, given the overlap noted above.
-- UI surface: currently just the single featured "MOST ACTIVE" server card on `/servers` (mock data today) — **update**: [homepage.md](homepage.md) now also plans a top-3 podium-style surface for this ranking, so a "ranked list of servers by activity score" (at least top 3) is now planned after all.
-- The homepage's Most Active Server block also wants **30-day and 90-day unique-player counts shown side by side**, in addition to the score's own single 90-day base window — these are display-only additions, computed separately from the scoring formula, not a change to the formula itself. See [homepage.md](homepage.md).
+- ~~UI surface: currently just the single featured "MOST ACTIVE" server card on `/servers`~~ — **done**: `ServerList`'s featured card and Homepage's top-3 podium-style highlight are both wired to `App\Models\MostActiveServer`.
+- ~~The homepage's Most Active Server block also wants 30-day and 90-day unique-player counts shown side by side~~ — **done**, both computed and displayed alongside the score's own 90-day base window.

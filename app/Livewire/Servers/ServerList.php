@@ -3,6 +3,7 @@
 namespace App\Livewire\Servers;
 
 use App\Models\LapTime;
+use App\Models\MostActiveServer;
 use App\Models\Server;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -32,9 +33,9 @@ class ServerList extends Component
         //   recent lap's map, per the approach already documented in docs/database.md.
         // - No player-capacity (`players_now`/`players_max`) columns — the "load" bar is now
         //   relative to the busiest server in this list, not a literal capacity percentage.
-        // - "Most active" uses a simple real proxy (laps in the last 30 days, tie-broken by most
-        //   recent lap) — NOT the full Activity Score algorithm from most-active-server.md,
-        //   which needs a scheduled recalculation job and is still roadmap item 12.
+        // - "Most active" uses the real Activity Score algorithm (docs/most-active-server.md,
+        //   roadmap item 12) — Unique Players × 10 + Valid Laps × 1 + Maps Played × 20 over a
+        //   90-day window, plus a recency bonus, computed fresh via App\Models\MostActiveServer.
         $servers = Server::all();
 
         $rows = $servers->map(fn (Server $server) => $this->buildRow($server))->values();
@@ -46,9 +47,10 @@ class ServerList extends Component
             'playersPct' => (int) round($row['playersRaw'] / $maxPlayers * 100),
         ])->all();
 
-        $this->featured = collect($this->servers)
-            ->sortByDesc(fn (array $row) => [$row['laps30d'], $row['lastLapAt'] !== null ? $row['lastLapAt']->timestamp : 0])
-            ->first() ?? $this->servers[0] ?? [];
+        $topServerId = MostActiveServer::scores()[0]['serverId'] ?? null;
+
+        $this->featured = collect($this->servers)->firstWhere('id', $topServerId)
+            ?? $this->servers[0] ?? [];
 
         $this->onlineCount = collect($this->servers)->where('online', true)->count();
         $this->totalPlayers = LapTime::distinct('player_id')->count('player_id');
@@ -60,7 +62,6 @@ class ServerList extends Component
         $lastLap = $server->lapTimes()->with('map')->orderByDesc('created_at')->first();
         $laps = $server->lapTimes()->count();
         $players = $server->lapTimes()->distinct('player_id')->count('player_id');
-        $laps30d = $server->lapTimes()->where('created_at', '>=', now()->subDays(30))->count();
 
         $best = $lastLap
             ? $server->lapTimes()->where('map_id', $lastLap->map_id)->min('time')
@@ -74,9 +75,7 @@ class ServerList extends Component
             'players' => number_format($players),
             'playersRaw' => $players,
             'laps' => number_format($laps),
-            'laps30d' => $laps30d,
             'best' => $best !== null ? LapTime::formatSeconds($best) : '—',
-            'lastLapAt' => $lastLap?->created_at,
         ];
     }
 

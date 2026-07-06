@@ -183,3 +183,24 @@ it('falls back to the lap-history proxy once live data goes stale', function () 
     expect($row['online'])->toBeTrue()
         ->and($row['map'])->toBe('Recent Proxy Map');
 });
+
+// Roadmap item 16 follow-up — every submitted lap changes header stats/Activity Score, not just
+// a PB, so this listens on the site-wide `activity` channel rather than a map-scoped one. The
+// listener itself is what runs when the browser's Echo client receives the event; there's no
+// running WebSocket server in Pest to exercise the real transport (see decisions.md).
+it('re-fetches server data when its live-update listener fires', function () {
+    // At least one server must exist up front — an empty server list is a separate, pre-existing
+    // edge case unrelated to this test (the featured-card view assumes at least one row).
+    $server = Server::factory()->create();
+
+    $component = Livewire::test(ServerList::class);
+    expect($component->get('totalPlayers'))->toBe(0);
+
+    $map = Map::factory()->create();
+    $player = Player::factory()->create();
+    LapTime::factory()->create(['server_id' => $server->id, 'map_id' => $map->id, 'player_id' => $player->id]);
+
+    $component->call('loadServers');
+
+    expect($component->get('totalPlayers'))->toBe(1);
+});

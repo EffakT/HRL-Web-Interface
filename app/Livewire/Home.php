@@ -10,6 +10,7 @@ use App\Models\Player;
 use App\Models\RecordHistory;
 use App\Models\Server;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Home', 'active' => 'home'])]
@@ -23,6 +24,18 @@ class Home extends Component
     public array $quickStats = [];
 
     public function mount(): void
+    {
+        $this->loadHighlights();
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — every submitted lap can change these highlights
+     * (Quick Stats, Live Stats Snapshot, Most Active Server, and any record/improvement/
+     * achievement), not just a PB on one specific map, so this listens on the site-wide
+     * `activity` channel rather than the map-scoped `LeaderboardUpdated` one.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadHighlights(): void
     {
         // Six candidate highlight blocks, keyed by type — an empty array means "nothing to show
         // this round" (the fixed-priority selection below skips it), same contract as the mock

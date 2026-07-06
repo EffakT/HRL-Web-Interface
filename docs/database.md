@@ -200,6 +200,14 @@ It does, however, feed a real UI distinction (added 2026-07-06 per explicit foll
 
 **A real port conflict found**: Reverb's default bind port (8080, `REVERB_SERVER_PORT`) was already in use by something else on this shared host. Distinguished from `REVERB_PORT` (the *client-facing* port broadcasting.php's `reverb` connection tells PHP to connect to — the same value in a simple non-proxied setup, but a separate env var/config key for when Reverb sits behind a reverse proxy on a different public port). Moved both to 8081 for this environment — see [deployment.md](deployment.md).
 
+### Site-wide activity broadcast — `App\Events\LapSubmitted` (added 2026-07-06, same day, on request)
+
+`LeaderboardUpdated` only fires on a genuine PB, scoped to one server+map — fine for the two leaderboard pages, but Servers List's header stats/"MOST ACTIVE" card (Activity Score) and Home's highlights (Quick Stats, Live Stats Snapshot, records, achievements, improvements) all change on **any** logged attempt, anywhere, not just an improvement on one specific map. A component listening only for `LeaderboardUpdated` would miss most of what actually changes these aggregates.
+
+`App\Events\LapSubmitted` fires unconditionally on every attempt (from the same place in `ProcessNewLap` that already computes `isNewRecord`), broadcasting `{server_id, map_id}` on one site-wide public channel, `activity`, as `lap.submitted`. `ServerList::loadServers()` and `Home::loadHighlights()` (the same methods `mount()` already calls, given `#[On]` listener attributes) just re-run entirely on receipt — same "re-fetch, don't patch in place" precedent as the two leaderboard pages.
+
+Verified the same way as `LeaderboardUpdated`: a standalone `pusher-js` script subscribed to `activity`, a real webhook submission, confirmed payload arrival — plus `LapSubmittedTest.php` (unit, channel/payload) and a `loadServers()`/`loadHighlights()` listener test in each component's existing test file.
+
 ## Global Player Ranking (planned)
 
 A cross-map ranking/points system, derived entirely from `lap_times` (no new stored "score" as the source of truth) — continues this doc's existing full-history/derived-reads philosophy rather than introducing a new stored-and-drifting number. Full spec: [global-ranking.md](global-ranking.md).

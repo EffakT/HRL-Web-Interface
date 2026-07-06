@@ -1,5 +1,6 @@
 <?php
 
+use App\Events\LapSubmitted;
 use App\Events\LeaderboardUpdated;
 use App\Helpers\GameServerQuery;
 use App\Models\LapTime;
@@ -118,6 +119,16 @@ it('broadcasts LeaderboardUpdated only when the lap is a genuine improvement', f
 
     submitLap(['player_time' => 55]);
     Event::assertDispatchedTimes(LeaderboardUpdated::class, 1);
+});
+
+it('broadcasts LapSubmitted on every attempt, improvement or not', function () {
+    fakeGameServerQuery();
+    Event::fake([LapSubmitted::class]);
+
+    submitLap(['player_time' => 50]);
+    submitLap(['player_time' => 55]);
+
+    Event::assertDispatchedTimes(LapSubmitted::class, 2);
 });
 
 it('reports the correct leaderboard position and gap to the top time', function () {

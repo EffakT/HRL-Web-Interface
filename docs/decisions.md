@@ -767,3 +767,17 @@ Installed `laravel/reverb` (composer) and `laravel-echo`/`pusher-js` (npm) — a
 Test data created during manual verification (four fake players/laps, one fake server keyed by `127.0.0.1`) was cleaned up from the real dev DB afterward — none of it was meant to persist.
 
 Added `tests/Unit/LeaderboardUpdatedTest.php` (event channels/payload), extended `MapLeaderboardTest.php` (+1), added `ServerMapLeaderboardTest.php` (+2). Suite: 88 → 93 tests, 233 → 246 assertions.
+
+## Live updates extended site-wide (roadmap item 16 follow-up, same day)
+
+Immediate follow-up to item 16: the user asked whether the "Most Active" server card updates live, and — after confirming it didn't (it's real data, but recomputed on page load, not pushed) — asked to extend live updates "everywhere it's visible."
+
+`LeaderboardUpdated` couldn't serve this on its own: it only fires on a genuine PB, scoped to one server+map, but Servers List's header stats/"MOST ACTIVE" Activity Score card and Home's highlights change on *any* logged attempt anywhere, not just an improvement on one specific map. Added a second, deliberately separate event — `App\Events\LapSubmitted` — fired unconditionally on every attempt from `ProcessNewLap`, broadcasting `{server_id, map_id}` on one site-wide public channel (`activity`) as `lap.submitted`. Kept as a distinct event/channel rather than overloading `LeaderboardUpdated` with a "fires on everything" mode — the two have genuinely different semantics (site-wide activity vs. one map's ranking changing) and different consumer sets.
+
+`ServerList` and `Home` had their `mount()` bodies renamed to `loadServers()`/`loadHighlights()` (methods `mount()` now just calls) and given `#[On('echo-public:activity,lap.submitted')]` — same "listener re-runs the exact same code mount() does" pattern already established for the two leaderboard pages.
+
+Verified the same way as the original item 16 work: a standalone `pusher-js` script subscribed to `activity`, submitted a real (non-PB, doesn't matter) lap via the webhook, confirmed the `{"server_id":10,"map_id":1}` payload arrived over the WebSocket.
+
+**A mistake made and corrected during this task**: ran `git checkout -- app/Livewire/Concerns/HasRankedLeaderboardPagination.php` to isolate an unrelated test failure, without first checking whether the file had uncommitted changes — it did (the user had already changed `PLAYERS_PER_PAGE` from 15 to 10 as their own in-progress edit), and the checkout silently discarded it. Caught immediately by comparing the file's state before/after and restored the user's value by hand. This is exactly the scenario the standing git-safety rule ("run `git status` before any command that could discard uncommitted work") exists for — noted here as a reminder that a destructive git command is never "just for isolating a test," even temporarily, without checking first. The pagination test itself (`MapLeaderboardTest.php`'s "paginates ranks after the fixed top-three podium") now legitimately fails against the user's in-progress `10` value, since it has `15` hardcoded — left alone, since it's the user's own change to reconcile, not this task's.
+
+Added `LapSubmittedTest.php` (unit, channels/payload), extended `LapSubmissionTest.php` (+1, asserts `LapSubmitted` fires on every attempt including non-improvements), and one live-update-listener test each in `ServerListTest.php`/`HomeTest.php`.

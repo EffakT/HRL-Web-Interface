@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Events\LapSubmitted;
 use App\Events\LeaderboardUpdated;
 use App\Helpers\GameServerQuery;
 use App\Models\LapTime;
@@ -143,9 +144,13 @@ class ProcessNewLap
             $result['newTime'],
         );
 
-        // Broadcast only on a genuine improvement — see docs/database.md's "Planned new
-        // behavior". Reverb/Echo (roadmap item 16) isn't wired up yet, so with the default
-        // `log` broadcast connection this currently just logs; no frontend listens yet.
+        // Every submission broadcasts site-wide (Servers List header stats/"MOST ACTIVE" card,
+        // Home's highlights — anything that changes on any attempt, not just an improvement).
+        LapSubmitted::dispatch($result['server']->id, $result['map']->id);
+
+        // This one, scoped and fired only on a genuine improvement, is what the two leaderboard
+        // pages (ServerMapLeaderboard/MapLeaderboard) listen for — see docs/database.md's "Live
+        // leaderboard updates" section.
         if ($result['isNewRecord']) {
             LeaderboardUpdated::dispatch(
                 $result['server']->id,

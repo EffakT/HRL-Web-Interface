@@ -6,6 +6,7 @@ use App\Models\LapTime;
 use App\Models\MostActiveServer;
 use App\Models\Server;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Servers', 'active' => 'servers'])]
@@ -30,6 +31,17 @@ class ServerList extends Component
     public int $lapsToday = 0;
 
     public function mount(): void
+    {
+        $this->loadServers();
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — every submitted lap changes these aggregates
+     * (Activity Score, header counts), not just a PB, so this listens on the site-wide
+     * `activity` channel rather than the map-scoped `LeaderboardUpdated` one.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadServers(): void
     {
         // Real data. Several fields from the original mock have no real-schema equivalent and
         // are either dropped or replaced with an honest derived proxy — see docs/database.md

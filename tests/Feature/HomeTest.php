@@ -157,3 +157,18 @@ it('excludes servers with no real activity from the Most Active Server highlight
         ->and(collect($mostActive['data'])->pluck('name'))->toContain($activeServer->name)
         ->not->toContain($inactiveServer->name);
 });
+
+// Roadmap item 16 follow-up — every submitted lap can change Quick Stats/highlights, not just a
+// PB on one map, so this listens on the site-wide `activity` channel rather than a map-scoped
+// one. The listener itself is what runs when the browser's Echo client receives the event;
+// there's no running WebSocket server in Pest to exercise the real transport (see decisions.md).
+it('re-fetches Quick Stats and highlights when its live-update listener fires', function () {
+    $component = Livewire::test(Home::class);
+    expect($component->get('quickStats')['players'])->toBe(0);
+
+    Player::factory()->create();
+
+    $component->call('loadHighlights');
+
+    expect($component->get('quickStats')['players'])->toBe(1);
+});

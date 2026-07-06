@@ -115,7 +115,7 @@ class ServerShow extends Component
             'subtitle' => null,
             'value' => $player['score'],
             'meta' => "{$player['records']} RECORDS · {$player['maps']} MAPS · {$player['laps']} LAPS",
-            'badge' => $player['rank'] === 1 ? 'TOP SCORE' : null,
+            'badge' => $player['rank'] === 1 ? '#1 SERVER' : null,
             'href' => route('servers.players.show', ['serverId' => $server->id, 'playerId' => $player['id']]),
         ], array_slice($this->players, 0, 3));
     }

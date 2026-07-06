@@ -217,4 +217,58 @@ class GlobalRanking
 
         return $index === false ? null : $index + 1;
     }
+
+    /**
+     * The full ranked leaderboard for one map — every player's single best lap, ranked, with
+     * the same tie-break used everywhere else (earliest lap wins a tie). `$serverId` scopes to
+     * one server's nested leaderboard instead of the global (all-servers) one.
+     *
+     * A third occurrence of "rank every player's best lap on one map" (after `MapLeaderboard`
+     * and `ServerMapLeaderboard`'s own inline, display-formatted versions) — per
+     * docs/coding-standards.md's "extract on the second genuine duplicate" rule, this gives the
+     * API (docs/api.md) its own canonical, testable, raw-data source rather than a fourth ad-hoc
+     * copy. Deliberately not shared with those two Livewire components themselves: their
+     * versions are tightly coupled to UI-specific formatting (zero-padded rank strings, gap
+     * display strings), which the API has no use for.
+     *
+     * @return list<array{
+     *     rank: int, lapId: int, playerId: int, playerName: string,
+     *     serverId: int, serverName: string, timeRaw: float, time: string,
+     *     gapRaw: ?float, setAt: ?Carbon,
+     * }>
+     */
+    public static function mapLeaderboard(int $mapId, ?int $serverId = null): array
+    {
+        $laps = LapTime::where('map_id', $mapId)
+            ->when($serverId, fn ($query) => $query->where('server_id', $serverId))
+            ->whereHas('server')
+            ->with(['player', 'server'])
+            ->orderBy('time')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $bestPerPlayer = $laps->unique('player_id')->values();
+        $topLap = $bestPerPlayer->first();
+        $topTime = $topLap !== null ? (float) $topLap->time : null;
+
+        return $bestPerPlayer
+            ->map(function (LapTime $lap, int $index) use ($topTime): array {
+                $time = (float) $lap->time;
+
+                return [
+                    'rank' => $index + 1,
+                    'lapId' => $lap->id,
+                    'playerId' => $lap->player_id,
+                    'playerName' => $lap->player->name,
+                    'serverId' => $lap->server_id,
+                    'serverName' => $lap->server->name,
+                    'timeRaw' => $time,
+                    'time' => $lap->formattedTime(),
+                    'gapRaw' => $topTime !== null ? round($time - $topTime, 3) : null,
+                    'setAt' => $lap->created_at,
+                ];
+            })
+            ->all();
+    }
 }

@@ -26,7 +26,7 @@ No formal security review has been done yet. Phase 2 real-data integration is un
 
 - **Auth** (`/login`, `/register`) — not built. No password hashing/session strategy beyond Laravel defaults has been exercised yet.
 - **Authorization** — no policies/gates exist yet since no models/auth exist. Once the claim-code ownership system (`users_players`/`users_servers`) is revisited, ownership-based authorization will need real policies (server/player owners being allowed to, e.g., delete their own laps — see [roadmap.md](roadmap.md) "Future Plans" ported from the old site).
-- **Rate limiting** on the future public API and the webhook endpoint — not designed yet.
+- ~~**Rate limiting** on the future public API~~ — **done (2026-07-06)**: 60/min per IP via Laravel's `throttle:api`, see [api.md](api.md). Still open for the webhook endpoint (not built yet — roadmap item 14).
 - **Webhook authentication** — the old webhook's auth mechanism (if any) hasn't been inspected yet.
 - **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data.
 

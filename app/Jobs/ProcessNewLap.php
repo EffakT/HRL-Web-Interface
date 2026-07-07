@@ -77,7 +77,7 @@ class ProcessNewLap
     ) {}
 
     /**
-     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, topTime?: float, difference?: float}}
+     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}}
      */
     public function handle(GameServerQuery $query): array
     {
@@ -239,7 +239,7 @@ class ProcessNewLap
      * entirely in `LapSubmissionController`, before this job ever runs a second time.
      *
      *
-     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, topTime?: float, difference?: float}}
+     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}}
      *
      * @throws LapSubmissionConflictException if the reused submission_id's stored content
      *                                        fingerprint no longer matches this request's
@@ -367,7 +367,7 @@ class ProcessNewLap
      * PHP" precedent (`GlobalRanking`, `MostActiveServer`) — real scale per map is at most a
      * few hundred players (see docs/database.md).
      *
-     * @return array{position: int, total: int, topTime?: float, difference?: float}
+     * @return array{position: int, total: int, top_time?: float, difference?: float}
      */
     private function leaderboardPosition(int $serverId, int $mapId, float $timeForPosition, float $timeForDifference): array
     {
@@ -387,7 +387,9 @@ class ProcessNewLap
 
         if ($bestTimes->isNotEmpty()) {
             $topTime = $bestTimes->first();
-            $position['topTime'] = $topTime;
+            // snake_case (not topTime) — the real Lua/SAPP client (hrl.lua) reads `lb.top_time`
+            // directly; confirmed 2026-07-07 by reading the actual deployed script, not guessed.
+            $position['top_time'] = $topTime;
             $position['difference'] = round($timeForDifference - $topTime, 2);
         }
 

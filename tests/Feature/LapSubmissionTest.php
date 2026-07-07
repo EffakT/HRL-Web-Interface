@@ -157,7 +157,7 @@ it('reports the correct leaderboard position and gap to the top time', function 
     $response->assertOk()
         ->assertJsonPath('leaderboardPosition.position', 2)
         ->assertJsonPath('leaderboardPosition.total', 2)
-        ->assertJsonPath('leaderboardPosition.topTime', 40)
+        ->assertJsonPath('leaderboardPosition.top_time', 40)
         ->assertJsonPath('leaderboardPosition.difference', 5);
 });
 

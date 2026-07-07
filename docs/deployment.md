@@ -22,11 +22,29 @@ Frontend assets are compiled via Vite: `npm run build` (production) or `npm run 
 
 Real-time leaderboard updates (see [database.md](database.md)'s "Live leaderboard updates" section) depend on **three** separate long-running processes, all already part of `composer run dev` for local work — a production deploy needs equivalents for all three, not just the app server:
 
-1. **Reverb** (`php artisan reverb:start`) — the actual WebSocket server. Binds to `REVERB_SERVER_PORT` (defaults to `REVERB_PORT`'s value if unset). **This environment's default port 8080 was already taken by something else on the shared host** — moved to 8081 here (`REVERB_PORT`/`REVERB_SERVER_PORT` both set to 8081 in `.env`). Check for a conflict before assuming the default port is free anywhere else this app runs.
+1. **Reverb** (`php artisan reverb:start`) — the actual WebSocket server. Binds to `REVERB_SERVER_PORT` (defaults to `REVERB_PORT`'s value if unset). **This environment's default port 8080 was already taken by something else on the shared host** — moved to 8081 here (`REVERB_SERVER_PORT=8081` in `.env`). Check for a conflict before assuming the default port is free anywhere else this app runs. **Not started by anything persistent** — no systemd/supervisor unit exists for it yet (see OPS-01 in the audit history); it's only running as a bare backgrounded process, which will not survive a reboot.
 2. **A queue worker** (`php artisan queue:work` or `queue:listen`) — broadcasting (`ShouldBroadcast`, not `ShouldBroadcastNow`) goes through the queue, not synchronously. Without a worker running, `LeaderboardUpdated` events queue up in the `jobs` table and never reach a browser — confirmed by testing this directly (see decisions.md).
 3. **Vite build with the correct `VITE_REVERB_*` values** — the frontend's `resources/js/echo.js` reads these at build time to know which host/port/scheme to connect to.
 
-In production, Reverb would typically sit behind a reverse proxy (nginx) terminating TLS and forwarding to Reverb's internal port — not yet set up, since this project has no production deploy yet (see "Cutover plan" below).
+**`REVERB_HOST`/`REVERB_PORT`/`REVERB_SCHEME` vs. `VITE_REVERB_*` are deliberately different values (fixed 2026-07-07, see REL-01 in the audit history)**: the former drive server-side publishing (Laravel/the queue worker talking to Reverb over loopback — `localhost:8081`, plain `http`, correct and efficient as-is) while the latter are baked into the *public* JS bundle and must be a real, TLS-reachable hostname (`redesign.hrl.effakt.info`, port `443`, `https`) — a real browser reads `localhost` as its own machine, not the server, so aliasing one to the other (the original config) silently broke real-time updates for every visitor.
+
+**Still required: an nginx reverse-proxy for the WebSocket upgrade, not yet in place.** `curl -I https://redesign.hrl.effakt.info/app/<key>` currently returns `404` — nothing on the public TLS vhost forwards to Reverb's internal `127.0.0.1:8081`. Reverb speaks the Pusher protocol, so the client connects to `wss://redesign.hrl.effakt.info/app/{REVERB_APP_KEY}`; nginx needs a location block roughly like:
+
+```nginx
+location /app/ {
+    proxy_pass http://127.0.0.1:8081;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+}
+```
+
+This is on the FastPanel-managed per-site vhost, which isn't readable or writable from inside this app's environment (no permission to `/etc/nginx/fastpanel2-sites/`) — someone with server/FastPanel access needs to add it. Until then, real-time updates will still fail for real visitors even though the app-level config, build, and Reverb process are all now correct.
 
 ## Cutover plan (from original planning, not yet executed)
 

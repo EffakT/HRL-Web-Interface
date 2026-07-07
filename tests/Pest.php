@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 /*
@@ -14,8 +15,13 @@ use Tests\TestCase;
 |
 */
 
+// `CACHE_STORE=array` (phpunit.xml) keeps cached values in memory for the whole test-process
+// lifetime, not per-test — without flushing here, a value one test caches (e.g. Home's
+// PERF-01 highlights cache) would silently leak into every later test's assertions against a
+// completely different, freshly-migrated database.
 pest()->extend(TestCase::class)
  // ->use(RefreshDatabase::class)
+    ->beforeEach(fn () => Cache::flush())
     ->in('Feature');
 
 /*

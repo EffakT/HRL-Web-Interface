@@ -1,11 +1,13 @@
 <?php
 
+use App\Events\LapSubmitted;
 use App\Livewire\Home;
 use App\Models\LapTime;
 use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 
 uses(LazilyRefreshDatabase::class);
@@ -168,7 +170,82 @@ it('re-fetches Quick Stats and highlights when its live-update listener fires', 
 
     Player::factory()->create();
 
+    // A real lap submission fires LapSubmitted, which `App\Listeners\InvalidateHomeHighlightsCache`
+    // reacts to by forgetting the cached highlights (PERF-01 follow-up — see Home::CACHE_KEY).
+    // Without this, loadHighlights() below would just return the still-cached result from the
+    // render above, since nothing else invalidates it.
+    event(new LapSubmitted(1, 1));
+
     $component->call('loadHighlights');
 
     expect($component->get('quickStats')['players'])->toBe(1);
+});
+
+// PERF-01 follow-up (2026-07-08) — Home's highlights/quick-stats are now cached (see
+// Home::CACHE_KEY's docblock: real profiling showed one computation costs ~1.5s/94 queries at
+// real scale, and every homepage visitor between two lap submissions was paying that
+// independently). These two tests cover the caching mechanics directly, distinct from the test
+// above, which covers what happens once the cache *has* been invalidated. The actual cache key
+// is CACHE_KEY suffixed with the current generation (see Home::GENERATION_KEY's docblock for
+// why a plain fixed key isn't safe), not CACHE_KEY itself.
+it('serves a fresh render from cache, not recomputed, on a second component instance', function () {
+    Player::factory()->create();
+
+    Livewire::test(Home::class);
+    $generation = Cache::get(Home::GENERATION_KEY, 0);
+    expect(Cache::has(Home::CACHE_KEY.':'.$generation))->toBeTrue();
+
+    // A second player exists now, but nothing has invalidated the cache — a fresh component
+    // instance (simulating a second visitor loading the page) must still see the cached figure,
+    // not recompute against the database's current state.
+    Player::factory()->create();
+
+    $secondVisitor = Livewire::test(Home::class);
+
+    expect($secondVisitor->get('quickStats')['players'])->toBe(1);
+});
+
+it('bumps the generation counter when LapSubmitted fires, invalidating the cached key', function () {
+    Player::factory()->create();
+
+    Livewire::test(Home::class);
+    $generationBefore = Cache::get(Home::GENERATION_KEY, 0);
+    expect(Cache::has(Home::CACHE_KEY.':'.$generationBefore))->toBeTrue();
+
+    event(new LapSubmitted(1, 1));
+
+    $generationAfter = Cache::get(Home::GENERATION_KEY, 0);
+    expect($generationAfter)->toBeGreaterThan($generationBefore)
+        ->and(Cache::has(Home::CACHE_KEY.':'.$generationAfter))->toBeFalse();
+});
+
+// Reproduces the real race caught before this shipped (see Home::GENERATION_KEY's docblock): a
+// rebuild that was already in flight when a new lap invalidated the cache must not resurrect
+// stale data by writing it back after the fact. True concurrency isn't reproducible in a
+// synchronous test process, but the actual invariant the generation key provides — a write
+// against an *old* generation can never become what a *current* read sees — is: simulated here
+// by planting a stale write under the pre-bump generation directly, matching exactly what a
+// slow, already-in-flight `computeHighlights()` call finishing late would do.
+it('never serves a stale write made against an old generation after invalidation', function () {
+    Player::factory()->create();
+
+    Livewire::test(Home::class);
+    $staleGeneration = Cache::get(Home::GENERATION_KEY, 0);
+
+    event(new LapSubmitted(1, 1));
+
+    // Simulates the old generation's in-flight rebuild finishing *after* invalidation and
+    // writing its now-outdated result — this must land on the abandoned old-generation key,
+    // never on whatever key a fresh read now uses.
+    Cache::put(Home::CACHE_KEY.':'.$staleGeneration, [
+        'highlights' => [],
+        'quickStats' => ['players' => 999, 'servers' => 999, 'laps' => 999],
+    ], now()->addMinutes(10));
+
+    Player::factory()->create();
+    Player::factory()->create();
+
+    $freshVisitor = Livewire::test(Home::class);
+
+    expect($freshVisitor->get('quickStats')['players'])->toBe(3);
 });

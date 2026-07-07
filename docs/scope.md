@@ -2,7 +2,7 @@
 
 ## What this project is
 
-A ground-up rebuild of the frontend and API for **HRL (Halo Race Leaderboard)** — a public leaderboard that any Halo dedicated server can opt into to have lap times tracked. Existing app: [EffakT/HRL-Web-Interface](https://github.com/EffakT/HRL-Web-Interface), live at https://hrl.effakt.info.
+A ground-up rebuild of the frontend and API for **HRL (Halo Race Leaderboard)** — a public leaderboard that any Halo dedicated server can opt into to have lap times tracked. Existing app: [EffakT/HRL-Web-Interface](https://github.com/EffakT/HRL-Web-Interface), currently live in production.
 
 The **database and its data are being preserved** — the real production MySQL schema (`redesign_hrl`) is imported into the dev environment and is the single source of truth for what exists today. The **application itself is being reinstalled fresh** on a modern stack (see [architecture.md](architecture.md)), not incrementally upgraded.
 

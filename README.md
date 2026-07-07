@@ -1,6 +1,6 @@
 # Halo Race Leaderboard
 
-HRL is a rebuild of the public [Halo Race Leaderboard](https://hrl.effakt.info), preserving its production data while replacing the legacy application with Laravel 13, Livewire 4, and Tailwind CSS 4.
+HRL is a rebuild of the public Halo Race Leaderboard, preserving its production data while replacing the legacy application with Laravel 13, Livewire 4, and Tailwind CSS 4.
 
 The frontend design is complete. Real-data integration is underway; see [docs/roadmap.md](docs/roadmap.md) for the current page-by-page status.
 

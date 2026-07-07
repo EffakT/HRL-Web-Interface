@@ -1,31 +1,29 @@
 # Site Audit — Halo Race Leaderboard Redesign
 
-**Audit date:** 7 July 2026 (Pacific/Auckland)  
-**Scope:** repository, deployed site, Laravel runtime configuration, dependencies, automated tests, static analysis, database indexes/privileges, response headers, representative route timing, accessibility/SEO markup, and recent logs.  
+**Audit date:** 7 July 2026; resolved/mitigated findings revalidated 8 July 2026 (Pacific/Auckland)
+
+**Scope:** repository, deployed site, Laravel runtime configuration, dependencies, automated tests, static analysis, database indexes/privileges, response headers, representative route timing, accessibility/SEO markup, and recent logs.
 **Constraint:** audit only. No application code or configuration was changed.
 
 ## Executive summary
 
 **Overall status: not production-ready.**
 
-The application logic has a strong automated baseline. At the latest follow-up, all **141 Pest tests / 355 assertions passed**, PHPStan reported **0 errors**, Pint passed, PHP syntax checks passed, and both locked PHP and npm dependencies had **no known security advisories** at audit time.
+The application logic has a strong automated baseline. The latest in-progress-worktree run passed **144 Pest tests / 361 assertions** when webhook enforcement was explicitly disabled for the test process. Without that override, the suite still inherits staging enforcement and older webhook fixtures fail. PHPStan, Pint, and `git diff --check` pass on the current in-progress worktree.
 
 The largest risks are outside those passing checks:
 
-1. The deployed site serves plain HTTP without redirecting to HTTPS and has no HSTS. The original local/debug configuration was corrected after the audit.
-2. The production frontend bundle connects Reverb to `localhost:8081` over non-TLS WebSockets. Public real-time updates therefore cannot work correctly and may be blocked as mixed content.
-3. The home page consistently takes **1.80–1.97 seconds TTFB** with only 1,657 laps. Its implementation repeatedly recalculates full leaderboard/history data and will degrade as data grows.
-4. Core security headers, durable asset caching, CI enforcement, browser tests, and several abuse-case tests are absent.
+1. Core security headers, durable asset caching, CI enforcement, browser tests, and several abuse-case tests are absent.
 
 ## Prioritised findings
 
 | ID | Severity | Finding |
 |---|---:|---|
-| SEC-01 | Resolved | Live UDP server verification implemented and staged; updated Lua is a production-cutover requirement |
-| SEC-02 | Mitigated | HTTPS redirect + HSTS added for web routes (API stays HTTP for legacy clients); nginx-side HTTPS detection not yet verified |
+| SEC-01 | Mitigated | Live UDP server verification is enforced and rejects off-server submissions; updated Lua remains a production-cutover requirement |
+| SEC-02 | Mitigated | Web routes redirect safely to HTTPS; plaintext API remains available; HSTS is deliberately deferred |
 | SEC-03 | Resolved | Runtime changed to `staging`, debug off, with the correct HTTPS URL |
 | REL-01 | Resolved | Client rebuilt with the real public wss hostname, Reverb running, WebSocket proxy added in Nginx Proxy Manager — verified with a real `101 Switching Protocols` |
-| PERF-01 | High | Home page TTFB is ~1.8–2.0s at very small data volume |
+| PERF-01 | Mitigated | Cached homepage averages ~48ms live TTFB and one warm query; cold rebuild concurrency still needs hardening |
 | SEC-04 | High | Webhook payload permits unbounded split rows and weak numeric bounds |
 | SEC-05 | Medium | Security headers are largely absent |
 | SEC-06 | Medium | Reverb allows every origin and has connection rate limiting disabled |
@@ -39,11 +37,73 @@ The largest risks are outside those passing checks:
 | SEO-01 | Low | Minimal metadata and no sitemap/canonical/social metadata |
 | QUAL-01 | Low | Rector dry-run and documentation are not at a clean current baseline |
 
+## Resolved/mitigated finding revalidation — 8 July 2026
+
+| Finding | Verdict | Revalidation evidence |
+|---|---|---|
+| SEC-01 | **Mitigated, verified** | Effective runtime has HRL verification and enforcement enabled with a one-second UDP timeout. A fresh invalid HTTP lap returned `403 missing_hrl_marker`; its unique submission ID was absent from `lap_times`. The durable submission unique index and `submission_hash` column remain deployed. The development server's HRL query fields and one real Lua delivery were confirmed previously. This remains a mitigation rather than cryptographic authentication, and updated Lua must be deployed at production cutover. |
+| SEC-02 | **Mitigated, verified** | Fresh live HTTP web routes return `301` to the fixed HRL HTTPS hostname while preserving paths/query strings; HTTP `/api/v1/servers` remains `200`. Forged forwarded host/port no longer changes the target, forged source IP/proto remains blocked by the edge, secure cookies are enabled, and HTTPS no longer emits HSTS. The API's intentional plaintext transport remains an accepted compatibility limitation. |
+| SEC-03 | **Resolved, verified** | Effective runtime reports `staging`, debug off, HTTPS application URL, secure cookies, and a public 404 contains no stack trace/debug output. |
+| REL-01 | **Resolved, verified for the original defect** | The exact JS asset served by the homepage contains `redesign.hrl.effakt.info` and no `localhost`/`8081`; a fresh public WebSocket upgrade returned `101 Switching Protocols`. Reverb/queue/scheduler service durability remains separately open as OPS-01. |
+| Lua debug/rotation/unload findings | **Resolved by static verification** | Candidate Lua has `debug = 0`, stores and compares rotation time with `os.time()`, and deletes all four HRL query fields in `OnScriptUnload()`. Real unload/rotation boundary behavior should still be included in the production smoke test. |
+| NAT/loopback regression | **Resolved in code** | `ResolveSubmittingIp.php` is now tracked in commit `9d1bb4a`; both rate-limiter middleware and the controller use it before identity-sensitive work. |
+
+### Reproducible checks
+
+SEC-02 revalidation commands now produce `301`, `200`, no HSTS output, and a redirect to the real HRL hostname despite spoofed forwarded host/port input:
+
+```bash
+curl -sSI http://redesign.hrl.effakt.info/ | sed -n '1p;/^location:/Ip'
+curl -sSI http://redesign.hrl.effakt.info/api/v1/servers | sed -n '1p'
+curl -sSI https://redesign.hrl.effakt.info/ | grep -i '^strict-transport-security:'
+curl -sSI http://redesign.hrl.effakt.info/maps \
+  -H 'X-Forwarded-Host: evil.example' \
+  -H 'X-Forwarded-Port: 444' | sed -n '1p;/^location:/Ip'
+```
+
+Under the current compatibility decision, expected results are: web HTTP redirects to the equivalent HTTPS URL on `redesign.hrl.effakt.info`; API HTTP remains reachable; HTTPS web responses do not advertise HSTS; forwarded host/port input cannot change the redirect target. Because HSTS is host-wide, path-scoping the header does not preserve HTTP access for HSTS-aware clients. A future clean solution is a separate API hostname or TLS-capable game client, after which HSTS can safely be reconsidered.
+
+SEC-01 negative test (use a fresh `submission_id`; expected HTTP 403 and no inserted row):
+
+```bash
+curl -i http://redesign.hrl.effakt.info/api/v1/laps \
+  -H 'Content-Type: application/json' \
+  --data '{"port":2302,"player_hash":"audit-negative","player_name":"AuditNotOnline","map_name":"bloodgulch","race_type":0,"player_time":99,"hrl_token":"invalid-token","submission_id":"audit-negative-unique-001"}'
+```
+
+SEC-03 runtime check:
+
+```bash
+php artisan tinker --execute='dump([app()->environment(), config("app.debug"), config("app.url"), config("session.secure")]);'
+```
+
+REL-01 proxy handshake check (expected `101 Switching Protocols`):
+
+```bash
+curl --http1.1 --max-time 5 -i \
+  -H 'Connection: Upgrade' \
+  -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: SGVsbG9Xb3JsZDEyMzQ1Ng==' \
+  https://redesign.hrl.effakt.info/app/test
+```
+
+The focused SEC-01 suite currently requires an explicit test-process override because staging enforcement is on:
+
+```bash
+WEBHOOK_HRL_VERIFY_ENFORCE=false php artisan test --compact \
+  tests/Feature/LapSubmissionTest.php \
+  tests/Feature/LapSubmissionVerifierTest.php \
+  tests/Feature/LapSubmissionHashTest.php
+```
+
+Without that override, the current command fails 21 tests through `422 submission_id required` or enforced `403` responses. Test configuration should eventually set its own deterministic enforcement value instead of inheriting staging `.env` state.
+
 ## Security
 
-### SEC-01 — Unauthenticated public write endpoint (Resolved)
+### SEC-01 — Unauthenticated public write endpoint (Mitigated)
 
-`POST /api/v1/laps` intentionally has no authentication. The only control is a per-IP limit of 120 requests/minute.
+`POST /api/v1/laps` intentionally has no conventional login/API-key authentication. At the initial audit, its only control was a per-IP rate limit; the current UDP live-server verification, enforcement, tiered limiter, and idempotency controls are documented in the follow-ups below.
 
 An arbitrary caller can:
 
@@ -213,11 +273,13 @@ That test exposed a rebuild regression: three known UniFi/NAT internal source ad
 
 The non-ASCII player-name concern from the Lua review is also resolved in commit `91f14a1`: UDP `player_N` values are normalized from Windows-1252 to UTF-8 before exact comparison, with a regression test.
 
-Verification passes at 141 Pest tests / 355 assertions, including 47 focused webhook tests / 121 assertions; PHPStan reports zero errors, Pint passes, and `git diff --check` passes. One deployment housekeeping item remains: `app/Helpers/ResolveSubmittingIp.php` is currently untracked and must be included when these pending loopback changes are committed/deployed.
+At that follow-up, verification passed at 141 Pest tests / 355 assertions, including 47 focused webhook tests / 121 assertions; PHPStan reported zero errors, and Pint and `git diff --check` passed. `app/Helpers/ResolveSubmittingIp.php` has since been committed in `9d1bb4a`, resolving the deployment housekeeping item. On 8 July, the focused tests still pass with `WEBHOOK_HRL_VERIFY_ENFORCE=false`; their default invocation now inherits staging enforcement and fails, as documented in the revalidation section above.
 
 **Negative integration result:** with `WEBHOOK_HRL_VERIFY_ENABLED=true` and `WEBHOOK_HRL_VERIFY_ENFORCE=true`, a laptop submission received HTTP 403 and no lap was accepted. The staging log records `reason=missing_hrl_marker`, `enforced=true`, for resolved source `114.23.254.181:2302`. This proves hard rejection is active for a live query response lacking the HRL marker. It also means the enforced positive path still needs a fresh real lap while the UDP query visibly contains `hrl_enabled=1`; otherwise legitimate laps from that server will also be rejected.
 
-**Closure update:** the CLI UDP check subsequently confirmed the updated development server publishes the required HRL fields, and a real Lua-originated lap has already reached and persisted through the rebuilt endpoint. Together with the enforced 403 negative test and automated verification suite, this closes SEC-01 for the staged implementation. The production cutover must deploy the updated Lua script before or alongside enabling enforcement; immediately smoke-test one real lap after cutover. This is a deployment condition, not a remaining audit defect.
+**Closure update:** the CLI UDP check subsequently confirmed the updated development server publishes the required HRL fields, and a real Lua-originated lap has already reached and persisted through the rebuilt endpoint. Together with the enforced 403 negative test and automated verification suite, this establishes the SEC-01 mitigation for the staged implementation. It is labelled mitigated—not fully authenticated—because the documented same-server-operator and plaintext on-path trust limitations remain. The production cutover must deploy the updated Lua script before or alongside enabling enforcement; immediately smoke-test one real lap after cutover.
+
+**Revalidation (2026-07-08): mitigation active.** Effective configuration has verification and enforcement enabled. A fresh deliberately invalid HTTP submission returned `403 {"success":false,"reason":"missing_hrl_marker"}` with the strict two-request burst limit, and a direct database check confirmed its unique `submission_id` was not stored. The durable `(server_id, submission_id)` unique index and `submission_hash` column remain present.
 
 ### SEC-02 — HTTP remains enabled (High)
 
@@ -225,9 +287,11 @@ Verification passes at 141 Pest tests / 355 assertions, including 47 focused web
 
 This permits downgrade and man-in-the-middle exposure. It also allows lap submissions to be altered in transit if clients use the HTTP URL.
 
-**Recommendation:** redirect all HTTP requests to HTTPS, enable HSTS after confirming every subdomain is HTTPS-ready, and explicitly require secure cookies in the deployed environment.
+**Recommendation:** redirect web routes from HTTP to HTTPS and explicitly require secure cookies. Defer HSTS under the current compatibility decision: HSTS applies to the hostname rather than selected URL paths, so an HSTS-aware client that has visited the HTTPS website will upgrade later HTTP API requests on the same hostname. Reconsider HSTS after moving the legacy API to a separate hostname or making game clients TLS-capable.
 
 **Follow-up (2026-07-07):** `/api/v1/*` is deliberately excluded from this fix — legacy game-server clients (older Wine/non-browser HTTP stacks) call the lap-submission webhook and can't do TLS, so it must stay reachable over plain HTTP. Scoped the redirect at the Laravel middleware-group level instead of a blanket site-wide rule: `web`-group routes only get `App\Http\Middleware\RedirectIfNotSecure` (HTTP → HTTPS, 301, `production`/`staging` only) and `App\Http\Middleware\AddHstsHeader` (no `includeSubDomains`/`preload`, since REL-01's Reverb websocket isn't TLS-ready and the API on this same host must stay non-TLS); `api`-group routes are untouched. Also set `SESSION_SECURE_COOKIE=true` since web traffic is now always HTTPS. **Depends on the webserver correctly reporting HTTPS to PHP-FPM** (e.g. `fastcgi_param HTTPS on` in the TLS server block) — not verified here, no read access to the FastPanel-managed nginx vhost from this environment.
+
+**Revalidation (2026-07-08, latest): mitigated.** Laravel now trusts only forwarded source IP and protocol—not forwarded host/port. Live HTTP web routes return `301` to `https://redesign.hrl.effakt.info`, preserve paths/query strings, and ignore a public caller's forged `X-Forwarded-Host`/`X-Forwarded-Port`; forged protocol and source-IP attempts are also overwritten by the edge. HTTP API access remains available, and cookies are Secure. `AddHstsHeader` has been removed and fresh HTTPS responses contain no HSTS header, matching the compatibility decision. The residual plaintext API transport risk is explicitly accepted until clients gain TLS support or the API moves to a separate hostname.
 
 ### SEC-03 — Local/debug runtime on the public deployment (Resolved)
 
@@ -240,6 +304,8 @@ Initial runtime inspection reported `APP_ENV=local`, `APP_DEBUG=true`, and `APP_
 - application URL: `https://redesign.hrl.effakt.info`.
 
 The immediate disclosure/base-URL risk is resolved. Keep these values deployment-managed and add an automated post-deploy assertion so a future release cannot silently revert to local/debug mode. Production optimisation/config caches were still not present at the original inspection and remain a separate performance/deployment recommendation.
+
+**Revalidation (2026-07-08): resolved.** Effective values remain `staging`, `APP_DEBUG=false`, `APP_URL=https://redesign.hrl.effakt.info`, and secure session cookies enabled. A fresh nonexistent public route returned a generic HTTP 404 with no exception or stack trace.
 
 ### SEC-04 — Webhook resource-exhaustion inputs (High)
 
@@ -257,8 +323,9 @@ Observed responses lacked:
 - `X-Content-Type-Options: nosniff`;
 - clickjacking protection (`frame-ancestors` or `X-Frame-Options`);
 - `Referrer-Policy`;
-- `Permissions-Policy`;
-- HSTS.
+- `Permissions-Policy`.
+
+HSTS is deliberately absent under SEC-02's same-host plaintext API compatibility decision; it is therefore not counted as an accidental missing hardening header here.
 
 The server exposes PHP's exact version through `X-Powered-By`; the front-end server token has appeared as both exact nginx and generic OpenResty across audit probes.
 
@@ -310,6 +377,96 @@ The home page repeatedly calls `GlobalRanking::mapRank()`, `GlobalRanking::forPl
 
 **Recommendation:** profile query count/time, compute shared ranking/history snapshots once per request, eliminate per-lap full recalculations, and cache/materialise the expensive home aggregates. Invalidate or refresh them after accepted lap submissions.
 
+#### Revalidation after the 8 July optimisation
+
+**Verdict: partially improved, not resolved; retain High severity.** The current uncommitted `Home` change correctly shares the seven-day recent-lap collection, computes the current global ranking once, and memoizes identical player/lap exclusion lookups. This is a real improvement over the measured 132-query/~2.3s calculation, but the remaining work is still far above a reasonable homepage budget. `docs/performance.md` currently labels the issue “Fixed”; that wording overstates the measured result and should say “partially improved” until the closure target below is met.
+
+Fresh measurements against the live site:
+
+- eight homepage requests: **1.395–1.690s TTFB**, mean **1.503s**, median approximately **1.481s**;
+- three `/api/v1/servers` controls: 0.067–0.101s TTFB;
+- three `/up` controls: 0.036–0.043s TTFB;
+- one directly instrumented `Home::mount()` call: **1,537.6ms**, **94 SQL queries**, with only **169.7ms** reported inside the database;
+- dataset during measurement: 1,668 laps, 13 active-server laps in the seven-day window, 820 players, and five active servers.
+
+The gap between ~170ms of SQL execution and ~1.54s elapsed shows the dominant remaining cost is repeated Eloquent hydration, relationship loading, collection grouping/sorting, and ranking in PHP—not raw database latency alone. Adding indexes may help individual queries, but cannot close PERF-01 by itself.
+
+Remaining repeated work includes:
+
+- 13 per-lap `GlobalRanking::mapRank(..., excludeLapId)` queries plus 13 preceding-lap lookups;
+- five full `GlobalRanking::scores(..., excludeLapId)` passes, each loading the active lap history and eager-loading players/maps/servers;
+- `RecordHistory::events()` replaying and hydrating the entire active lap history twice per homepage calculation;
+- `MostActiveServer::scores()` issuing per-server lap, latest-lap, and 30/90-day player queries (N+1 growth with server count);
+- separate live-stat and quick-stat aggregate queries;
+- `loadHighlights()` being invoked via the site-wide `lap.submitted` Echo event, so every connected homepage visitor can trigger another 94-query/~1.5s calculation after each accepted lap.
+
+**Recommended closure target:** cached/materialized homepage output or shared ranking/history snapshots, invalidated after accepted laps and server-status refreshes; alternatively, replace the per-lap exclusion calculations with a batched/single-pass historical algorithm. Target fewer than 20 queries and sub-500ms live TTFB before marking PERF-01 mitigated. Cache invalidation must preserve the existing live-update behavior rather than merely adding a long blind TTL.
+
+**Preferred cache boundary:** cache the final small Home view-model (`highlights` plus `quickStats`), not `GlobalRanking::scores()` internally. `GlobalRanking::scores()` is a shared calculator with global, server-scoped, and per-`excludeLapId` variants; transparent internal caching would create high-cardinality historical keys, hide freshness semantics from unrelated callers, serialize a large 820-player/per-map structure into the database cache, and still leave Home's exclusion rankings, record-history replay, server activity calculation, and aggregate queries uncached. Keep the calculator pure. If current global/server ranking snapshots are later worth sharing across multiple pages, introduce an explicit cache/snapshot wrapper that caches only non-exclusion variants and has clear improvement-driven invalidation.
+
+For the immediate Home fix, the active database cache is adequate because the final payload is small. Guard cold rebuilds with a distributed cache lock or stale-while-revalidate behavior so one accepted lap and many connected homepage clients do not all execute the 94-query rebuild simultaneously. Invalidate/rebuild after an accepted lap (and any other event that changes displayed Home data), then let the existing Echo listener read the shared result. A short TTL can be a safety fallback, but should not be the only freshness mechanism.
+
+Reproducible live timing:
+
+```bash
+for i in 1 2 3 4 5 6 7 8; do
+  curl -ksS -o /dev/null \
+    -w "home $i ttfb=%{time_starttransfer} total=%{time_total}\n" \
+    "https://redesign.hrl.effakt.info/?perf_audit=$i"
+done
+```
+
+Reproducible query/time instrumentation from the project directory:
+
+```bash
+php artisan tinker --execute='$queries=[]; DB::listen(function ($q) use (&$queries) { $queries[]=$q->time; }); $start=microtime(true); (new App\Livewire\Home)->mount(); dump(["elapsed_ms"=>round((microtime(true)-$start)*1000,1), "queries"=>count($queries), "db_ms"=>round(array_sum($queries),1)]);'
+```
+
+#### Cache implementation follow-up — 8 July 2026
+
+**Verdict: PERF-01 is mitigated for ordinary traffic, with a residual cold-rebuild concurrency risk.** The implementation follows the recommended narrow boundary: `Home` caches the final shared `highlights`/`quickStats` payload as one small database-cache value; `GlobalRanking` remains pure. `InvalidateHomeHighlightsCache` is auto-discovered and synchronously forgets the key on every `LapSubmitted`, while a ten-minute TTL provides fallback expiry. Feature tests now flush the array cache per test, cover warm reuse and event invalidation, and the installed event list confirms the listener registration.
+
+Fresh independent measurements:
+
+- cold rebuild after forgetting only `Home::CACHE_KEY`: **1,551.6ms**, **96 queries**, 159.1ms reported database time;
+- immediate warm read: **0.9ms**, **one query**, with payload equality confirmed;
+- eight live cache-hit requests: **38.7–74.0ms TTFB**, mean approximately **47.8ms**;
+- full suite with deterministic webhook override: **144 tests / 361 assertions**; PHPStan, Pint, and `git diff --check` pass.
+
+This clears the audit's user-facing sub-500ms/fewer-than-20-query warm-path target by a large margin. The previous 94-query computation remains the expected cold cost, now normally paid only after invalidation or expiry.
+
+The implementation does **not** yet guarantee the documented “one rebuild per lap site-wide” behavior:
+
+1. `Cache::remember()` performs no distributed lock around its callback. After `LapSubmitted` forgets the key and broadcasts to many connected homepage clients, several requests can miss together and each execute the 96-query/~1.55s rebuild (cache stampede).
+2. If a lap invalidates the key while an older cold rebuild is already running, `Cache::forget()` can occur before that callback writes its result; the older request may then write a pre-lap snapshot back into the cache for up to ten minutes (invalidate-during-compute race).
+3. `app/Listeners/InvalidateHomeHighlightsCache.php` is currently untracked. Tracked code depends on its invalidation behavior, so it must be committed before deployment.
+4. The listener docblock says it runs inside an “already queued” `ProcessNewLap`, but `LapSubmissionController` invokes `ProcessNewLap::handle()` synchronously because the API response needs the ranking result. The cache forget is cheap and synchronous execution is appropriate; only the documentation claim is wrong.
+
+Accordingly, `docs/performance.md`'s “Fully closed” wording is premature: the normal request latency is closed, while invalidation concurrency and stale-write correctness remain open.
+
+**Recommended residual fix:** use a cache-generation/version key incremented on `LapSubmitted`, include that generation in the payload cache key, and guard each generation's cold calculation with a distributed cache lock plus a post-lock cache recheck. Generation keys prevent an old in-flight calculation becoming current after invalidation; the lock ensures only one request computes a new generation. If waiting clients must remain fast, serve the previous generation as stale while the new one rebuilds rather than making every client block.
+
+Reproducible cache-hit timing:
+
+```bash
+for i in 1 2 3 4 5 6 7 8; do
+  curl -ksS -o /dev/null \
+    -w "home $i ttfb=%{time_starttransfer} total=%{time_total}\n" \
+    "https://redesign.hrl.effakt.info/?cache_audit=$i"
+done
+```
+
+A controlled stampede test after implementing the lock/version protection is:
+
+```bash
+php artisan tinker --execute='Cache::forget(App\Livewire\Home::CACHE_KEY);'
+seq 1 5 | xargs -P5 -I{} \
+  curl -ksS -o /dev/null -w "request {} %{time_starttransfer}\n" \
+  'https://redesign.hrl.effakt.info/?stampede_audit={}'
+```
+
+Instrument/log the rebuild callback during that test; exactly one process should execute it for the new generation, and a lap arriving during a rebuild must cause the next read to use a newer generation rather than the completed older result.
+
 ### PERF-02 — Missing indexes (Medium)
 
 The production `lap_times` table has only the primary key and single-column foreign-key indexes. There are no indexes on:
@@ -357,6 +514,21 @@ For a public visitor, `localhost` means the visitor's own machine. On an HTTPS p
 **Recommendation:** build with the public WebSocket hostname and `wss`, proxy it through the public TLS endpoint, and add an automated browser/WebSocket smoke test against the deployed environment.
 
 **Follow-up (2026-07-07): resolved.** `VITE_REVERB_HOST`/`PORT`/`SCHEME` were aliases of the server-side `REVERB_*` vars (correctly `localhost` for Laravel-to-Reverb loopback publishing, wrong for the public bundle) — decoupled into their own literal values (`redesign.hrl.effakt.info`, `443`, `https`) and rebuilt; confirmed the built bundle now references the real hostname. The Reverb server process also wasn't running at all for this app — started (not yet made durable via systemd/supervisor, see OPS-01, still open). The proxy layer turned out to be an nginx reverse proxy (Nginx Proxy Manager) in front of FastPanel, not FastPanel's own nginx directly — the user added a `/app` custom location in NPM forwarding to this container's `192.168.88.54:8081` with WebSocket support enabled. Verified end-to-end: `curl` against `https://redesign.hrl.effakt.info/app/<key>` with WebSocket upgrade headers now returns `101 Switching Protocols` (both the user's report and independently from this environment).
+
+**Revalidation (2026-07-08): resolved for the original client/proxy defect.** The homepage currently serves `app-CKqyMCrz.js`; that asset contains the public hostname and no `localhost`/`8081`, and a fresh public upgrade again returned `101 Switching Protocols`. This does not close OPS-01's service supervision/restart concern or replace a true browser event-delivery smoke test.
+
+**PageSpeed Insights WebSocket follow-up (2026-07-08): REL-01 remains resolved.** PageSpeed Insights successfully loads the website but its Lighthouse runner logs `ERR_NAME_NOT_RESOLVED` only for the JavaScript-opened WSS connection to the same hostname. Public DNS checks against Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) both return `redesign.hrl.effakt.info A 114.23.254.181`; bypassing DNS against that public IP returns `101 Switching Protocols` for the exact `/app/<key>?protocol=7...` URL. This proves the public DNS record, TLS, Nginx Proxy Manager, FastPanel routing, and Reverb endpoint work outside PageSpeed's lab path. Treat the console entry as a PageSpeed-runner limitation unless a real browser on an unrelated external network reproduces it. Do not add a speculative AAAA record or change the working WSS hostname solely to silence this synthetic-runner error; consider lazy/conditional realtime startup only if the failed lab connection materially affects an audit score and that behavior is separately tested in real browsers.
+
+#### In-progress live-update changes review — 8 July 2026
+
+The current uncommitted change from `echo-public:...` to `echo:...` is correct for the installed Livewire 4 Echo bridge: its client parser maps the `echo:` signature to `window.Echo.channel(...)`, while custom `broadcastAs()` names correctly use the leading-dot listener form. Parameterless wrapper handlers on model-loading methods also avoid broadcast payloads being injected into model-typed parameters.
+
+`ServerStatusRefreshed` closes a genuine stale-status gap by broadcasting once after the scheduled server query pass, and retargeting map leaderboard components to `LapSubmitted` keeps total-attempt counters fresh after non-PB laps. The complete current suite passes at 142 tests / 357 assertions with the explicit webhook test-environment override; PHPStan, Pint, and `git diff --check` pass.
+
+Two follow-ups remain:
+
+- `app/Events/ServerStatusRefreshed.php` is untracked while committed/tracked code already imports it; include it in the eventual commit or the scheduled command will fail after a tracked-files-only deployment.
+- Map and server-map leaderboard pages now reload their database-backed ranking after every lap anywhere on the site. This is functionally correct but creates global fan-out; use the event's `server_id`/`map_id` payload to skip irrelevant reloads if real traffic makes this measurable. Current tests call handlers directly and do not prove an actual browser receives and processes either broadcast, so the browser event-delivery smoke test remains part of TEST-01.
 
 ### OPS-01 — Background service deployment is incomplete/unverified (Medium)
 
@@ -430,14 +602,13 @@ The layout provides a title and viewport only. It lacks descriptions, canonical 
 
 ## Recommended order of work
 
-1. Add the source-server UDP verification gate (HRL marker/version/token, matching map, and online player) before auto-creation or lap storage; also cap and validate payload size.
-2. Enforce HTTPS/HSTS and secure cookies; retain the corrected staging environment, debug-off setting, and canonical HTTPS URL.
-3. rebuild and verify Echo/Reverb with a public `wss` endpoint; manage queue/Reverb/scheduler as services.
-4. remove repeated home-page calculations and set a sub-500ms server-response target.
-5. add security headers, Reverb origin/rate limits, tighter file permissions, and reduced DB privileges.
-6. add evidence-based composite indexes, API pagination, and immutable static-asset caching.
-7. add CI plus rate-limit, abuse-case, browser, accessibility, and real-time transport tests.
-8. refresh documentation and make the configured quality gate clean.
+1. Cap and validate webhook body/split sizes and numeric ranges.
+2. Add generation/version and distributed-lock protection to the now-fast homepage cache so invalidation cannot stampede or restore stale data.
+3. Manage queue/Reverb/scheduler as durable services, then run a real browser event-delivery smoke test.
+4. Add the remaining security headers, Reverb origin/rate limits, tighter file permissions, and reduced DB privileges.
+5. Add evidence-based composite indexes, API pagination, and immutable static-asset caching.
+6. Add deterministic test environment configuration plus CI, abuse-case, browser, accessibility, and real-time transport tests.
+7. Refresh documentation and make the configured quality gate clean.
 
 ## Audit limitations
 

@@ -79,7 +79,7 @@ This was extracted **from the moment the second leaderboard component was create
 
 ## Styleguide
 
-Source comps live in `/redesign-files/` at the data root (sibling to the app dir): `Servers.dc.html`, `Map Leaderboard.dc.html`, `Lap Detail.dc.html`, `HRL Leaderboard.dc.html` (index/gallery), `screenshots/hub.png`. Aesthetic: dark tactical HUD.
+Source comps live in `../../redesign-files/` at the data root (sibling to the app dir): `Servers.dc.html`, `Map Leaderboard.dc.html`, `Lap Detail.dc.html`, `HRL Leaderboard.dc.html` (index/gallery), `screenshots/hub.png`. Aesthetic: dark tactical HUD.
 
 ### Breakpoints
 

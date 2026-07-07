@@ -7,6 +7,10 @@
 
         <title>{{ $title ? $title . ' | Halo Race Leaderboard' : 'Halo Race Leaderboard' }}</title>
 
+        @if ($description ?? null)
+            <meta name="description" content="{{ $description }}">
+        @endif
+
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles

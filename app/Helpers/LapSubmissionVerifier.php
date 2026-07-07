@@ -69,8 +69,17 @@ class LapSubmissionVerifier
         // Exact `player_<number>` keys only — a future query extension with an unrelated
         // `player_`-prefixed key (e.g. a hypothetical `player_count`) must not be treated as an
         // online-player slot.
+        //
+        // Encoding mismatch caught by SITE_AUDIT.md's Lua review: the UDP query response's
+        // player_N values are raw Windows-1252 bytes (Halo's own text encoding — see hrl.lua's
+        // own map_1252_to_unicode table, used to build the UTF-8 name it actually sends), but
+        // `$data['player_name']` arrives already UTF-8-converted (hrl.lua's string.toutf8()).
+        // Comparing them without normalizing first would silently fail for any non-ASCII name —
+        // real, not hypothetical, given this community's actual player list (e.g. "GåþøFêîk¬£Q",
+        // "HLN«ßÕX3R»" — see docs/database.md/old API examples).
         $playerOnline = collect($response)
             ->filter(fn ($value, string $key): bool => preg_match('/^player_\d+$/', $key) === 1)
+            ->map(fn (string $value): string => mb_convert_encoding($value, 'UTF-8', 'Windows-1252'))
             ->contains($data['player_name']);
 
         if (! $playerOnline) {

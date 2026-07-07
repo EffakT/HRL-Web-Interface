@@ -111,6 +111,20 @@ it('rejects a player who is not among the live query player_N values', function 
     expect($verifier->verify('1.2.3.4', 2302, submissionData())['reason'])->toBe('player_not_online');
 });
 
+// SITE_AUDIT.md's Lua review caught this: the UDP query response's player_N values are raw
+// Windows-1252 bytes (Halo's own text encoding), but the HTTP submission's player_name arrives
+// already UTF-8-converted (hrl.lua's string.toutf8()) — comparing them without normalizing
+// first would silently reject any real, non-ASCII player name (common in this community's
+// actual player list, e.g. "GåþøFêîk¬£Q").
+it('matches a non-ASCII player name across the Windows-1252/UTF-8 encoding gap', function () {
+    $utf8Name = 'café'; // as sent in the HTTP payload
+    $rawWindows1252Bytes = mb_convert_encoding($utf8Name, 'Windows-1252', 'UTF-8'); // as the raw UDP query response actually contains it
+
+    $verifier = new LapSubmissionVerifier(fakeQuery(validHrlResponse(['player_0' => $rawWindows1252Bytes])));
+
+    expect($verifier->verify('1.2.3.4', 2302, submissionData(['player_name' => $utf8Name]))['verified'])->toBeTrue();
+});
+
 it('retries once before failing on a dropped UDP packet', function () {
     $query = new class implements GameServerQuery
     {

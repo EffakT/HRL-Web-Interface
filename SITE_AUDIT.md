@@ -24,7 +24,7 @@ The largest risks are outside those passing checks:
 | SEC-01 | Resolved | Live UDP server verification implemented and staged; updated Lua is a production-cutover requirement |
 | SEC-02 | Mitigated | HTTPS redirect + HSTS added for web routes (API stays HTTP for legacy clients); nginx-side HTTPS detection not yet verified |
 | SEC-03 | Resolved | Runtime changed to `staging`, debug off, with the correct HTTPS URL |
-| REL-01 | Mitigated | Client now built with the real public wss hostname and Reverb is running; nginx WebSocket proxy still missing (blocks it end-to-end) |
+| REL-01 | Resolved | Client rebuilt with the real public wss hostname, Reverb running, WebSocket proxy added in Nginx Proxy Manager — verified with a real `101 Switching Protocols` |
 | PERF-01 | High | Home page TTFB is ~1.8–2.0s at very small data volume |
 | SEC-04 | High | Webhook payload permits unbounded split rows and weak numeric bounds |
 | SEC-05 | Medium | Security headers are largely absent |
@@ -356,7 +356,7 @@ For a public visitor, `localhost` means the visitor's own machine. On an HTTPS p
 
 **Recommendation:** build with the public WebSocket hostname and `wss`, proxy it through the public TLS endpoint, and add an automated browser/WebSocket smoke test against the deployed environment.
 
-**Follow-up (2026-07-07):** two of three causes fixed. `VITE_REVERB_HOST`/`PORT`/`SCHEME` were aliases of the server-side `REVERB_*` vars (correctly `localhost` for Laravel-to-Reverb loopback publishing, wrong for the public bundle) — decoupled into their own literal values (`redesign.hrl.effakt.info`, `443`, `https`) and rebuilt; confirmed the built bundle now references the real hostname. The Reverb server process also wasn't running at all for this app — started (not yet made durable via systemd/supervisor, see OPS-01). **Still blocking end-to-end**: no nginx reverse-proxy exists for the WebSocket upgrade (`curl -I https://redesign.hrl.effakt.info/app/<key>` → `404`); needs a `location` block proxying to `127.0.0.1:8081` with `Upgrade`/`Connection` headers forwarded — see docs/deployment.md for the exact config. Not applied here: no access to the FastPanel-managed nginx vhost from this environment.
+**Follow-up (2026-07-07): resolved.** `VITE_REVERB_HOST`/`PORT`/`SCHEME` were aliases of the server-side `REVERB_*` vars (correctly `localhost` for Laravel-to-Reverb loopback publishing, wrong for the public bundle) — decoupled into their own literal values (`redesign.hrl.effakt.info`, `443`, `https`) and rebuilt; confirmed the built bundle now references the real hostname. The Reverb server process also wasn't running at all for this app — started (not yet made durable via systemd/supervisor, see OPS-01, still open). The proxy layer turned out to be an nginx reverse proxy (Nginx Proxy Manager) in front of FastPanel, not FastPanel's own nginx directly — the user added a `/app` custom location in NPM forwarding to this container's `192.168.88.54:8081` with WebSocket support enabled. Verified end-to-end: `curl` against `https://redesign.hrl.effakt.info/app/<key>` with WebSocket upgrade headers now returns `101 Switching Protocols` (both the user's report and independently from this environment).
 
 ### OPS-01 — Background service deployment is incomplete/unverified (Medium)
 

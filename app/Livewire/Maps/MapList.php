@@ -5,6 +5,7 @@ namespace App\Livewire\Maps;
 use App\Models\LapTime;
 use App\Models\Map;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Maps', 'active' => 'maps'])]
@@ -13,6 +14,17 @@ class MapList extends Component
     public array $maps = [];
 
     public function mount(): void
+    {
+        $this->loadMaps();
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — per-map lap counts/best times change on any
+     * submitted lap, so this listens on the site-wide `activity` channel (matching
+     * ServerList/Home) rather than subscribing to every individual map's own channel.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadMaps(): void
     {
         // Real global data. `maps.name` is the machine slug; `maps.label` is the public label.
         // The inner joins deliberately exclude maps with no laps on active servers because they

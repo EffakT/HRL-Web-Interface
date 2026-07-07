@@ -11,6 +11,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Server;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Server', 'active' => 'servers'])]
@@ -46,6 +47,21 @@ class ServerShow extends Component
         $this->serverName = $server->name;
         $this->serverIp = $server->ip;
         $this->serverPort = $server->port;
+
+        $this->loadServerData($server);
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — Maps, Stats, and Top Players all change on any
+     * submitted lap on this server, not just a PB, so this listens on the site-wide `activity`
+     * channel rather than a map-scoped one (matching ServerList/Home's same choice). Latest Laps
+     * and Top Players' pagination don't need their own listener — render() re-runs laps() and
+     * rankedPlayers() on every re-render, which this method's execution alone triggers.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadServerData(?Server $server = null): void
+    {
+        $server ??= Server::findOrFail($this->serverId);
 
         // Per-map lap count + this server's best time, in one query rather than N+1 per map.
         // ->toBase() drops back to a plain query builder — these rows are aggregates (map_id,

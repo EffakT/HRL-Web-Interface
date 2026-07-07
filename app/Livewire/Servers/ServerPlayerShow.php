@@ -10,6 +10,7 @@ use App\Models\Player;
 use App\Models\PlayerProfile;
 use App\Models\Server;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -62,6 +63,20 @@ class ServerPlayerShow extends Component
         $this->serverPort = $server->port;
         $this->playerId = $playerId;
         $this->playerName = $player->name;
+
+        $this->loadProfile($server, $player);
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — listens on the site-wide `activity` channel
+     * (matching ServerList/Home) rather than a per-map one, since any lap by this player on this
+     * server, or any other lap changing the server-scoped ranking, can move these numbers.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadProfile(?Server $server = null, ?Player $player = null): void
+    {
+        $server ??= Server::findOrFail($this->serverId);
+        $player ??= Player::findOrFail($this->playerId);
 
         $serverRanking = GlobalRanking::forPlayer($player->id, $server->id);
 

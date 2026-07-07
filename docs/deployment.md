@@ -28,23 +28,7 @@ Real-time leaderboard updates (see [database.md](database.md)'s "Live leaderboar
 
 **`REVERB_HOST`/`REVERB_PORT`/`REVERB_SCHEME` vs. `VITE_REVERB_*` are deliberately different values (fixed 2026-07-07, see REL-01 in the audit history)**: the former drive server-side publishing (Laravel/the queue worker talking to Reverb over loopback — `localhost:8081`, plain `http`, correct and efficient as-is) while the latter are baked into the *public* JS bundle and must be a real, TLS-reachable hostname (`redesign.hrl.effakt.info`, port `443`, `https`) — a real browser reads `localhost` as its own machine, not the server, so aliasing one to the other (the original config) silently broke real-time updates for every visitor.
 
-**Still required: an nginx reverse-proxy for the WebSocket upgrade, not yet in place.** `curl -I https://redesign.hrl.effakt.info/app/<key>` currently returns `404` — nothing on the public TLS vhost forwards to Reverb's internal `127.0.0.1:8081`. Reverb speaks the Pusher protocol, so the client connects to `wss://redesign.hrl.effakt.info/app/{REVERB_APP_KEY}`; nginx needs a location block roughly like:
-
-```nginx
-location /app/ {
-    proxy_pass http://127.0.0.1:8081;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "Upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 60s;
-}
-```
-
-This is on the FastPanel-managed per-site vhost, which isn't readable or writable from inside this app's environment (no permission to `/etc/nginx/fastpanel2-sites/`) — someone with server/FastPanel access needs to add it. Until then, real-time updates will still fail for real visitors even though the app-level config, build, and Reverb process are all now correct.
+**Resolved (2026-07-07): the public WebSocket proxy is in place.** The actual topology in front of this app is **Nginx Proxy Manager (NPM) → FastPanel's nginx (this container, `192.168.88.54`) → PHP-FPM socket** — not FastPanel's nginx directly facing the internet, as first assumed. Reverb speaks the Pusher protocol, so the client connects to `wss://redesign.hrl.effakt.info/app/{REVERB_APP_KEY}`. Rather than editing FastPanel's per-site vhost (not readable/writable from inside this app's environment — no permission to `/etc/nginx/fastpanel2-sites/`), the fix was added one layer up, in NPM: a **Custom Location** for `/app` forwarding directly to `192.168.88.54:8081` (this container's Reverb port, bypassing FastPanel's nginx for that path), plus NPM's **Websockets Support** toggle enabled on the proxy host. Verified with a real WebSocket-upgrade `curl` returning `101 Switching Protocols` (both from inside this environment and via the user's own check).
 
 ## Cutover plan (from original planning, not yet executed)
 

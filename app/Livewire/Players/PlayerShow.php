@@ -9,6 +9,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Player;
 use App\Models\PlayerProfile;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Player', 'active' => 'players'])]
@@ -42,6 +43,20 @@ class PlayerShow extends Component
 
         $this->playerId = $playerId;
         $this->playerName = $player->name;
+
+        $this->loadProfile($player);
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — Global Rank/Score and Fav Servers can change on
+     * any lap by any player anywhere (not just this one), since the global ranking is relative,
+     * so this listens on the site-wide `activity` channel (matching ServerList/Home) rather than
+     * a per-player or per-map one.
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadProfile(?Player $player = null): void
+    {
+        $player ??= Player::findOrFail($this->playerId);
 
         $ranking = GlobalRanking::forPlayer($player->id);
         $perMap = collect($ranking['perMap'] ?? []);

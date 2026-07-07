@@ -8,6 +8,7 @@ use App\Models\LapTime;
 use App\Models\RecordHistory;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layout', ['title' => 'Players', 'active' => 'players'])]
@@ -23,6 +24,16 @@ class PlayerList extends Component
     public array $players = [];
 
     public function mount(): void
+    {
+        $this->loadPlayers();
+    }
+
+    /**
+     * Live update (roadmap item 16 follow-up) — the Global Leaderboard changes on any lap by any
+     * player, so this listens on the site-wide `activity` channel (matching ServerList/Home).
+     */
+    #[On('echo-public:activity,lap.submitted')]
+    public function loadPlayers(): void
     {
         $rankings = collect(GlobalRanking::scores());
 

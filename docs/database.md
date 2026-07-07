@@ -221,6 +221,14 @@ It does, however, feed a real UI distinction (added 2026-07-06 per explicit foll
 
 Verified the same way as `LeaderboardUpdated`: a standalone `pusher-js` script subscribed to `activity`, a real webhook submission, confirmed payload arrival — plus `LapSubmittedTest.php` (unit, channel/payload) and a `loadServers()`/`loadHighlights()` listener test in each component's existing test file.
 
+### Every remaining page wired up (2026-07-07)
+
+`ServerShow`, `ServerPlayerShow`, `PlayerShow`, `PlayerList`, and `MapList` had no live-update listener at all until now — real-time updates only reached the two leaderboard pages, Servers List, and Home. Each now listens on the same site-wide `activity` channel (`#[On('echo-public:activity,lap.submitted')]`), re-running its own `mount()` logic on receipt, same "re-fetch, don't patch in place" precedent as everywhere else — no new channels or events needed, since every one of these pages shows aggregate/ranking data that any lap anywhere can move (global rank, server score, per-map best times), not just laps scoped to one specific server+map.
+
+Mechanically: each component's `mount()` body was extracted into its own `load*()` method carrying the `#[On]` attribute (e.g. `ServerShow::loadServerData()`, `PlayerShow::loadProfile()`), called once from `mount()` and again on every `activity` broadcast. Pages with their own paginated sub-queries (`ServerShow`'s Latest Laps, `PlayerList`'s ranked-player pagination) don't need a separate listener for those — any listener method firing triggers a full Livewire re-render, which re-runs those queries anyway.
+
+Confirmed end-to-end this was actually necessary, not just theoretical: found via a real webhook submission to a real server (id 12) while watching its Server Single page live in a browser — nothing updated, because that page genuinely had no listener wired up (unlike this discovery process, this wasn't a WebSocket/proxy problem — REL-01's nginx fix, verified separately via a real `101 Switching Protocols` handshake, was already working correctly).
+
 ## Global Player Ranking (planned)
 
 A cross-map ranking/points system, derived entirely from `lap_times` (no new stored "score" as the source of truth) — continues this doc's existing full-history/derived-reads philosophy rather than introducing a new stored-and-drifting number. Full spec: [global-ranking.md](global-ranking.md).

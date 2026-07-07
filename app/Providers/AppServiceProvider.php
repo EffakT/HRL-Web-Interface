@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Helpers\GameServerQuery;
 use App\Helpers\LapSubmissionVerifier;
 use App\Helpers\QueryServer;
+use App\Helpers\ResolveSubmittingIp;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -44,7 +45,7 @@ class AppServiceProvider extends ServiceProvider
         // applies at both tiers specifically so running many ports can't bypass it even once
         // "verified."
         RateLimiter::for('webhook', function (Request $request) {
-            $ip = $request->ip();
+            $ip = ResolveSubmittingIp::resolve($request->ip());
             $port = $request->input('port');
 
             $tier = Cache::has(LapSubmissionVerifier::verifiedMarkerKey($ip, $port))

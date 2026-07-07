@@ -481,6 +481,16 @@ it('rejects a duplicate (ip, port) at the database level, even for an already-so
     expect(fn () => Server::factory()->create(['ip' => '10.0.0.2', 'port' => '2302']))->not->toThrow(Throwable::class);
 });
 
+it('rewrites a known internal NAT ip to the real public ip before recording the server (ported from legacy)', function () {
+    config(['webhook.internal_ip_map' => ['192.168.88.1' => '114.23.254.181']]);
+    fakeGameServerQuery();
+
+    test()->withServerVariables(['REMOTE_ADDR' => '192.168.88.1']);
+    submitLap()->assertOk();
+
+    expect(Server::sole()->ip)->toBe('114.23.254.181');
+});
+
 it('does not query the game server a second time when HRL verification already fetched a live response', function () {
     config(['webhook.hrl_query.enforce' => true]);
 

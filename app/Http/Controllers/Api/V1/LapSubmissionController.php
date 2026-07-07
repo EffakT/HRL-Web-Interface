@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exceptions\LapSubmissionConflictException;
 use App\Helpers\LapSubmissionHash;
 use App\Helpers\LapSubmissionVerifier;
+use App\Helpers\ResolveSubmittingIp;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLapTimeRequest;
 use App\Jobs\ProcessNewLap;
@@ -22,7 +23,12 @@ class LapSubmissionController extends Controller
     /** POST /api/v1/laps — a Halo game server submitting a completed lap. */
     public function store(StoreLapTimeRequest $request, LapSubmissionVerifier $verifier): JsonResponse
     {
-        $ip = $request->ip();
+        // Some game servers are behind NAT that occasionally resolves as one of the router's own
+        // internal addresses instead of the real public IP (App\Helpers\ResolveSubmittingIp,
+        // ported from ApiController.php-legacy) — rewritten here, first, so every downstream use
+        // of $ip (idempotency key, verification, storage) sees the real address, matching what
+        // the `webhook` rate limiter (AppServiceProvider) already resolved it to.
+        $ip = ResolveSubmittingIp::resolve($request->ip());
         $port = (int) $request->validated('port');
         $data = $request->validated();
 

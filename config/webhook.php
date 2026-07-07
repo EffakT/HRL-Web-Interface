@@ -88,4 +88,24 @@ return [
         'verified_marker_ttl_seconds' => env('WEBHOOK_VERIFIED_MARKER_TTL', 300),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | NAT internal-IP rewrite (ported from ApiController.php-legacy)
+    |--------------------------------------------------------------------------
+    |
+    | The old hosting site's UniFi router sometimes resolved the submitting game server's IP as
+    | one of the router's own internal addresses instead of the real public IP, for reasons
+    | specific to that router's NAT/reflection behavior. The legacy app hardcoded a rewrite for
+    | this in `ApiController::newTime()`/`claimPlayer()`; this config-driven equivalent maps each
+    | known internal address straight to the real public IP it actually stands for, applied
+    | before the ip is used for idempotency keys, rate limiting, verification, or storage. Add
+    | entries here (rather than in code) if another address needs the same treatment.
+    |
+    */
+    'internal_ip_map' => [
+        '192.168.88.1' => '114.23.254.181',
+        '192.168.88.99' => '114.23.254.181',
+        '192.168.88.234' => '114.23.254.181',
+    ],
+
 ];

@@ -114,6 +114,17 @@ Operationally, HRL enforcement remains off during the Lua rollout, so SEC-01 is 
 
 - **Input validation** for real Eloquent-backed forms — none exist yet since everything is still mock data. The lap-submission webhook (2026-07-06) is the one exception so far — validated via `StoreLapTimeRequest`.
 
+#### NAT internal-IP rewrite restored (2026-07-07)
+
+`ApiController.php-legacy` hardcoded a rewrite of three specific internal addresses (`192.168.88.1`, `.99`, `.234`) to a known public IP (`114.23.254.181`) in `newTime()`/`claimPlayer()` — a fixup for the old hosting site's UniFi router occasionally resolving the submitting game server's IP as one of the router's own internal addresses instead of the real public one. This wasn't carried into the rebuild and was noticed missing when the user's own loopback started showing an internal IP again.
+
+Ported as a config-driven map (`config('webhook.internal_ip_map')`) rather than a hardcoded snippet, via a new `App\Helpers\ResolveSubmittingIp::resolve()`. Applied in two places, not one — both must resolve the same IP or they disagree about identity:
+
+- `LapSubmissionController::store()`, before `$ip` is used for the idempotency key, verification, or storage.
+- The `webhook` rate limiter in `AppServiceProvider::boot()`, which runs as route middleware *before* the controller — without the same rewrite there, the "verified" tier's cache marker (keyed by the controller's resolved IP) would never match a lookup keyed by the raw one, silently stranding every NAT'd source in the strict "unverified" tier forever.
+
+New test: `LapSubmissionTest.php`'s NAT-rewrite case. 139 → 141 tests, 352 → 355 assertions.
+
 ## Guidance going forward
 
 Follow the Laravel Boost-provided `laravel-best-practices` skill's security section when writing real backend code: `$fillable`/`$guarded` on every model, authorize every action via policies/gates, no raw SQL with user input, `throttle` middleware on auth/API routes, validate file uploads by MIME/extension/size, `encrypted` cast for sensitive DB fields.

@@ -125,6 +125,14 @@ Ported as a config-driven map (`config('webhook.internal_ip_map')`) rather than 
 
 New test: `LapSubmissionTest.php`'s NAT-rewrite case. 139 → 141 tests, 352 → 355 assertions.
 
+## SEC-02 — HTTPS redirect + HSTS, API stays on plain HTTP (2026-07-07)
+
+An audit finding flagged HTTP being served without a redirect to HTTPS or an HSTS header. `POST /api/v1/laps` and the read endpoints under `/api/v1/*` are called by legacy Halo game-server clients (older Wine/non-browser HTTP stacks) that can't do TLS, so a blanket site-wide redirect isn't viable — and there's no separate API subdomain to exclude instead; it's the same host, path-based.
+
+Fixed by scoping at the middleware-group level in `bootstrap/app.php`, not by host/path matching: `App\Http\Middleware\RedirectIfNotSecure` (HTTP → HTTPS, 301, only in `production`/`staging`) and `App\Http\Middleware\AddHstsHeader` (deliberately no `includeSubDomains`/`preload`, since REL-01's Reverb websocket isn't TLS-ready) are both registered on the `web` group only. `routes/api.php` runs under the `api` group and is untouched — `/api/v1/*` keeps working over plain HTTP. `SESSION_SECURE_COOKIE=true` is now set in `.env`, safe since web traffic is guaranteed HTTPS once the redirect is live.
+
+**Open verification item**: `$request->secure()` depends on nginx setting `fastcgi_param HTTPS on` (or equivalent) on the TLS server block, since this app talks to PHP-FPM over a Unix socket rather than through an HTTP reverse-proxy header. The FastPanel-managed vhost config wasn't readable from this environment to confirm that's in place — verify with `curl -I` against both schemes after deploy, per [decisions.md](decisions.md).
+
 ## Guidance going forward
 
 Follow the Laravel Boost-provided `laravel-best-practices` skill's security section when writing real backend code: `$fillable`/`$guarded` on every model, authorize every action via policies/gates, no raw SQL with user input, `throttle` middleware on auth/API routes, validate file uploads by MIME/extension/size, `encrypted` cast for sensitive DB fields.

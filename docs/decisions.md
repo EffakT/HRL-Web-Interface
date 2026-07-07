@@ -906,3 +906,13 @@ A follow-up audit pass specifically reviewed the just-updated `hrl.lua` against 
 Debug flag (`debug = 1` → `0`, the audit's fourth Lua finding) was already resolved by the time this pass ran — no action needed.
 
 Suite: 139 → 140 tests, 352 → 353 assertions.
+
+## SEC-02 — HTTPS redirect + HSTS, scoped to keep the API on plain HTTP (2026-07-07)
+
+An audit finding (SEC-02) flagged that HTTP wasn't redirected to HTTPS and no HSTS header was sent. The naive fix (redirect everything, one HSTS header for the whole origin) doesn't work here: `POST /api/v1/laps` and the read endpoints under `/api/v1/*` are called by legacy Halo game-server clients (older Wine/non-browser HTTP stacks) that can't do TLS, and they share this app's single host — there's no separate API subdomain to carve out instead.
+
+Scoped the fix at the Laravel middleware-group level rather than by domain: new `App\Http\Middleware\RedirectIfNotSecure` (HTTP → HTTPS 301, only in `production`/`staging` so local dev over HTTP still works) and `App\Http\Middleware\AddHstsHeader` (no `includeSubDomains`/`preload` — REL-01's Reverb websocket isn't TLS-ready yet, and mixing that in would risk browsers refusing a legitimate non-TLS subdomain later) are both registered on the `web` middleware group only, in `bootstrap/app.php`. `routes/api.php`'s `api` group is untouched, so `/api/v1/*` keeps working over plain HTTP exactly as before. Also set `SESSION_SECURE_COOKIE=true` in `.env`, safe now that every web request that reaches Laravel is guaranteed HTTPS.
+
+HSTS is inherently an origin-wide browser directive — it can't be scoped by path. That's fine here because the entities calling `/api/v1/*` over HTTP are game servers, not browsers that would ever honor or be affected by an HSTS header from this origin.
+
+**Not verified**: whether `$request->secure()` actually resolves correctly for this deployment. Laravel/Symfony reads `$_SERVER['HTTPS']`, which for a socket-based PHP-FPM setup (this app's, per `deployment.md`) has to be set by nginx's fastcgi params on the TLS server block (typically `fastcgi_param HTTPS on;`) — there's no reverse-proxy header involved since nginx talks to PHP-FPM directly over a Unix socket, not HTTP. The FastPanel-managed vhost config isn't readable from this environment, so this is a genuine deployment-verification gap: if that param isn't set, `RedirectIfNotSecure` will either never fire (silently leaving SEC-02 unfixed) or, worse, fire on every request including ones already on HTTPS (redirect loop). Verify with a real `curl -I http://redesign.hrl.effakt.info/` and `curl -I https://redesign.hrl.effakt.info/` after deploy before treating this as closed.

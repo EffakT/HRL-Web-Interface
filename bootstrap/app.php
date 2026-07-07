@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\AddHstsHeader;
+use App\Http\Middleware\RedirectIfNotSecure;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +20,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // leaderboard with no auth, so there's no new data exposure here; rate limiting (not
         // auth) is the actual protection against abuse. Limiter defined in AppServiceProvider.
         $middleware->throttleApi();
+
+        // HTTPS redirect + HSTS on the `web` group only (SEC-02) — /api/v1/* stays on the
+        // `api` group deliberately, since legacy Halo game-server clients call it over plain
+        // HTTP and can't do TLS.
+        $middleware->web(prepend: [
+            RedirectIfNotSecure::class,
+        ], append: [
+            AddHstsHeader::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

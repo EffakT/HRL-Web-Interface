@@ -11,10 +11,18 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Fired only when a submitted lap is a genuine personal-best/course-record-worthy
  * improvement (not on every logged attempt) — see docs/database.md's "Webhook → job flow".
- * Wired up to Reverb/Echo (roadmap item 16, see docs/database.md's "Live leaderboard updates"
- * section) — `ServerMapLeaderboard` (nested) and `MapLeaderboard` (global) both listen and
- * re-fetch their ranking on receipt. Public channels throughout: this whole site is already a
- * fully public leaderboard, so there's nothing to authorize.
+ * Public channels throughout: this whole site is already a fully public leaderboard, so there's
+ * nothing to authorize.
+ *
+ * **No direct Livewire consumer as of 2026-07-08.** `ServerMapLeaderboard` and `MapLeaderboard`
+ * originally listened on this event's channels to re-fetch their ranking, but that left their
+ * `$totalLaps` figure stale after every non-improving lap (this event never fires for one) — both
+ * were retargeted to listen on `App\Events\LapSubmitted`'s site-wide `activity` channel instead,
+ * which is a strict superset of when this event fires (see `ProcessNewLap`) and covers both
+ * cases with one listener. Still dispatched and broadcast (see `ProcessNewLap`) since it carries
+ * genuinely distinct data (the specific player/time/position of the improvement, not just "a lap
+ * happened somewhere") that a future PB-specific feature (e.g. a toast/celebration on the exact
+ * page watching that map) could consume directly instead of re-deriving it from a full reload.
  */
 class LeaderboardUpdated implements ShouldBroadcast
 {

@@ -43,7 +43,7 @@ it('re-fetches the leaderboard when its live-update listener fires', function ()
     $newPlayer = Player::factory()->create(['name' => 'New Leader']);
     LapTime::factory()->create(['server_id' => $server->id, 'map_id' => $map->id, 'player_id' => $newPlayer->id, 'time' => 55]);
 
-    $component->call('onLeaderboardUpdated');
+    $component->call('onLapSubmitted');
 
     expect($component->get('players'))->toHaveCount(2)
         ->and($component->get('players')[0]['name'])->toBe('New Leader');

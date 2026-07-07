@@ -44,13 +44,19 @@ class MapLeaderboard extends Component
     }
 
     /**
-     * Live update (roadmap item 16) — a genuine PB/record on *any* server for this map. Unlike
-     * `ServerMapLeaderboard`'s server-scoped channel, this listens on the map-only channel
-     * (`maps.{mapId}`) since a PB on any server can change the global ranking — see
-     * App\Events\LeaderboardUpdated.
+     * Live update (roadmap item 16, retargeted 2026-07-08). Originally listened only on the
+     * map-scoped `maps.{mapId}`/`leaderboard.updated` channel (a genuine PB/record on any server
+     * for this map) — but that left `$totalLaps` (the "SHOWING X / Y LAPS" footer) stale after
+     * every *non*-PB lap, since a non-improving attempt never fires `LeaderboardUpdated` at all.
+     * `LapSubmitted` fires on every attempt, improvement or not, and is a strict superset of
+     * when `LeaderboardUpdated` fires (see `ProcessNewLap`), so listening on the site-wide
+     * `activity` channel instead covers both cases with one listener, matching the pattern
+     * already used by `ServerList`/`Home`/etc. Slightly more chatty (re-fetches on any lap
+     * anywhere, not just this map), but consistent with the rest of the app's live-update model
+     * and simpler than two separate listeners doing the same reload.
      */
-    #[On('echo-public:maps.{mapParam},leaderboard.updated')]
-    public function onLeaderboardUpdated(): void
+    #[On('echo:activity,.lap.submitted')]
+    public function onLapSubmitted(): void
     {
         $this->loadLeaderboard(Map::findOrFail($this->mapParam));
     }

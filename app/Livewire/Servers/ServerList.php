@@ -39,8 +39,14 @@ class ServerList extends Component
      * Live update (roadmap item 16 follow-up) — every submitted lap changes these aggregates
      * (Activity Score, header counts), not just a PB, so this listens on the site-wide
      * `activity` channel rather than the map-scoped `LeaderboardUpdated` one.
+     *
+     * Also listens for `ServerStatusRefreshed` (2026-07-08 fix) — the scheduled live-status poll
+     * (`RefreshLiveServerInfo`, every minute) updates online/current-map/player-count data
+     * independently of any lap being submitted, so without this a page could sit stale for as
+     * long as no lap happened to be submitted anywhere on the site.
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
+    #[On('echo:activity,.server-status.refreshed')]
     public function loadServers(): void
     {
         // Real data. Several fields from the original mock have no real-schema equivalent and

@@ -57,8 +57,18 @@ class ServerShow extends Component
      * channel rather than a map-scoped one (matching ServerList/Home's same choice). Latest Laps
      * and Top Players' pagination don't need their own listener — render() re-runs laps() and
      * rankedPlayers() on every re-render, which this method's execution alone triggers.
+     *
+     * A parameterless wrapper, not the `#[On(...)]` attribute directly on `loadServerData()`:
+     * Livewire's Echo bridge dispatches the broadcast payload as this listener's first argument,
+     * which would hit `loadServerData(?Server $server)`'s type hint with an array/object instead
+     * of a `Server`.
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
+    public function onLapSubmitted(): void
+    {
+        $this->loadServerData();
+    }
+
     public function loadServerData(?Server $server = null): void
     {
         $server ??= Server::findOrFail($this->serverId);

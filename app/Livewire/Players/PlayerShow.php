@@ -52,8 +52,18 @@ class PlayerShow extends Component
      * any lap by any player anywhere (not just this one), since the global ranking is relative,
      * so this listens on the site-wide `activity` channel (matching ServerList/Home) rather than
      * a per-player or per-map one.
+     *
+     * A parameterless wrapper, not the `#[On(...)]` attribute directly on `loadProfile()`:
+     * Livewire's Echo bridge dispatches the broadcast payload as this listener's first argument,
+     * which would hit `loadProfile(?Player $player)`'s type hint with an array/object instead of
+     * a `Player`.
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
+    public function onLapSubmitted(): void
+    {
+        $this->loadProfile();
+    }
+
     public function loadProfile(?Player $player = null): void
     {
         $player ??= Player::findOrFail($this->playerId);

@@ -32,7 +32,7 @@ class PlayerList extends Component
      * Live update (roadmap item 16 follow-up) — the Global Leaderboard changes on any lap by any
      * player, so this listens on the site-wide `activity` channel (matching ServerList/Home).
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
     public function loadPlayers(): void
     {
         $rankings = collect(GlobalRanking::scores());

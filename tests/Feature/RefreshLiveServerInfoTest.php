@@ -1,9 +1,11 @@
 <?php
 
+use App\Events\ServerStatusRefreshed;
 use App\Helpers\GameServerQuery;
 use App\Models\Map;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Event;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -87,4 +89,20 @@ it('skips archived servers', function () {
     $this->artisan('app:refresh-live-server-info')->assertSuccessful();
 
     expect($server->fresh()->queried_at)->toBeNull();
+});
+
+it('broadcasts ServerStatusRefreshed once per run, regardless of server count', function () {
+    Event::fake([ServerStatusRefreshed::class]);
+
+    Server::factory()->create(['ip' => '10.0.0.5', 'port' => '2302']);
+    Server::factory()->create(['ip' => '10.0.0.6', 'port' => '2302']);
+
+    fakeGameServerQueryFor([
+        '10.0.0.5:2302' => ['hostname' => 'A', 'mapname' => 'bloodgulch', 'numplayers' => '1'],
+        // 10.0.0.6 has no entry, so its query fails.
+    ]);
+
+    $this->artisan('app:refresh-live-server-info')->assertSuccessful();
+
+    Event::assertDispatchedTimes(ServerStatusRefreshed::class, 1);
 });

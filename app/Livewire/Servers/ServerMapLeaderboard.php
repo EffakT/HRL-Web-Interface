@@ -59,13 +59,19 @@ class ServerMapLeaderboard extends Component
     }
 
     /**
-     * Live update (roadmap item 16) — a genuine PB/record on this exact server+map. The channel
-     * name embeds the component's own `serverParam`/`mapParam` properties, so Livewire only
-     * subscribes to this specific pairing, not every server's updates for this map (that's
-     * `MapLeaderboard`'s `maps.{mapId}` channel instead — see App\Events\LeaderboardUpdated).
+     * Live update (roadmap item 16, retargeted 2026-07-08). Originally listened only on the
+     * server+map-scoped `servers.{serverId}.maps.{mapId}`/`leaderboard.updated` channel (a
+     * genuine PB/record on this exact pairing) — but that left `$totalLaps` (the "SHOWING X / Y
+     * LAPS" footer) stale after every *non*-PB lap, since a non-improving attempt never fires
+     * `LeaderboardUpdated` at all. `LapSubmitted` fires on every attempt, improvement or not, and
+     * is a strict superset of when `LeaderboardUpdated` fires (see `ProcessNewLap`), so listening
+     * on the site-wide `activity` channel instead covers both cases with one listener, matching
+     * the pattern already used by `ServerList`/`Home`/etc. Slightly more chatty (re-fetches on
+     * any lap anywhere, not just this server+map), but consistent with the rest of the app's
+     * live-update model and simpler than two separate listeners doing the same reload.
      */
-    #[On('echo-public:servers.{serverParam}.maps.{mapParam},leaderboard.updated')]
-    public function onLeaderboardUpdated(): void
+    #[On('echo:activity,.lap.submitted')]
+    public function onLapSubmitted(): void
     {
         $this->loadLeaderboard(Server::findOrFail($this->serverParam), Map::findOrFail($this->mapParam));
     }

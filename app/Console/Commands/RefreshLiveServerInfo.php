@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Events\ServerStatusRefreshed;
 use App\Helpers\GameServerQuery;
 use App\Models\Map;
 use App\Models\Server;
@@ -22,6 +23,12 @@ use Illuminate\Console\Command;
  * transient network hiccup doesn't wipe good data. Consumers should treat `query_successful`
  * (and how stale `queried_at` is) as the signal for whether to trust the stored values or fall
  * back to a lap-history-derived proxy.
+ *
+ * Also broadcasts `App\Events\ServerStatusRefreshed` once per run (2026-07-08 fix) — without it,
+ * an open Servers List page only picked up a status change (online/offline, current map, player
+ * count) whenever an unrelated lap happened to be submitted somewhere and triggered
+ * `ServerList`'s `lap.submitted` listener; a quiet period with no submissions left it stale
+ * despite this command updating the underlying rows every minute.
  */
 #[Signature('app:refresh-live-server-info')]
 #[Description('Live-query every active server for its current map and player count')]
@@ -57,6 +64,8 @@ class RefreshLiveServerInfo extends Command
 
             $this->line("✓ {$server->name}: {$response['mapname']} ({$numPlayers} players)");
         }
+
+        ServerStatusRefreshed::dispatch();
 
         return self::SUCCESS;
     }

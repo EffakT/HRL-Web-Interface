@@ -71,8 +71,18 @@ class ServerPlayerShow extends Component
      * Live update (roadmap item 16 follow-up) — listens on the site-wide `activity` channel
      * (matching ServerList/Home) rather than a per-map one, since any lap by this player on this
      * server, or any other lap changing the server-scoped ranking, can move these numbers.
+     *
+     * A parameterless wrapper, not the `#[On(...)]` attribute directly on `loadProfile()`:
+     * Livewire's Echo bridge dispatches the broadcast payload as this listener's first argument,
+     * which would hit `loadProfile()`'s `?Server`/`?Player` type hints with an array/object
+     * instead of real models.
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
+    public function onLapSubmitted(): void
+    {
+        $this->loadProfile();
+    }
+
     public function loadProfile(?Server $server = null, ?Player $player = null): void
     {
         $server ??= Server::findOrFail($this->serverId);

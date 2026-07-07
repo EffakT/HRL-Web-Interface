@@ -11,9 +11,13 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Fired on *every* logged lap attempt (unlike App\Events\LeaderboardUpdated, which only fires
  * on a genuine PB/record) — for site-wide aggregates that change on any submission, not just an
- * improvement: Servers List's header stats/"MOST ACTIVE" card and Home's highlights. A single
- * site-wide public channel rather than a per-server/per-map one, since these consumers aren't
- * scoped to one server or map. See docs/database.md's "Live leaderboard updates" section.
+ * improvement: Servers List's header stats/"MOST ACTIVE" card, Home's highlights, and (2026-07-08,
+ * retargeted from the map-scoped `LeaderboardUpdated` channels) `MapLeaderboard`/
+ * `ServerMapLeaderboard`'s "SHOWING X / Y LAPS" total, which needs every attempt, not just PBs.
+ * A single site-wide public channel rather than a per-server/per-map one, since most consumers
+ * aren't scoped to one server or map (the two leaderboard components are the exception — they
+ * still filter to their own server+map when reloading, just via this broader trigger).
+ * See docs/database.md's "Live leaderboard updates" section.
  */
 class LapSubmitted implements ShouldBroadcast
 {

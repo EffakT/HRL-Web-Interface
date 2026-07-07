@@ -23,7 +23,7 @@ class MapList extends Component
      * submitted lap, so this listens on the site-wide `activity` channel (matching
      * ServerList/Home) rather than subscribing to every individual map's own channel.
      */
-    #[On('echo-public:activity,lap.submitted')]
+    #[On('echo:activity,.lap.submitted')]
     public function loadMaps(): void
     {
         // Real global data. `maps.name` is the machine slug; `maps.label` is the public label.

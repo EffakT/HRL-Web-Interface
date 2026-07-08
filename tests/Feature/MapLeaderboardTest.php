@@ -181,6 +181,31 @@ it('paginates ranks after the fixed top-three podium', function () {
         ->and($component->get('selectedPlayerIndex'))->toBeNull();
 });
 
+it('clamps an out-of-range ranked-players page instead of overflowing the slice offset into a TypeError (TEST-01 audit follow-up)', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+
+    foreach (range(1, 5) as $rank) {
+        LapTime::factory()->create([
+            'map_id' => $map->id,
+            'server_id' => $server->id,
+            'player_id' => Player::factory()->create()->id,
+            'time' => 59 + $rank,
+        ]);
+    }
+
+    $component = Livewire::test(MapLeaderboard::class, ['mapId' => (string) $map->id]);
+
+    // Large enough that (page - 1) * PLAYERS_PER_PAGE overflows PHP's int range into a float —
+    // array_slice() rejects a float offset with a TypeError, same class of bug already fixed in
+    // the API's equivalent pagination (see ApiTest.php).
+    $component->call('gotoPage', 999999999999999999999, 'page');
+    $rankedPlayers = $component->viewData('rankedPlayers');
+
+    expect($rankedPlayers->currentPage())->toBe(1)
+        ->and($rankedPlayers->count())->toBe(2);
+});
+
 // Roadmap item 16 — a real Reverb broadcast can't be exercised in a Pest test (no running
 // WebSocket server), but the listener method itself — what actually happens when the browser's
 // Echo client receives the event — is real component logic, and is tested directly.

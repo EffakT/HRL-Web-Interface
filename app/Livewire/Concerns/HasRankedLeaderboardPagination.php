@@ -24,7 +24,14 @@ trait HasRankedLeaderboardPagination
     public function rankedPlayers(string $pageName = 'page'): LengthAwarePaginator
     {
         $rankedPlayers = array_slice($this->players, 3, null, true);
-        $currentPage = max(1, (int) $this->getPage($pageName));
+
+        // Clamping to the real last page (not just flooring at 1) matters here the same way it
+        // does for the API's equivalent pagination (docs/api.md) — without it, an extreme `page`
+        // value survives Livewire's own `(int)` cast (which clamps to PHP_INT_MAX rather than
+        // erroring) and `($currentPage - 1) * self::PLAYERS_PER_PAGE` overflows into a float,
+        // which array_slice() rejects with a TypeError instead of a page 1 result.
+        $lastPage = max(1, (int) ceil(count($rankedPlayers) / self::PLAYERS_PER_PAGE));
+        $currentPage = min($lastPage, max(1, (int) $this->getPage($pageName)));
 
         return new LengthAwarePaginator(
             array_slice(

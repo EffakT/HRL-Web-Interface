@@ -5,7 +5,10 @@ use App\Models\LapTimeSplit;
 use App\Models\Map;
 use App\Models\Player;
 use App\Models\Server;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -41,6 +44,18 @@ it('does not leak the old API\'s trailing-space "name " key bug', function () {
     $response = $this->getJson('/api/v1/servers')->assertOk();
 
     expect(array_keys($response->json('data.0')))->not->toContain('name ');
+});
+
+it('rate-limits the public read API at its configured per-IP boundary (TEST-01 audit follow-up)', function () {
+    // The real `api` limiter (AppServiceProvider) is a flat 60/min, too slow to exhaust one
+    // request at a time in a test — re-registering the same named limiter with a much smaller
+    // ceiling exercises the identical `throttle:api` middleware/limiter wiring at a fast, exact
+    // boundary instead of guessing whether 60 real requests trip it.
+    RateLimiter::for('api', fn (Request $request) => Limit::perMinute(2)->by($request->ip()));
+
+    $this->getJson('/api/v1/servers')->assertOk();
+    $this->getJson('/api/v1/servers')->assertOk();
+    $this->getJson('/api/v1/servers')->assertStatus(429);
 });
 
 it('returns the global map leaderboard, ranked by best lap across all active servers', function () {
@@ -142,6 +157,19 @@ it('clamps an out-of-range page instead of overflowing the slice offset into a 5
 
     expect($response->json('meta.current_page'))->toBe(1)
         ->and($response->json('data'))->toHaveCount(1);
+});
+
+it('floors a negative or zero page to page 1 instead of an invalid negative slice offset', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+
+    foreach (['-5', '0'] as $page) {
+        $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?page={$page}")->assertOk();
+
+        expect($response->json('meta.current_page'))->toBe(1)
+            ->and($response->json('data'))->toHaveCount(1);
+    }
 });
 
 it('shows a single real lap\'s detail, including splits', function () {

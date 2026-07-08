@@ -14,7 +14,7 @@
 - [x] Variable split-count support (podium sparkline + scrollable modal), tested up to 14 sectors.
 - [x] Cache-table incident fixed (Livewire click fatal error).
 - [x] Full documentation suite (this file and its siblings) established.
-- [x] Test/analysis tooling in place: Pest (first real route test), PHPStan/Larastan, Rector, Semgrep config (not installed — see [testing.md](testing.md)).
+- [x] Test/analysis tooling in place: Pest, PHPStan/Larastan, Rector, and Semgrep's hosted GitHub scan. A general CI workflow is explicitly deferred while the project is solo-maintained; see [testing.md](testing.md) and [decisions.md](decisions.md).
 
 ## Next up (in rough order)
 
@@ -64,7 +64,7 @@
 - Deployment/cutover plan specifics: staging environment details, DNS/cutover timing.
 - Auth strategy (`/login`, `/register`) — not designed yet.
 - `/players/{id}`'s exact old-site semantics (`"Leaderboard for {Player Name}"`) vs. the new "personal lap log" framing — currently intentionally different, revisit if that's a problem.
-- **Run Semgrep for real** — couldn't install it in this sandbox (no pip/Homebrew/Docker). Needs running somewhere that has one of those (CI, or a local dev machine) to validate the custom `.semgrep.yml` rules actually work as intended, and to get real findings against the codebase for the first time. See [testing.md](testing.md).
+- **Finish Semgrep validation** — the hosted GitHub scan is active and has already surfaced a real `.npmrc` hardening finding. Confirm whether the hosted policy loads repository-local `.semgrep.yml`; if not, import those custom rules into Semgrep and validate each with positive/negative fixtures. See [testing.md](testing.md).
 - **Decide whether/when to apply the pending Rector fixes** — `composer rector-dry` currently proposes 16 files' worth of changes (mostly `declare(strict_types=1)`), deliberately not applied yet.
 - **Lap validity / anti-cheat mechanism** — needed for the Most Active Server score's "Valid Laps" term to mean anything beyond "any recorded lap." A map-file checksum (to detect modded maps) is one idea being considered, but wouldn't catch script-based cheats (hog-jumps, portals, etc.). See [most-active-server.md](most-active-server.md) — explicitly parked as a future problem, not blocking that spec.
 - ~~**Most Active Server recalculation interval**~~ — **resolved for now**: no scheduled job exists; `MostActiveServer::scores()` computes live on every call, same as `GlobalRanking`. Revisit only if the server roster grows enough that a live 90-day-window query becomes measurably slow (see [decisions.md](decisions.md)).

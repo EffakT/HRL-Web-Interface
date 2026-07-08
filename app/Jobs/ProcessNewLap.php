@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Events\LapSubmitted;
 use App\Events\LeaderboardUpdated;
 use App\Exceptions\LapSubmissionConflictException;
+use App\Exceptions\TooManyMapVariantsException;
 use App\Helpers\GameServerQuery;
 use App\Helpers\LapSubmissionHash;
 use App\Models\LapTime;
@@ -55,6 +56,22 @@ class ProcessNewLap
     private const RACE_TYPE_SUFFIXES = ['', 'Any Order', 'Rally'];
 
     /**
+     * `race_type`'s own `Map`-identity suffix (2026-07-08 follow-up to the SEC-04 review — see
+     * docs/decisions.md) — deliberately a SEPARATE array from RACE_TYPE_SUFFIXES above, not
+     * derived from it: that one produces a human-readable *label* fragment ("Any Order"), this
+     * one produces a machine-safe `Map.name` fragment (`-anyorder`) that can never collide with
+     * resolveMapVariant()'s own `{name}-splits-{count}` suffix. Index 0 (normal races) is
+     * deliberately empty — the far more common case (see docs/database.md) keeps using the
+     * exact same `name` real historical data already has, so no data migration was needed to
+     * ship this: only race_type 1/2 submissions create a NEW row going forward. Historical laps
+     * recorded before this change can't be retroactively attributed to a race_type at all —
+     * `race_type` was never persisted per-lap, only folded into a label string and a one-way
+     * hash (see docs/roadmap.md's now-resolved open question) — so they stay under the plain
+     * (race_type-0) row regardless of which race_type they actually were.
+     */
+    private const RACE_TYPE_NAME_SUFFIXES = ['', '-anyorder', '-rally'];
+
+    /**
      * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, submission_id: string|null, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
      * @param  array<string, string>|false|null  $liveQueryResponse  Already-fetched UDP query response
      *                                                               (SEC-01's LapSubmissionVerifier queries the
@@ -98,14 +115,19 @@ class ProcessNewLap
                 return $this->replayDuplicateSubmission($submissionId, $contentHash);
             }
 
-            // Only `servers`' (ip, port, active_since) constraint is expected to land here
-            // otherwise (SEC-01 audit follow-up) — checked explicitly rather than assumed, so a
-            // future unrelated unique constraint can't be silently mishandled as this race: a
-            // concurrent first-ever submission for this exact ip:port already created the Server
-            // row between this request's read and write. That row exists now, so simply
-            // retrying the whole transaction once succeeds via firstOrCreate()'s SELECT finding
-            // it.
-            if (! $this->violatesServerIdentityUniqueness($e)) {
+            // Only `servers`' (ip, port, active_since) constraint, `maps`' (name) constraint
+            // (SEC-04 review follow-up — see the add_unique_index_to_maps_name migration), or
+            // `players`' (hash, name) constraint (PERF-02/security follow-up — see the
+            // add_unique_index_to_players_name_hash migration) is expected to land here
+            // otherwise — checked explicitly rather than assumed, so a future unrelated unique
+            // constraint can't be silently mishandled as this race: a concurrent first-ever
+            // submission for this exact ip:port (or the same map name/variant, or the same new
+            // player) already created the row between this request's read and write. That row
+            // exists now, so simply retrying the whole transaction once succeeds via
+            // firstOrCreate()'s SELECT finding it.
+            if (! $this->violatesServerIdentityUniqueness($e)
+                && ! $this->violatesMapNameUniqueness($e)
+                && ! $this->violatesPlayerIdentityUniqueness($e)) {
                 throw $e;
             }
 
@@ -165,15 +187,15 @@ class ProcessNewLap
             $server->update(['name' => $hostname]);
         }
 
+        // Matched on (hash, name) together, not hash alone — the game client no longer
+        // manufactures one distinct hash per player, so unrelated players can share a hash;
+        // (hash, name) is the real identity key (confirmed against real data: zero existing
+        // rows share both). See docs/security.md's "players.hash race condition" note.
         $player = Player::firstOrCreate(
-            ['hash' => hash('sha256', $this->data['player_hash'])],
-            ['name' => $this->data['player_name']]
+            ['hash' => hash('sha256', $this->data['player_hash']), 'name' => $this->data['player_name']]
         );
 
-        $map = Map::firstOrCreate(
-            ['name' => $this->data['map_name']],
-            ['label' => $mapLabel]
-        );
+        $map = $this->resolveMap($mapLabel);
 
         // syncWithoutDetaching checks for an existing pivot row before inserting, unlike the
         // legacy insertOrIgnore-without-a-unique-constraint approach that silently inserted a
@@ -318,6 +340,40 @@ class ProcessNewLap
     }
 
     /**
+     * Confirms a unique-constraint violation is specifically `maps`' `name` unique index (SEC-04
+     * review follow-up) — a concurrent submission for the same brand-new map name, or two
+     * concurrent mismatched submissions racing to create the same `{map_name}-splits-{count}`
+     * variant, can both pass `firstOrCreate()`'s SELECT before either INSERT commits. SQLite
+     * populates `$columns` (no index name); MySQL/Postgres populate `$index` instead. Checked as
+     * an exact column-set match (`=== ['name']`), not `in_array` — `players`' `(hash, name)`
+     * index (PERF-02/security follow-up) also has a `name` column, and SQLite never populates
+     * `$index`, so a looser check would misclassify a players-identity race as a map-name race.
+     */
+    private function violatesMapNameUniqueness(UniqueConstraintViolationException $e): bool
+    {
+        return $e->columns === ['name']
+            || str_contains($e->index ?? '', 'maps_name_unique');
+    }
+
+    /**
+     * Confirms a unique-constraint violation is specifically `players`' `(hash, name)` identity
+     * index (PERF-02/security follow-up) — a concurrent first-ever submission for the same new
+     * player (same hash, same name) can both pass `firstOrCreate()`'s SELECT before either
+     * INSERT commits. SQLite populates `$columns` (no index name); MySQL/Postgres populate
+     * `$index` instead. Checked as an exact column-set match, not `in_array('hash', ...)` — the
+     * same precision fix as `violatesMapNameUniqueness()`, so a future unrelated constraint that
+     * happens to include a `hash` column can't be silently misclassified as this race.
+     */
+    private function violatesPlayerIdentityUniqueness(UniqueConstraintViolationException $e): bool
+    {
+        $columns = $e->columns;
+        sort($columns);
+
+        return $columns === ['hash', 'name']
+            || str_contains($e->index ?? '', 'players_hash_name_unique');
+    }
+
+    /**
      * A failed live query no longer aborts the whole submission (the old app dropped the lap
      * entirely if the UDP query failed) — a temporary game-server query hiccup shouldn't
      * silently discard real lap data. A brand-new, never-before-seen server just gets a
@@ -356,6 +412,109 @@ class ProcessNewLap
         $suffix = self::RACE_TYPE_SUFFIXES[$raceType] ?? '';
 
         return $suffix !== '' ? "{$label} - {$suffix}" : $label;
+    }
+
+    /**
+     * `race_type`'s own `Map`-identity name (2026-07-08 follow-up, docs/decisions.md) — see
+     * RACE_TYPE_NAME_SUFFIXES' own docblock for why this is a separate machine-safe suffix from
+     * `mapLabel()`'s human-readable one, and why index 0 is deliberately a no-op.
+     */
+    private function raceTypeMapName(string $mapName, int $raceType): string
+    {
+        return $mapName.(self::RACE_TYPE_NAME_SUFFIXES[$raceType] ?? '');
+    }
+
+    /**
+     * SEC-04 audit follow-up (docs/security.md) — a map's physical checkpoint layout is fixed
+     * (confirmed against real data: every map's recorded checkpoint IDs are a stable, contiguous
+     * `1..N` set across every lap ever submitted for it), so it's learned once from the first
+     * split-bearing submission and enforced after that, rather than left unbounded.
+     *
+     * A submission with no splits (most of them — see docs/database.md's sparse-splits note)
+     * always uses the plain map and never establishes or checks a baseline; `checkpoint_count`
+     * stays null until a split-bearing submission actually arrives. `StoreLapTimeRequest`
+     * already caps the raw split count at `config('webhook.max_checkpoints')` before this ever
+     * runs, so `$submittedCheckpointCount` here is always sane in absolute terms — this method
+     * only decides whether it matches *this specific map's* established count.
+     *
+     * A mismatch doesn't reject the lap or overwrite the original map's baseline: maps are only
+     * ever added, never redesigned in place (confirmed with the user), so a different checkpoint
+     * count for the same underlying map file means a genuinely different course sharing that
+     * file, not corruption of the original leaderboard or a hostile payload. It's forked into
+     * its own `{map_name}-splits-{count}` map identity instead, with its own baseline and its
+     * own leaderboard. `config('webhook.max_map_variants_per_name')` caps how many such forks one
+     * base map identity can accumulate (SEC-04 review follow-up) — beyond that, a further
+     * mismatch is rejected outright (`TooManyMapVariantsException`) instead of forking
+     * indefinitely, since an unbounded number of "distinct courses" sharing one file looks like
+     * abuse rather than real level design.
+     *
+     * `race_type` gets its own `Map` identity too (2026-07-08 follow-up, docs/decisions.md) —
+     * `raceTypeMapName()` folds it into the base name BEFORE any of the above runs, so a
+     * checkpoint-count fork always forks the correct race_type-specific map, never the plain one.
+     * Index 0 (normal races) keeps the exact same name real historical data already has, so
+     * existing rows and every already-existing test/behavior for the common case are unaffected.
+     *
+     * @throws TooManyMapVariantsException
+     */
+    private function resolveMap(string $mapLabel): Map
+    {
+        $mapName = $this->raceTypeMapName($this->data['map_name'], (int) $this->data['race_type']);
+        $map = Map::firstOrCreate(['name' => $mapName], ['label' => $mapLabel]);
+
+        $splits = $this->data['splits'] ?? [];
+
+        if ($splits === []) {
+            return $map;
+        }
+
+        $submittedCheckpointCount = count(array_unique(array_column($splits, 'checkpoint_id')));
+
+        if ($map->checkpoint_count === null) {
+            // Concurrency-safe baseline establishment (SEC-04 review follow-up) — a plain
+            // read-then-write here let two concurrent first-split submissions for the same map
+            // both "win" with different counts. This conditional UPDATE only succeeds for
+            // whichever request's write actually lands first; a request that loses the race
+            // re-reads whatever count won and falls through to the same mismatch handling any
+            // later submission gets.
+            $wonRace = Map::where('id', $map->id)->whereNull('checkpoint_count')
+                ->update(['checkpoint_count' => $submittedCheckpointCount]);
+
+            if ($wonRace === 1) {
+                $map->checkpoint_count = $submittedCheckpointCount;
+
+                return $map;
+            }
+
+            $map->refresh();
+        }
+
+        if ($map->checkpoint_count === $submittedCheckpointCount) {
+            return $map;
+        }
+
+        return $this->resolveMapVariant($mapName, $mapLabel, $submittedCheckpointCount);
+    }
+
+    /** @throws TooManyMapVariantsException */
+    private function resolveMapVariant(string $mapName, string $mapLabel, int $checkpointCount): Map
+    {
+        $variantName = "{$mapName}-splits-{$checkpointCount}";
+        $existingVariant = Map::where('name', $variantName)->first();
+
+        if ($existingVariant !== null) {
+            return $existingVariant;
+        }
+
+        $existingVariantCount = Map::where('name', 'like', "{$mapName}-splits-%")->count();
+
+        if ($existingVariantCount >= config('webhook.max_map_variants_per_name')) {
+            throw new TooManyMapVariantsException;
+        }
+
+        return Map::firstOrCreate(
+            ['name' => $variantName],
+            ['label' => "{$mapLabel} ({$checkpointCount} CP)", 'checkpoint_count' => $checkpointCount],
+        );
     }
 
     /**

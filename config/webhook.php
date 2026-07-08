@@ -90,6 +90,63 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Split/checkpoint bounds (SEC-04 audit follow-up, docs/security.md)
+    |--------------------------------------------------------------------------
+    |
+    | A hard, protocol-wide ceiling on how many distinct checkpoints one submission can claim —
+    | enforced in StoreLapTimeRequest regardless of which map it's for. Real maps top out at 14
+    | (see docs/database.md); 20 leaves generous headroom for a legitimate map while still
+    | bounding the resource-exhaustion risk an unauthenticated, unbounded `splits` array would
+    | otherwise allow. Below this ceiling, App\Jobs\ProcessNewLap separately learns and enforces
+    | each individual map's own real checkpoint count (see the add_checkpoint_count_to_maps_table
+    | migration) — this value only ever needs raising if a real map genuinely has more than 20
+    | checkpoints, which no map observed so far does.
+    |
+    */
+    'max_checkpoints' => env('WEBHOOK_MAX_CHECKPOINTS', 20),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lap time ceiling (SEC-04 audit follow-up, docs/security.md)
+    |--------------------------------------------------------------------------
+    |
+    | `player_time` had no upper bound at all. Real laps range 15.3s-1170.9s (~19.5 min, see
+    | docs/database.md) — 3600s (1hr) leaves 3x headroom for a genuinely long real race while
+    | still bounding the field. Each split's `duration` is separately required to be
+    | `<= player_time` (StoreLapTimeRequest) rather than getting its own ceiling here — checked
+    | against real data first: zero real splits ever exceed their own lap's total time, so that
+    | relational rule is both correct and self-tuning as this value changes.
+    |
+    | Deliberately NOT applied to `startTime`/`endTime`: real data shows these aren't reliably
+    | lap-relative across different Lua script versions in the wild (some rows use small
+    | relative-looking values, many use large absolute server-clock-like values up to a literal
+    | 999999.99 sentinel) — and neither field feeds any real leaderboard/comparison logic today
+    | (only `duration` does, via LapTimeSplit::compare()). A tight bound here would reject real,
+    | already-accepted submissions for no functional benefit; they only get a generous overflow
+    | guard instead (see StoreLapTimeRequest).
+    |
+    */
+    'max_lap_time_seconds' => env('WEBHOOK_MAX_LAP_TIME_SECONDS', 3600),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Map checkpoint-variant cap (SEC-04 review follow-up, docs/security.md)
+    |--------------------------------------------------------------------------
+    |
+    | `App\Jobs\ProcessNewLap::resolveMap()` forks a mismatched checkpoint count into its own
+    | `{map_name}-splits-{count}` Map row rather than rejecting it or corrupting the original
+    | map's baseline — maps are only ever added, never redesigned in place. This bounds how many
+    | such forks one base map name can accumulate before a further mismatched submission is
+    | rejected outright instead of creating yet another variant. A handful of genuinely distinct
+    | courses sharing one map file is plausible; an unbounded number is more likely abuse or a
+    | corrupted client than real level design — no real map has ever needed more than one variant
+    | so far (see docs/database.md).
+    |
+    */
+    'max_map_variants_per_name' => env('WEBHOOK_MAX_MAP_VARIANTS_PER_NAME', 3),
+
+    /*
+    |--------------------------------------------------------------------------
     | NAT internal-IP rewrite (ported from ApiController.php-legacy)
     |--------------------------------------------------------------------------
     |

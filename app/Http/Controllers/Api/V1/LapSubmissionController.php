@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\LapSubmissionConflictException;
+use App\Exceptions\TooManyMapVariantsException;
 use App\Helpers\LapSubmissionHash;
 use App\Helpers\LapSubmissionVerifier;
 use App\Helpers\ResolveSubmittingIp;
@@ -159,6 +160,11 @@ class LapSubmissionController extends Controller
             // `submission_id` with different content is detected only after the cache entry for
             // the original submission has expired, been evicted, or the app restarted.
             return [['success' => false, 'reason' => 'idempotency_conflict'], 409];
+        } catch (TooManyMapVariantsException) {
+            // SEC-04 review follow-up — this map name has already accumulated
+            // config('webhook.max_map_variants_per_name') checkpoint-count forks; a further
+            // mismatched submission is rejected rather than creating another one indefinitely.
+            return [['success' => false, 'reason' => 'checkpoint_layout_mismatch'], 422];
         }
 
         return [$body, 200];

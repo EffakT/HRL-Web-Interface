@@ -62,12 +62,17 @@ it('creates the server, player, and map on a first submission, live-querying the
     expect(LapTime::sole()->time)->toEqual(42.5);
 });
 
-it('derives the map label from the alias dictionary plus a race-type suffix', function () {
+it('derives the map label from the alias dictionary plus a race-type suffix, and its own map identity', function () {
     fakeGameServerQuery();
 
     submitLap(['map_name' => 'bloodgulch', 'race_type' => 1])->assertOk();
 
-    expect(Map::sole()->label)->toBe('Bloodgulch - Any Order');
+    $map = Map::sole();
+    // race_type has its own Map identity (2026-07-08 follow-up, docs/decisions.md), not just a
+    // label suffix on the same row as a normal-race lap — see the tests below for the fork
+    // itself.
+    expect($map->name)->toBe('bloodgulch-anyorder');
+    expect($map->label)->toBe('Bloodgulch - Any Order');
 });
 
 it('falls back to a placeholder server name when the live query fails, without dropping the lap', function () {
@@ -523,4 +528,418 @@ it('does not query the game server a second time when HRL verification already f
 
     expect(Server::sole()->name)->toBe('Real Halo Server');
     expect($query->calls)->toBe(1);
+});
+
+// SEC-04 audit follow-up (docs/security.md) — a map's checkpoint layout is learned from the
+// first split-bearing submission and enforced after that; a mismatch forks a new map identity
+// rather than corrupting the original or rejecting the lap. `enforce` explicitly disabled in
+// each test below, independent of whatever the real .env currently has it set to, so these
+// don't need HRL-verification fields just to isolate checkpoint-count behavior.
+function splitsWithCheckpoints(int $count): array
+{
+    return collect(range(1, $count))
+        ->map(fn (int $checkpointId): array => [
+            'checkpoint_id' => $checkpointId,
+            'duration' => 10.0,
+            'startTime' => ($checkpointId - 1) * 10.0,
+            'endTime' => $checkpointId * 10.0,
+        ])
+        ->all();
+}
+
+it('learns a map\'s checkpoint count from its first split-bearing submission', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+
+    expect(Map::sole())
+        ->name->toBe('bloodgulch')
+        ->checkpoint_count->toBe(5);
+});
+
+it('reuses the same map identity when a later submission matches the learned checkpoint count', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['splits' => splitsWithCheckpoints(5), 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(1);
+    expect(LapTime::count())->toBe(2);
+});
+
+it('forks a new map identity when a submission\'s checkpoint count differs from the learned baseline', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['splits' => splitsWithCheckpoints(6), 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(2);
+    $original = Map::where('name', 'bloodgulch')->sole();
+    $variant = Map::where('name', 'bloodgulch-splits-6')->sole();
+
+    expect($original->checkpoint_count)->toBe(5)
+        ->and($variant->checkpoint_count)->toBe(6)
+        ->and($variant->label)->toBe('Bloodgulch (6 CP)');
+
+    // The variant's own lap is recorded against it, not the original.
+    expect(LapTime::where('map_id', $variant->id)->count())->toBe(1);
+    expect(LapTime::where('map_id', $original->id)->count())->toBe(1);
+});
+
+it('never establishes or checks a checkpoint baseline for a splitless submission', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    // Establish a baseline, then submit a splitless lap (the common real-world case) — it must
+    // use the same map, not fork, and must not disturb the learned baseline.
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(1);
+    expect(Map::sole()->checkpoint_count)->toBe(5);
+    expect(LapTime::count())->toBe(2);
+});
+
+it('rejects a submission claiming more checkpoints than the configured protocol-wide ceiling', function () {
+    config(['webhook.hrl_query.enforce' => false, 'webhook.max_checkpoints' => 20]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(21)])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+// SEC-04 audit follow-up, numeric-range portion (docs/security.md) — player_time upper bound,
+// splits.*.duration bound relative to it, and a loose startTime/endTime overflow guard that
+// deliberately doesn't reject the large absolute-clock-like values real submissions actually use.
+it('rejects a player_time beyond the configured ceiling', function () {
+    config(['webhook.hrl_query.enforce' => false, 'webhook.max_lap_time_seconds' => 3600]);
+    fakeGameServerQuery();
+
+    submitLap(['player_time' => 3601])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['player_time']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('accepts a player_time exactly at the configured ceiling', function () {
+    config(['webhook.hrl_query.enforce' => false, 'webhook.max_lap_time_seconds' => 3600]);
+    fakeGameServerQuery();
+
+    submitLap(['player_time' => 3600])->assertOk();
+});
+
+it('rejects a split duration longer than the lap\'s own player_time', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'player_time' => 42.5,
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 50.0, 'startTime' => 0, 'endTime' => 50.0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits.0.duration']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('accepts the large absolute-clock-like startTime/endTime values real submissions actually send', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    // Real data includes exactly this kind of value (up to a literal 999999.99 sentinel) —
+    // these fields aren't reliably lap-relative across Lua script versions in the wild, so they
+    // must stay accepted rather than being rejected by an over-tight bound.
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 10.5, 'startTime' => 993881.17, 'endTime' => 999999.99],
+        ],
+    ])->assertOk();
+});
+
+it('rejects a negative startTime/endTime', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 10.5, 'startTime' => -1, 'endTime' => 10.5],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits.0.startTime']);
+});
+
+it('rejects a startTime/endTime beyond the overflow guard', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 10.5, 'startTime' => 0, 'endTime' => 100000000],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits.0.endTime']);
+});
+
+// SEC-04 review follow-up (docs/security.md) — a second security review of the SEC-04 fix found
+// `splits.*.duration` had no lower bound and `splits.*.checkpoint_id`'s `distinct` rule alone
+// let any N distinct values through as a "valid" N-checkpoint layout (not just the map's real
+// contiguous 1..N sequence), plus a genuine concurrency gap in how a map's checkpoint-count
+// baseline gets established and how variant map identities get created.
+it('rejects a zero or negative split duration', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 0, 'startTime' => 0, 'endTime' => 0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits.0.duration']);
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => -5.0, 'startTime' => 0, 'endTime' => 0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits.0.duration']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('rejects checkpoint IDs that are merely distinct, not the real contiguous 1..N sequence', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 2, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+            ['checkpoint_id' => 4, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits']);
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => -7, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 40, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+            ['checkpoint_id' => 999, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('accepts checkpoint IDs submitted out of order as long as they form a contiguous 1..N set', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 3, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+            ['checkpoint_id' => 1, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 2, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+        ],
+    ])->assertOk();
+
+    expect(Map::sole()->checkpoint_count)->toBe(3);
+});
+
+it('rejects a duplicate map name at the database level', function () {
+    Map::factory()->create(['name' => 'some-map']);
+
+    expect(fn () => Map::factory()->create(['name' => 'some-map']))
+        ->toThrow(UniqueConstraintViolationException::class);
+});
+
+it('classifies a maps.name unique-constraint violation as such, not by elimination', function () {
+    $mapNameViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `maps` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'maps_name_unique'"),
+    );
+    $mapNameViolation->columns = ['name'];
+    $mapNameViolation->index = 'maps_name_unique';
+
+    $job = new ProcessNewLap(ip: '127.0.0.1', port: 2302, data: []);
+    $violatesMapName = (new ReflectionMethod($job, 'violatesMapNameUniqueness'))->getClosure($job);
+    $violatesServerIdentity = (new ReflectionMethod($job, 'violatesServerIdentityUniqueness'))->getClosure($job);
+
+    expect($violatesMapName($mapNameViolation))->toBeTrue();
+    expect($violatesServerIdentity($mapNameViolation))->toBeFalse();
+});
+
+it('rejects a duplicate (hash, name) player pair at the database level, but allows either alone to repeat', function () {
+    Player::factory()->create(['hash' => 'shared-hash', 'name' => 'Alice']);
+
+    // The real identity key is (hash, name) together — the game client no longer manufactures
+    // one distinct hash per player, so unrelated players legitimately share a hash (confirmed
+    // with the user, see docs/security.md). Same hash, different name: allowed.
+    Player::factory()->create(['hash' => 'shared-hash', 'name' => 'Bob']);
+    // Same name, different hash (the pre-existing "TAIIDOSH" scenario, docs/database.md): allowed.
+    Player::factory()->create(['hash' => 'other-hash', 'name' => 'Alice']);
+
+    expect(fn () => Player::factory()->create(['hash' => 'shared-hash', 'name' => 'Alice']))
+        ->toThrow(UniqueConstraintViolationException::class);
+});
+
+it('classifies a players (hash, name) unique-constraint violation as such, not by elimination', function () {
+    $playerIdentityViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `players` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'players_hash_name_unique'"),
+    );
+    $playerIdentityViolation->columns = ['hash', 'name'];
+    $playerIdentityViolation->index = 'players_hash_name_unique';
+
+    $job = new ProcessNewLap(ip: '127.0.0.1', port: 2302, data: []);
+    $violatesPlayerIdentity = (new ReflectionMethod($job, 'violatesPlayerIdentityUniqueness'))->getClosure($job);
+    $violatesServerIdentity = (new ReflectionMethod($job, 'violatesServerIdentityUniqueness'))->getClosure($job);
+    $violatesMapName = (new ReflectionMethod($job, 'violatesMapNameUniqueness'))->getClosure($job);
+
+    expect($violatesPlayerIdentity($playerIdentityViolation))->toBeTrue();
+    expect($violatesServerIdentity($playerIdentityViolation))->toBeFalse();
+    expect($violatesMapName($playerIdentityViolation))->toBeFalse();
+
+    // A partial/unrelated column set that merely contains 'hash' must not false-match — exact
+    // column-set equality only, same precision fix as violatesMapNameUniqueness()'s 'name' check.
+    $unrelatedHashViolation = new UniqueConstraintViolationException(
+        'mysql', 'insert into `something_else` ...', [],
+        new PDOException("SQLSTATE[23000]: ... 'something_else_unique'"),
+    );
+    $unrelatedHashViolation->columns = ['hash'];
+    $unrelatedHashViolation->index = 'something_else_unique';
+
+    expect($violatesPlayerIdentity($unrelatedHashViolation))->toBeFalse();
+});
+
+it('only lets one request establish a map\'s checkpoint-count baseline (CAS proof)', function () {
+    // The real concurrent-request race (two simultaneous first-split submissions for the same
+    // brand-new map both reading checkpoint_count as null before either writes) isn't
+    // reproducible in a single-threaded test — but the conditional UPDATE ProcessNewLap::
+    // resolveMap() relies on to prevent it is: only the FIRST such UPDATE against a still-null
+    // row can ever succeed, so a "losing" request always observes the winner's value instead of
+    // silently overwriting it.
+    $map = Map::factory()->create(['checkpoint_count' => null]);
+
+    $firstWon = Map::where('id', $map->id)->whereNull('checkpoint_count')->update(['checkpoint_count' => 5]);
+    $secondWon = Map::where('id', $map->id)->whereNull('checkpoint_count')->update(['checkpoint_count' => 6]);
+
+    expect($firstWon)->toBe(1)
+        ->and($secondWon)->toBe(0)
+        ->and($map->fresh()->checkpoint_count)->toBe(5);
+});
+
+it('rejects a further checkpoint-count fork once a map has hit its variant cap', function () {
+    config(['webhook.hrl_query.enforce' => false, 'webhook.max_map_variants_per_name' => 1]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['splits' => splitsWithCheckpoints(6), 'player_time' => 40])->assertOk();
+
+    submitLap(['splits' => splitsWithCheckpoints(7), 'player_time' => 40])
+        ->assertStatus(422)
+        ->assertJson(['success' => false, 'reason' => 'checkpoint_layout_mismatch']);
+
+    expect(Map::count())->toBe(2);
+    expect(LapTime::count())->toBe(2);
+});
+
+it('reuses an already-forked variant without counting it against the per-map cap again', function () {
+    config(['webhook.hrl_query.enforce' => false, 'webhook.max_map_variants_per_name' => 1]);
+    fakeGameServerQuery();
+
+    submitLap(['splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['splits' => splitsWithCheckpoints(6), 'player_time' => 40])->assertOk();
+    submitLap(['splits' => splitsWithCheckpoints(6), 'player_time' => 41])->assertOk();
+
+    expect(Map::count())->toBe(2);
+    expect(LapTime::count())->toBe(3);
+});
+
+// race_type identity (2026-07-08 follow-up, docs/decisions.md) — a checkpoint-count mismatch
+// forks into its own Map row; race_type now does too, instead of only changing the display
+// label on one shared row. Real historical laps can never be retroactively attributed to a
+// race_type (never persisted per-lap, see docs/roadmap.md), so index 0 (normal races) keeps the
+// exact same `name` real historical data already has — only race_type 1/2 create a new row.
+it('forks a distinct map identity for an Any Order submission, leaving the normal-race map untouched', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['race_type' => 0])->assertOk();
+    submitLap(['race_type' => 1, 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(2);
+    $normal = Map::where('name', 'bloodgulch')->sole();
+    $anyOrder = Map::where('name', 'bloodgulch-anyorder')->sole();
+
+    expect($normal->label)->toBe('Bloodgulch')
+        ->and($anyOrder->label)->toBe('Bloodgulch - Any Order');
+
+    expect(LapTime::where('map_id', $normal->id)->count())->toBe(1);
+    expect(LapTime::where('map_id', $anyOrder->id)->count())->toBe(1);
+});
+
+it('forks a distinct map identity for a Rally submission', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['race_type' => 2])->assertOk();
+
+    $map = Map::sole();
+    expect($map->name)->toBe('bloodgulch-rally');
+    expect($map->label)->toBe('Bloodgulch - Rally');
+});
+
+it('reuses the same race-type map identity across repeated submissions of that race_type', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['race_type' => 1])->assertOk();
+    submitLap(['race_type' => 1, 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(1);
+    expect(LapTime::count())->toBe(2);
+});
+
+it('learns a separate checkpoint-count baseline per race-type map identity', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['race_type' => 0, 'splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['race_type' => 1, 'splits' => splitsWithCheckpoints(6), 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(2);
+    expect(Map::where('name', 'bloodgulch')->sole()->checkpoint_count)->toBe(5);
+    expect(Map::where('name', 'bloodgulch-anyorder')->sole()->checkpoint_count)->toBe(6);
+});
+
+it('composes a checkpoint-count fork on top of a race-type identity without colliding names', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap(['race_type' => 1, 'splits' => splitsWithCheckpoints(5)])->assertOk();
+    submitLap(['race_type' => 1, 'splits' => splitsWithCheckpoints(6), 'player_time' => 40])->assertOk();
+
+    expect(Map::count())->toBe(2);
+    $baseline = Map::where('name', 'bloodgulch-anyorder')->sole();
+    $variant = Map::where('name', 'bloodgulch-anyorder-splits-6')->sole();
+
+    expect($baseline->checkpoint_count)->toBe(5)
+        ->and($variant->checkpoint_count)->toBe(6)
+        ->and($variant->label)->toBe('Bloodgulch - Any Order (6 CP)');
 });

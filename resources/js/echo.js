@@ -6,7 +6,6 @@ import Pusher from 'pusher-js';
 // Every channel this app broadcasts on is public (Channel, not PrivateChannel) since the whole
 // site is already a fully public leaderboard — no auth callback needed.
 window.Pusher = Pusher;
-
 window.Echo = new Echo({
     broadcaster: 'reverb',
     key: import.meta.env.VITE_REVERB_APP_KEY,

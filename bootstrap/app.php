@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\RedirectIfNotSecure;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -51,6 +52,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // Reconsider once the legacy API moves to its own hostname or its clients can do TLS.
         $middleware->web(prepend: [
             RedirectIfNotSecure::class,
+        ], append: [
+            AddSecurityHeaders::class,
+        ]);
+
+        // SEC-05: also on `api`, not just `web` — every header AddSecurityHeaders sets is a
+        // no-op for a JSON response (CSP/frame-ancestors only affect how a browser renders a
+        // *document*), so there's no reason to exempt the read-only API from them.
+        $middleware->api(append: [
+            AddSecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

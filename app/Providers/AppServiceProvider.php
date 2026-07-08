@@ -20,6 +20,17 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(GameServerQuery::class, QueryServer::class);
+
+        // SEC-05 audit follow-up (docs/security.md) — enables Livewire's own official CSP-safe
+        // bundle (`livewire.csp.min.js`, ships in the package already, no dependency swap
+        // needed), which uses a restricted Alpine build that doesn't need `unsafe-eval` to
+        // compile x-data/x-show/x-on directive expressions. A `Content-Security-Policy-Report-
+        // Only` scan of the real live homepage (headless Chrome) surfaced exactly one violation
+        // type — 'unsafe-eval' required by script-src — traced to Alpine's default eval-based
+        // expression evaluator; this is Livewire's own first-party fix for that, not a custom
+        // Alpine package swap. Overridden here (config key, not a published config file) since
+        // this app doesn't otherwise need its own copy of Livewire's full config.
+        config(['livewire.csp_safe' => true]);
     }
 
     /**

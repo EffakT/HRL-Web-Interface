@@ -25,7 +25,9 @@ Every active (non-archived) server with real, derived stats — `id`, `name`, `t
 
 The **global** leaderboard for one map — every player's single best lap across all active servers, ranked, same tie-break as every other real leaderboard in this app (earliest lap wins a tie). Pass `?server={serverId}` for that server's **nested** leaderboard instead (see [architecture.md](architecture.md)'s global-vs-nested split) — resolves this doc's earlier open question in favor of a query parameter over a second endpoint, since it's the exact same underlying calculation just scoped differently.
 
-Each entry: `rank`, `lap_id`, `player` (`id`, `name`), `server` (`id`, `name`), `time` (raw seconds), `time_formatted`, `gap` (seconds behind rank 1, `0` for rank 1 itself), `set_at` (ISO 8601). No pagination in v1 — real scale per map is at most a few hundred players; revisit if that changes.
+Each entry: `rank`, `lap_id`, `player` (`id`, `name`), `server` (`id`, `name`), `time` (raw seconds), `time_formatted`, `gap` (seconds behind rank 1, `0` for rank 1 itself), `set_at` (ISO 8601).
+
+**Paginated** (PERF-03 audit follow-up, 2026-07-08) — `?page={n}` and `?per_page={n}` (default 50, capped at 100 regardless of what's requested). Standard Laravel resource-collection pagination envelope: `data` (this page's entries) plus `links`/`meta` (`current_page`, `last_page`, `per_page`, `total`, etc.). This only bounds response size, not the underlying computation — `GlobalRanking::mapLeaderboard()` still ranks every qualifying lap for the map before this slices out the requested page (same in-memory `LengthAwarePaginator` approach the equivalent Livewire leaderboards already use via `HasRankedLeaderboardPagination`); see [performance.md](performance.md) for when the computation itself, not just the response, would need to change.
 
 Backed by a new `App\Models\GlobalRanking::mapLeaderboard()` calculator method — the third occurrence of "rank every player's best lap on one map" (after `MapLeaderboard` and `ServerMapLeaderboard`'s own inline, UI-formatted versions), so per [coding-standards.md](coding-standards.md)'s "extract on the second genuine duplicate" rule, this gives the API its own canonical, tested, raw-data source rather than a fourth ad-hoc copy.
 
@@ -64,6 +66,8 @@ The webhook (`POST /laps`): its own, more generous, **tiered** `webhook` limiter
 ## Versioning
 
 `/api/v1/...` from day one, per Laravel Boost's default guidance (Eloquent API Resources + API versioning) — cheap to do upfront, expensive to retrofit once real consumers exist.
+
+Adding pagination to `GET /maps/{map}/leaderboard` (above) technically changed its response shape (a flat array under `data` gained `links`/`meta` siblings) while still under `v1` rather than bumping to `v2` — accepted deliberately: no real external consumers of this endpoint are known to exist yet (it's brand new, staging-only), and `data` itself is unchanged for any client that was only reading that key.
 
 ## Resolved open questions
 

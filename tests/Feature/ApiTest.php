@@ -96,6 +96,54 @@ it('returns 404 for a map that does not exist', function () {
     $this->getJson('/api/v1/maps/999999/leaderboard')->assertNotFound();
 });
 
+it('paginates the map leaderboard (PERF-03 audit follow-up)', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+
+    foreach (range(1, 5) as $i) {
+        LapTime::factory()->create([
+            'map_id' => $map->id,
+            'server_id' => $server->id,
+            'player_id' => Player::factory()->create()->id,
+            'time' => 50 + $i,
+        ]);
+    }
+
+    $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?per_page=2")->assertOk();
+
+    expect($response->json('data'))->toHaveCount(2)
+        ->and($response->json('meta.total'))->toBe(5)
+        ->and($response->json('meta.last_page'))->toBe(3)
+        ->and($response->json('data.0.rank'))->toBe(1);
+
+    $this->getJson("/api/v1/maps/{$map->id}/leaderboard?per_page=2&page=2")
+        ->assertOk()
+        ->assertJsonPath('data.0.rank', 3);
+});
+
+it('caps per_page at a sane maximum so a huge value cannot force one giant response', function () {
+    $map = Map::factory()->create();
+    Server::factory()->create();
+
+    $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?per_page=999999")->assertOk();
+
+    expect($response->json('meta.per_page'))->toBe(100);
+});
+
+it('clamps an out-of-range page instead of overflowing the slice offset into a 500', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+
+    // Large enough that (page - 1) * per_page overflows PHP's int range and becomes a float —
+    // array_slice() rejects a float offset with a TypeError, previously a real 500.
+    $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?page=999999999999999999999")
+        ->assertOk();
+
+    expect($response->json('meta.current_page'))->toBe(1)
+        ->and($response->json('data'))->toHaveCount(1);
+});
+
 it('shows a single real lap\'s detail, including splits', function () {
     $map = Map::factory()->create(['label' => 'Test Map']);
     $server = Server::factory()->create(['name' => 'Test Server']);

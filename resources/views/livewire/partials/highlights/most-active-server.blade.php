@@ -15,7 +15,6 @@
                     <span class="text-lg font-bold {{ $rankColor }}">{{ $server['rank'] }}</span>
                     <div>
                         <div class="text-sm font-semibold text-hud-text-bright">{{ $server['name'] }}</div>
-                        <div class="mt-0.5 font-mono text-[9px] text-hud-text-faint">{{ $server['ip'] }}:{{ $server['port'] }}</div>
                         <div class="mt-0.5 font-mono text-[9px] text-hud-text-dim">{{ strtoupper($server['lastActive']) }}</div>
                     </div>
                 </div>

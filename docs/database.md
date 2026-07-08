@@ -25,8 +25,31 @@ servers
   --    only; the app never reads or writes it directly.
 
 maps
-  id, name, label, timestamps
-  -- no sector_count column; splits are keyed by checkpoint_id on lap_time_splits instead
+  id, name, label, checkpoint_count, timestamps
+  -- race_type gets its own identity (added 2026-07-08, reversing the earlier "label-only"
+  --    design — see decisions.md) — App\Jobs\ProcessNewLap::raceTypeMapName() suffixes `name`
+  --    with `-anyorder`/`-rally` for race_type 1/2 (race_type 0, the overwhelming majority of
+  --    real traffic, is a no-op suffix — existing real rows are untouched, no migration needed).
+  --    Composes with the checkpoint-count fork below (e.g. `bloodgulch-anyorder-splits-6`).
+  --    Real historical laps can never be retroactively attributed to a race_type — it was never
+  --    persisted per-lap, only folded into a label string and a one-way hash — so pre-2026-07-08
+  --    laps stay under the plain (race_type-0) row regardless of which race_type they actually
+  --    were run as.
+  -- unique(name), added 2026-07-08 (SEC-04 review follow-up, see security.md) — backs
+  --    App\Jobs\ProcessNewLap::resolveMap()'s firstOrCreate() calls (base map and
+  --    {name}-splits-{count} variants) against a concurrent duplicate. Adding it required a
+  --    one-time data fix first: the real DB had one pre-existing duplicate name ("bloodgulch",
+  --    ids 1 and 10) from ProcessNewLap.php-legacy's old race-type-suffixed label handling — id
+  --    10 was dead (0 lap_times) and got merged/deleted by the add_unique_index_to_maps_name
+  --    migration's predecessor.
+  -- checkpoint_count (added 2026-07-08, SEC-04 audit follow-up, see security.md) — learned from
+  --    a map's first split-bearing submission and enforced after that by
+  --    App\Jobs\ProcessNewLap::resolveMap(), which establishes it via a concurrency-safe
+  --    conditional UPDATE (SEC-04 review follow-up), not a plain read-then-write. Backfilled for
+  --    all 9 real maps (2026-07-08) from their own historical lap_time_splits rather than left
+  --    null until each map's next split-bearing submission — still null only for a map that has
+  --    never had a single split-bearing lap. Splits themselves are still keyed by checkpoint_id
+  --    on lap_time_splits, not stored here.
 
 players
   id, name, hash, user_id (nullable FK to users), timestamps

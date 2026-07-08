@@ -9,11 +9,11 @@
 
 **Overall status: not production-ready.**
 
-The application logic has a strong automated baseline. The latest in-progress-worktree run passed **144 Pest tests / 361 assertions** when webhook enforcement was explicitly disabled for the test process. Without that override, the suite still inherits staging enforcement and older webhook fixtures fail. PHPStan, Pint, and `git diff --check` pass on the current in-progress worktree.
+The application logic has a strong automated baseline. The latest in-progress-worktree run passed **181 Pest tests / 506 assertions** when webhook enforcement was explicitly disabled for the test process. Without that override, the suite still inherits staging enforcement and older webhook fixtures fail. PHPStan (debug/single-process mode), Pint, the production Vite build, and `git diff --check` pass on the current in-progress worktree.
 
 The largest risks are outside those passing checks:
 
-1. Core security headers, durable asset caching, CI enforcement, browser tests, and several abuse-case tests are absent.
+1. Remaining production risks include unverified Any Order/Rally split compatibility, report-only rather than enforced CSP, the accepted FastPanel database-privilege limitation, durable asset caching, CI enforcement, and browser tests.
 
 ## Prioritised findings
 
@@ -23,16 +23,17 @@ The largest risks are outside those passing checks:
 | SEC-02 | Mitigated | Web routes redirect safely to HTTPS; plaintext API remains available; HSTS is deliberately deferred |
 | SEC-03 | Resolved | Runtime changed to `staging`, debug off, with the correct HTTPS URL |
 | REL-01 | Resolved | Client rebuilt with the real public wss hostname, Reverb running, WebSocket proxy added in Nginx Proxy Manager — verified with a real `101 Switching Protocols` |
-| PERF-01 | Mitigated | Cached homepage averages ~48ms live TTFB and one warm query; cold rebuild concurrency still needs hardening |
-| SEC-04 | High | Webhook payload permits unbounded split rows and weak numeric bounds |
-| SEC-05 | Medium | Security headers are largely absent |
-| SEC-06 | Medium | Reverb allows every origin and has connection rate limiting disabled |
-| SEC-07 | Medium | Local secret-file permissions and DB privileges exceed least privilege |
-| PERF-02 | Medium | Important lookup and aggregate indexes are missing |
-| PERF-03 | Medium | Players and leaderboard endpoints compute/load complete result sets |
-| PERF-04 | Medium | Hashed assets lack explicit long-lived immutable caching |
+| PERF-01 | Resolved | Final Home payload is cached; generation keys and a distributed lock address invalidation races and stampedes; live cache-hit TTFB remains ~40–60ms |
+| SEC-04 | Mitigated; compatibility check open | Positive durations, bounded splits, contiguous-ID sets, authoritative backfill, atomic baselines, and unique map names are deployed; real Any Order/Rally payloads still need validation against Lua's ordered-ID normalizer |
+| SEC-05 | Mitigated | Core response headers are live and normal web/API responses suppress PHP; the Livewire asset route still discloses PHP/8.4.12, while CSP remains report-only |
+| SEC-06 | Resolved live; commit pending | Reverb now restricts browser origins, caps global connections at 500, limits messages to 60/minute per connection, and terminates offenders; live Pusher-layer checks pass |
+| SEC-07 | Partially mitigated; DB risk accepted | `.env` is now owner-only; the runtime DB account retains database-wide privileges because FastPanel makes separate migration/runtime users impractical |
+| DATA-01 | Resolved live; commit pending | User confirmed `(hash, name)` is the intended identity; lookup and deployed composite uniqueness now match it without merging legitimate shared-hash players |
+| PERF-02 | Resolved live; commit pending | Evidence-backed indexes and all server/map/player identity constraints are deployed and selected by MySQL; unused speculative indexes were correctly omitted |
+| PERF-03 | Resolved live; commit pending | Map API responses are bounded and paginated, extreme pages are safely clamped, and measured thresholds define when full-set ranking must be redesigned |
+| PERF-04 | Resolved | Fingerprinted assets receive one-year public immutable caching without caching HTML/API; Laravel config, routes, events, and views are cached |
 | TEST-01 | Medium | Security, rate-limit, browser, WebSocket, and production-path test gaps |
-| OPS-01 | Medium | Queue/Reverb/scheduler process management is not defined for this deployment |
+| OPS-01 | Resolved | Reverb, eight queue workers, and the scheduler are Supervisor-managed with active logs and automatic restart |
 | A11Y-01 | Medium | Interactive podium cards and modals have keyboard/focus deficiencies |
 | SEO-01 | Low | Minimal metadata and no sitemap/canonical/social metadata |
 | QUAL-01 | Low | Rector dry-run and documentation are not at a clean current baseline |
@@ -44,7 +45,17 @@ The largest risks are outside those passing checks:
 | SEC-01 | **Mitigated, verified** | Effective runtime has HRL verification and enforcement enabled with a one-second UDP timeout. A fresh invalid HTTP lap returned `403 missing_hrl_marker`; its unique submission ID was absent from `lap_times`. The durable submission unique index and `submission_hash` column remain deployed. The development server's HRL query fields and one real Lua delivery were confirmed previously. This remains a mitigation rather than cryptographic authentication, and updated Lua must be deployed at production cutover. |
 | SEC-02 | **Mitigated, verified** | Fresh live HTTP web routes return `301` to the fixed HRL HTTPS hostname while preserving paths/query strings; HTTP `/api/v1/servers` remains `200`. Forged forwarded host/port no longer changes the target, forged source IP/proto remains blocked by the edge, secure cookies are enabled, and HTTPS no longer emits HSTS. The API's intentional plaintext transport remains an accepted compatibility limitation. |
 | SEC-03 | **Resolved, verified** | Effective runtime reports `staging`, debug off, HTTPS application URL, secure cookies, and a public 404 contains no stack trace/debug output. |
-| REL-01 | **Resolved, verified for the original defect** | The exact JS asset served by the homepage contains `redesign.hrl.effakt.info` and no `localhost`/`8081`; a fresh public WebSocket upgrade returned `101 Switching Protocols`. Reverb/queue/scheduler service durability remains separately open as OPS-01. |
+| REL-01 | **Resolved, verified for the original defect** | The exact JS asset served by the homepage contains the public hostname and no loopback endpoint; public WSS and Origin enforcement pass. Supervisor durability is now separately resolved under OPS-01. |
+| PERF-01 | **Resolved, verified** | Commit `bb3355b` adds final-payload caching, generation-based invalidation, and a distributed rebuild lock. Warm tests and stale-generation coverage pass; a fresh live request returned 62ms TTFB. |
+| SEC-04 | **Mitigated; compatibility check open** | Positive durations and sorted contiguous-ID validation are implemented; baseline assignment uses compare-and-set; map names are unique; all nine historical layouts are backfilled and all 72 split-bearing laps validate as `1..N`. A real Any Order/Rally submission remains necessary because Lua's raw-ID normalization assumes the ordered cumulative `1,3,7,15...` pattern. |
+| SEC-05 | **Mitigated, verified with one disclosure exception** | Core hardening headers are present on fresh web and plaintext API responses and those responses omit `X-Powered-By`. The Livewire JavaScript route still emits `X-Powered-By: PHP/8.4.12`. CSP is report-only and has no reporting endpoint, so enforcement remains open. |
+| SEC-06 | **Resolved in the active deployment; commit pending** | Effective config is exact-origin/500 connections/60 messages per minute with termination. Independent live checks received `connection_established` for the real Origin and Pusher error `4009` for `evil.example`; the new config test and full suite pass. |
+| SEC-07 | **Partially mitigated; residual risk accepted** | `.env` is now `0600`, owned by the application account, and the staging app boots normally. MySQL still grants the runtime account `ALL PRIVILEGES` on only its application database; privilege reduction is explicitly deferred because FastPanel makes separate admin/migration and runtime users difficult to maintain. |
+| DATA-01 | **Resolved live; commit pending** | User confirmed `(hash,name)` is the real identity. The deployed composite unique index has zero historical collisions; `firstOrCreate()` and exact-set retry classification use the same pair; shared hashes and shared names independently remain allowed. |
+| PERF-02 | **Resolved live; commit pending** | Deployed indexes on `lap_times(server_id,map_id,player_id,time)`, `lap_times(server_id,created_at)`, and unique `players(hash,name)` are selected by real MySQL plans. The composite index also serves hash-prefix lookup. |
+| PERF-03 | **Resolved live; commit pending** | Live API pagination returns standard `data`/`links`/`meta`, defaults to 50 and caps at 100. Extreme pages are clamped before offset multiplication and return 200; independent timings reproduce ~197ms global and ~23ms largest-map calculations, with concrete revisit thresholds documented. |
+| PERF-04 | **Resolved, verified live/runtime** | Fingerprinted JS/CSS/font responses advertise `Cache-Control: public, max-age=31536000, immutable`; HTML remains private/no-store and the plaintext API remains no-cache. `php artisan about --only=cache` reports config, events, routes, and views all cached. |
+| OPS-01 | **Resolved, verified** | Supervisor definitions exist for Reverb, eight queue workers, and `schedule:work`; fresh logs show minute-by-minute server refreshes and broadcast jobs completing. Public WSS remains reachable. |
 | Lua debug/rotation/unload findings | **Resolved by static verification** | Candidate Lua has `debug = 0`, stores and compares rotation time with `os.time()`, and deletes all four HRL query fields in `OnScriptUnload()`. Real unload/rotation boundary behavior should still be included in the production smoke test. |
 | NAT/loopback regression | **Resolved in code** | `ResolveSubmittingIp.php` is now tracked in commit `9d1bb4a`; both rate-limiter middleware and the controller use it before identity-sensitive work. |
 
@@ -307,41 +318,85 @@ The immediate disclosure/base-URL risk is resolved. Keep these values deployment
 
 **Revalidation (2026-07-08): resolved.** Effective values remain `staging`, `APP_DEBUG=false`, `APP_URL=https://redesign.hrl.effakt.info`, and secure session cookies enabled. A fresh nonexistent public route returned a generic HTTP 404 with no exception or stack trace.
 
-### SEC-04 — Webhook resource-exhaustion inputs (High)
+### SEC-04 — Webhook resource-exhaustion inputs (mitigated; compatibility check open)
 
-Validation confirms that `splits` is an array but sets no maximum array length. A valid request may therefore insert a large number of child rows in one transaction. `player_time` has no upper bound; split checkpoint IDs, durations, start times, and end times lack realistic ranges and duration positivity checks.
+**Revalidation (2026-07-08): the identified security/integrity defects are mitigated.** Validation now caps a payload at 20 splits, bounds lap time to `(0, 3600]`, requires each split duration to be positive and no longer than the lap, bounds legacy timestamps, rejects duplicate IDs, and validates the sorted checkpoint-ID set as exactly `1..N`. Sorting before comparison correctly permits a payload such as `[3,1,2]`; JSON order is not treated as race order.
 
-Combined with the unauthenticated endpoint, this creates a practical database/storage/CPU abuse path even below the request-rate limit.
+Baseline and identity hardening are also deployed:
 
-**Recommendation:** cap body size at the proxy and app, cap split count to the protocol maximum, enforce sane numeric ranges, require unique/ordered checkpoint IDs, and apply a daily/server quota.
+- first-baseline assignment is a conditional `UPDATE ... WHERE checkpoint_count IS NULL`, so only one concurrent writer wins;
+- `maps.name` has a real unique index and the job retries a map-creation race;
+- the prior duplicate `bloodgulch` row was safely merged;
+- all nine deployed maps were backfilled from historical splits (counts 4–14), with no duplicate names remaining;
+- all 72 deployed split-bearing laps independently checked as complete contiguous `1..N` sets;
+- checkpoint-count variants are capped, and race types now receive separate map identities.
 
-### SEC-05 — Missing response hardening headers (Medium)
+The current worktree passes **181 tests / 506 assertions**, including zero/negative durations, gapped/arbitrary IDs, out-of-order valid IDs, database uniqueness, compare-and-set behavior, variant limits, separate Any Order/Rally map identities, Reverb policy, deployed-index structure, and API pagination. PHPStan (single-process/debug mode), Pint, the production build, and `git diff --check` also pass.
 
-Observed responses lacked:
+**Do not mark the gameplay compatibility aspect fully closed until one real Any Order and one Rally lap are submitted.** The backend accepts an out-of-order *permutation* of `1..N`, which is correct. However, `hrl.lua::NormalizeCheckpointId()` converts Halo's raw ordered cumulative pattern `(0,1,3,7,15,...)` to sequential IDs using integer `log2(raw+1)`. That assumption is valid for ordered progression, but an Any Order completion bitmask may not follow the cumulative pattern and can therefore normalize two different states to the same ID or skip an ID. The backend would then correctly reject the resulting duplicate/gapped split set with 422, potentially dropping an otherwise valid lap. Existing automated tests manufacture `[3,1,2]`; they do not exercise the Lua/game-memory producer.
 
-- Content Security Policy;
-- `X-Content-Type-Options: nosniff`;
-- clickjacking protection (`frame-ancestors` or `X-Frame-Options`);
-- `Referrer-Policy`;
-- `Permissions-Policy`.
+Closure test: complete real laps in race types 1 and 2 and inspect the printed JSON plus HTTP result. The split IDs may be in any order, but after sorting they must equal `1..N`, and the API must return 200. If Lua emits duplicates/gaps, fix checkpoint extraction for that mode or temporarily apply the strict sequence rule only to race type 0; do not weaken positivity, count ceilings, or distinctness globally.
 
-HSTS is deliberately absent under SEC-02's same-host plaintext API compatibility decision; it is therefore not counted as an accidental missing hardening header here.
+Low-severity namespace hardening remains advisable: suffix-derived names can collide with a legitimate raw map already ending in `-anyorder`, `-rally`, or `-splits-N`; a 255-character raw name becomes too long after suffixing; the variant-count `LIKE` pattern does not escape `%`/`_`; and concurrent creation of different-count variants can exceed the configured cap even though the absolute 20-checkpoint ceiling still bounds the outcome. Prefer explicit `base_name`, `race_type`, and layout columns with a composite unique key long-term, or at minimum constrain/escape raw names and make the cap check transactional.
 
-The server exposes PHP's exact version through `X-Powered-By`; the front-end server token has appeared as both exact nginx and generic OpenResty across audit probes.
+### SEC-05 — Response hardening headers (mitigated; Medium residual)
 
-**Recommendation:** define a tested CSP compatible with Livewire/Alpine/Reverb, add the remaining headers at OpenResty or middleware level, and suppress unnecessary version disclosure.
+**Revalidation (2026-07-08): mitigated, not fully resolved.** Fresh HTTPS web and plaintext HTTP API responses now include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy`, and a same-origin CSP covering the WSS endpoint. `X-Powered-By` is absent. Four focused feature tests pass, and Livewire uses its CSP-safe bundle. HSTS remains deliberately absent under SEC-02's same-host plaintext API compatibility decision and is not counted against this finding.
+
+The CSP is currently `Content-Security-Policy-Report-Only`, so it does not block violations. It also has no `report-uri`/`report-to` destination; violations are visible only in an observer's browser console, which does not provide real-traffic telemetry. Keep SEC-05 mitigated until representative interactive/browser coverage is clean and the policy is enforced. If a report-only observation period is required, add a CSP report collector first; otherwise the period cannot reveal violations from ordinary users.
+
+**Version-disclosure correction (2026-07-08):** the suppression is not universal. Normal HTML and API responses omit `X-Powered-By`, but a fresh request to the versioned Livewire JavaScript URL returned `X-Powered-By: PHP/8.4.12`. That route bypasses or precedes the application's normal security-header middleware. Suppress `expose_php` at PHP-FPM/FastPanel level or strip this header at NPM for all responses; middleware-only removal cannot close the route-level exception.
 
 ### SEC-06 — Open Reverb origin/resource policy (Medium)
 
 Reverb is configured with `allowed_origins => ['*']`, no connection limit, and application rate limiting disabled. Public channels are reasonable for public leaderboard data, but unrestricted origins allow any site to consume connections and broadcast traffic at the server's expense.
 
-**Recommendation:** allow only intended web origins and enable conservative connection/message limits.
+**Revalidation (2026-07-08): resolved in the active deployment.** Effective configuration now reports:
 
-### SEC-07 — Least privilege (Medium)
+- `allowed_origins: ['redesign.hrl.effakt.info']`;
+- `max_connections: 500` globally;
+- message rate limiting enabled at 60 attempts per 60 seconds, per connection;
+- `terminate_on_limit: true`;
+- 10,000-byte message/request caps retained;
+- client events accepted from `members` only.
 
-- `.env` is mode `0644`; every local account that can traverse the known project path can read it. Use `0600` or the minimum required group-readable mode.
-- The application DB account has `ALL PRIVILEGES` on the application database. Runtime generally needs data CRUD, not schema alteration or grant-level capabilities.
-- Positive check: `.env`, `.git/config`, `composer.json`, and logs were not publicly retrievable through the deployed web root.
+The supervisor-managed Reverb process was restarted. Independent live Pusher-protocol checks—not merely an HTTP upgrade—confirmed that the real `https://redesign.hrl.effakt.info` Origin receives `pusher:connection_established`, while `https://evil.example` receives Pusher error `4009` (`Origin not allowed`) after the WebSocket upgrade. The documented live rate test sent 61 messages on one connection: 60 were accepted and the 61st was rejected/terminated. The 500-connection ceiling was confirmed loaded but was deliberately not exhausted in a live load test.
+
+The new focused configuration test passes, and the complete current suite passes at **181 tests / 506 assertions** alongside PHPStan (single-process/debug mode), Pint, the production build, and `git diff --check`. Installed Reverb v1.10.2 matches allowed origins against the parsed hostname, so the scheme-free configured value is correct.
+
+Residual limitations are accepted defence-in-depth items rather than blockers for this finding: Origin is a browser policy, not authentication; the message limiter keys by connection ID; and the 500 ceiling is global rather than per-IP. An edge per-IP WebSocket connection limit in Nginx Proxy Manager would further reduce one-source exhaustion, but the user has kept that infrastructure change out of scope. Monitor real connection counts before tuning the provisional 500 ceiling.
+
+**Release hygiene:** `config/reverb.php` is modified and `tests/Feature/ReverbConfigTest.php` is still untracked. Commit both before a tracked-files-only deployment; otherwise the active fix can be lost. Add the optional `REVERB_APP_ALLOWED_ORIGIN`, `REVERB_APP_MAX_CONNECTIONS`, and rate-limit overrides to `.env.example` if operators are expected to tune them rather than use the secure defaults.
+
+### SEC-07 — Least privilege (partially mitigated; database risk accepted)
+
+**Revalidation (2026-07-08): the secret-file issue is resolved.** `.env` is now mode `0600` and owned by the application account, rather than its previous locally world-readable `0644`. Laravel still boots in staging with debug disabled, and the full suite remains green after the permission change. `.env`, `.git/config`, `composer.json`, and logs also remain unavailable through the deployed web root.
+
+The effective MySQL grants remain:
+
+- global scope: `USAGE` only;
+- application database: `ALL PRIVILEGES` on `redesign_hrl.*`;
+- no `GRANT OPTION`.
+
+The application therefore cannot reduce its own grant. A strict design would use a CRUD-only runtime account and retain the current broader account solely for migrations, but the user has explicitly decided not to pursue that because FastPanel makes separate runtime/migration credentials and privilege management difficult. Record this as an **accepted residual risk**, not an outstanding remediation item. The exposure is limited to this application's database rather than all databases, but a successful application compromise could still alter/drop its schema or data. Revisit only if FastPanel's account management improves or the deployment moves to independently managed database credentials.
+
+### DATA-01 — Shared player-hash identity (Resolved)
+
+The initial audit correctly rejected a plain `UNIQUE(players.hash)` constraint: 820 player rows contain only 246 distinct hashes, with up to 137 distinct names sharing one value and every repeated-hash group carrying real history. The user then supplied the missing protocol fact: the client no longer guarantees one hash per player, and **`(hash, name)` together is the intended identity key**.
+
+Revalidation confirms the fix is consistent end-to-end:
+
+- the deployed database had zero duplicate `(hash,name)` pairs before migration;
+- batch 22 deploys `UNIQUE(hash,name)` without merging any history;
+- `Player::firstOrCreate()` now matches on the same two fields;
+- identical hashes with different names remain allowed, as do identical names with different hashes;
+- a concurrent insert collision is explicitly classified and retried;
+- the map-name classifier was tightened to avoid confusing SQLite's `(hash,name)` violation with `maps.name` merely because both contain a `name` column;
+- focused tests cover constraint semantics and classifier separation.
+
+The unique index is ordered `(hash,name)`, so it replaces the redundant plain hash index while retaining a `ref` plan for hash-prefix lookup; a full identity lookup is a one-row `const` plan. DATA-01 is resolved under the user-confirmed identity model. Future changes to whether renames should preserve identity would be a product-model decision, not a defect in this implementation.
+
+**Classifier hardening closed (2026-07-08):** `violatesPlayerIdentityUniqueness()` now sorts a local copy of the exception column list and requires the exact `['hash','name']` set, while retaining the real MySQL index-name fallback. A constructed unrelated hash-only violation is explicitly tested and returns false, so a future constraint merely containing `hash` cannot be silently retried as a player-creation race.
 
 ### Additional security observations
 
@@ -467,35 +522,62 @@ seq 1 5 | xargs -P5 -I{} \
 
 Instrument/log the rebuild callback during that test; exactly one process should execute it for the new generation, and a lap arriving during a rebuild must cause the next read to use a newer generation rather than the completed older result.
 
-### PERF-02 — Missing indexes (Medium)
+#### Final PERF-01 revalidation — 8 July 2026
 
-The production `lap_times` table has only the primary key and single-column foreign-key indexes. There are no indexes on:
+**Verdict: resolved; this supersedes the residual-risk verdict immediately above.** Commit `bb3355b` implements the recommended generation/version key, per-generation distributed cache lock, and post-lock cache recheck. `LapSubmitted` atomically initializes/increments the persistent generation counter. An in-flight old-generation calculation can now write only to an abandoned, expiring key; ordinary concurrent misses wait for the first rebuild and then consume its result. The five-second wait fallback deliberately computes uncached rather than failing if a lock holder exceeds the normal ~1.5-second cold calculation, preserving availability without allowing a stale generation to become current.
 
-- `players.hash`;
-- `maps.name`;
-- `(servers.ip, servers.port)`;
-- common lap access patterns such as `(map_id, time, player_id)`, `(server_id, map_id, time, player_id)`, `(server_id, created_at)`, or `(player_id, created_at)`.
+The listener is committed, its synchronous execution description is now accurate, and feature tests cover warm reuse, generation invalidation, and the stale-old-generation invariant. The current independent run passes **181 tests / 506 assertions**, PHPStan (single-process/debug mode), Pint, the production build, and `git diff --check`. A fresh live cache-hit request returned **62ms TTFB**; prior repeated live samples were ~39–74ms. This meets the audit's fewer-than-20-query/sub-500ms normal-path closure target by a wide margin.
 
-`firstOrCreate()` lookups and ranking/activity queries will increasingly scan/sort as history grows. Identity columns also lack unique constraints, so concurrent submissions can create duplicate logical records.
+True multi-process contention has not been instrumented under load, so production monitoring should still watch rebuild latency and lock timeouts. That is operational assurance, not a reason to keep PERF-01 open: the identified stampede and stale-write defects are now addressed in the implementation.
 
-**Recommendation:** use actual slow-query/`EXPLAIN` evidence to select composite indexes, then add unique identity constraints after cleaning existing duplicates.
+### PERF-02 — Missing indexes (Resolved)
 
-### PERF-03 — Full result computation before pagination (Medium)
+**Revalidation (2026-07-08): resolved.** Migration batches 21 and 22 are deployed with indexes selected from real query/`EXPLAIN` evidence:
 
-Global rankings load all qualifying laps and rank/deduplicate them in PHP. UI pagination occurs after the complete ranking is built. The map leaderboard API returns every ranked player with no pagination. This is acceptable at 1,657 laps but has linear memory/transfer growth.
+- `lap_times(server_id, map_id, player_id, time)` — the webhook's best-time `MIN(time)` now reports `Select tables optimized away`, and the grouped leaderboard-position lookup can use the covering index;
+- `lap_times(server_id, created_at)` — latest-server-lap queries select this index with a backward scan rather than filesort;
+- unique `players(hash, name)` — the hot hash-prefix lookup changed from a full scan to `ref`, while the complete identity lookup is `const`; this also closes the concurrent player-creation race without falsely requiring hash alone to be unique.
 
-`/players` already needs ~0.4s, and `/api/v1/maps/1/leaderboard` returns 27 KB at current scale.
+Fresh schema inspection confirms all deployed definitions and zero composite player-identity collisions. Existing SEC-01/SEC-04 work separately provides unique server and map identities. The full suite passes at **181 tests / 506 assertions**; PHPStan in single-process/debug mode, Pint, and `git diff --check` pass.
 
-**Recommendation:** define scale targets, add API pagination, and move stable best-lap/ranking projections to efficient SQL or maintained snapshots when thresholds are reached.
+Candidate map/server leaderboard indexes were tested but correctly not retained: MySQL's semijoin plan for `whereHas('server')` bypassed them, while the current filesorts cover only roughly 162 rows and are not a measured bottleneck. Rewriting five ranking/history call sites solely to force index use would add behavioral risk without current performance evidence. Revisit when timings or data growth justify it.
 
-### PERF-04 — Deployment caching (Medium)
+The original suggestion of making `players.hash` alone unique is permanently withdrawn because it conflicts with the real protocol. Composite `(hash,name)` uniqueness implements the confirmed identity rule safely. Remaining small leaderboard filesorts are documented monitoring candidates, not unresolved PERF-02 work; no speculative indexes or five-call-site query rewrite should be added until measurements justify them.
 
-- Content-hashed JS/CSS assets returned ETags but no explicit `Cache-Control: public, max-age=..., immutable`.
+**Release hygiene:** both PERF-02 migration files and `tests/Feature/PerformanceIndexesTest.php` are still untracked, while the player lookup/retry changes in `ProcessNewLap.php` are uncommitted. Commit the complete set before any tracked-files-only deployment; the live database already contains batches 21/22, so deploying only the old tracked application code would leave schema and lookup semantics out of sync.
+
+### PERF-03 — Full result computation before pagination (Resolved)
+
+**Revalidation (2026-07-08): resolved.** `/api/v1/maps/{map}/leaderboard` now accepts `page`/`per_page`, defaults to 50 entries, caps `per_page` at 100, and returns Laravel's standard `data`/`links`/`meta` envelope. A fresh live request for page 2 with two entries preserved global ranks 3/4 and reported the correct 188-entry total. Tests cover page slicing/rank preservation, maximum page size, and extreme page input.
+
+This intentionally bounds response/transfer size only. `GlobalRanking::mapLeaderboard()` still ranks the complete qualifying set before `array_slice()`, as do the equivalent Livewire leaderboards. Independent measurements reproduce the documented baseline:
+
+- 1,668 laps and 691 ranked players;
+- full `GlobalRanking::scores()`: **197.4ms**;
+- largest map: 188 distinct players, **22.7ms** to rank.
+
+Concrete revisit triggers are now documented: global scoring above ~750ms or 25,000 laps; a map above 1,000 distinct players or ~150ms; Players List above ~1s. Deferring a SQL/materialized-snapshot rewrite until one of those thresholds is reached is proportionate to current scale.
+
+**Extreme-page regression closed:** the controller now computes the real last page from the completed ranking and clamps the requested page before multiplying it into an array offset. This keeps the offset small and integer-valued even for arbitrarily large input. The dedicated regression test passes, and a fresh live request using `page=999999999999999999999&per_page=2` returned HTTP 200 in approximately 102ms instead of throwing `TypeError`/500. The explicit policy is normalization: pages below 1 become page 1 and pages above the available range become the last real page.
+
+The response-shape change remains under API `v1`. This is technically breaking but was explicitly accepted because the endpoint is staging-only with no known consumers; `data` entries themselves retain their prior shape. Full-set ranking remains intentionally deferred until the documented thresholds are reached, so it is a monitored design decision rather than open PERF-03 work.
+
+**Release hygiene:** the controller, API tests, and API/performance documentation are uncommitted. Include them together in the release so the published response contract and deployed behavior cannot diverge.
+
+### PERF-04 — Deployment caching (Resolved)
+
+**Revalidation (2026-07-08): fingerprinted-asset caching is resolved by Nginx Proxy Manager.** Fresh live probes show content-hashed JS, CSS, and WOFF2 assets return exactly `Cache-Control: public, max-age=31536000, immutable`, alongside stable ETags.
+
+The cache rule is scoped safely: dynamic homepage HTML still returns `max-age=0, must-revalidate, no-cache, no-store, private` with session cookies, and the plaintext API still returns `no-cache, private`. No evidence was found of NPM accidentally caching dynamic responses.
+
+This meets the original hashed-asset browser-cache target. NPM does not expose a cache-hit header, so these probes verify downstream browser behavior rather than whether a particular response body came from NPM's disk cache; either way, repeat browser visits can reuse the content-addressed files for one year without revalidation.
+
+- Content-hashed JS/CSS/font assets now have long-lived immutable caching.
 - HTML correctly uses private/no-store semantics, but every anonymous page creates session/XSRF cookies, reducing opportunities for shared page caching.
-- No Laravel config or route cache was present.
+- Laravel config, events, routes, and views are all cached, as verified through the active application runtime on 8 July 2026.
 - The frontend build is ~1.1 MB on disk. It includes many font formats/subsets and weights; the main JS is 88.6 KB and CSS is 59.8 KB before compression.
 
-**Recommendation:** add immutable caching for hashed assets, production Laravel caches, and review whether anonymous read-only GETs need sessions. Measure font requests in a browser waterfall before pruning formats/weights.
+The versioned Livewire JavaScript route is outside `/build/assets/*` and currently advertises one-year public caching without `immutable`; its query-string version identifier makes that reasonable, although it also exposes PHP's version as noted under SEC-05. PERF-04 is now resolved. As lower-priority follow-up optimization, review whether anonymous read-only GETs need sessions and measure the unusually broad font preload/waterfall before pruning formats/weights. Deployment automation should rebuild Laravel's caches after releases and configuration changes.
 
 ## Reliability and operations
 
@@ -519,6 +601,8 @@ For a public visitor, `localhost` means the visitor's own machine. On an HTTPS p
 
 **PageSpeed Insights WebSocket follow-up (2026-07-08): REL-01 remains resolved.** PageSpeed Insights successfully loads the website but its Lighthouse runner logs `ERR_NAME_NOT_RESOLVED` only for the JavaScript-opened WSS connection to the same hostname. Public DNS checks against Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) both return `redesign.hrl.effakt.info A 114.23.254.181`; bypassing DNS against that public IP returns `101 Switching Protocols` for the exact `/app/<key>?protocol=7...` URL. This proves the public DNS record, TLS, Nginx Proxy Manager, FastPanel routing, and Reverb endpoint work outside PageSpeed's lab path. Treat the console entry as a PageSpeed-runner limitation unless a real browser on an unrelated external network reproduces it. Do not add a speculative AAAA record or change the working WSS hostname solely to silence this synthetic-runner error; consider lazy/conditional realtime startup only if the failed lab connection materially affects an audit score and that behavior is separately tested in real browsers.
 
+**Ineffective Lighthouse workaround removed (2026-07-08).** The temporary `try/catch` around `new Echo(...)` could not catch asynchronous DNS/WebSocket failures and hid only synchronous setup errors. Echo initialization is direct again and the production build passes. PageSpeed's lab-only DNS warning remains informational under the verified public DNS/WSS evidence above; use explicit connection-state handling or conditional realtime startup only if a real requirement emerges.
+
 #### In-progress live-update changes review — 8 July 2026
 
 The current uncommitted change from `echo-public:...` to `echo:...` is correct for the installed Livewire 4 Echo bridge: its client parser maps the `echo:` signature to `window.Echo.channel(...)`, while custom `broadcastAs()` names correctly use the leading-dot listener form. Parameterless wrapper handlers on model-loading methods also avoid broadcast payloads being injected into model-typed parameters.
@@ -530,13 +614,17 @@ Two follow-ups remain:
 - `app/Events/ServerStatusRefreshed.php` is untracked while committed/tracked code already imports it; include it in the eventual commit or the scheduled command will fail after a tracked-files-only deployment.
 - Map and server-map leaderboard pages now reload their database-backed ranking after every lap anywhere on the site. This is functionally correct but creates global fan-out; use the event's `server_id`/`map_id` payload to skip irrelevant reloads if real traffic makes this measurable. Current tests call handlers directly and do not prove an actual browser receives and processes either broadcast, so the browser event-delivery smoke test remains part of TEST-01.
 
-### OPS-01 — Background service deployment is incomplete/unverified (Medium)
+### OPS-01 — Background service deployment (Resolved)
 
-Both broadcast events implement `ShouldBroadcast`, so they require a queue worker. Live status also requires the scheduler, and Reverb requires a persistent server process. The repository contains no deployment/service definitions, and the readable Supervisor configuration contains workers/Reverb only for other HRL installations—not this redesign path.
+**Revalidation (2026-07-08): resolved.** Hosting-account Supervisor definitions now manage:
 
-The audit sandbox cannot see host PID state or the user's cron, so it cannot conclusively prove the processes are stopped. Deployment should nevertheless treat all three as unverified until checked from the host.
+- one Reverb process with automatic restart;
+- eight queue workers with three attempts and graceful group shutdown;
+- one persistent `schedule:work` process with automatic restart.
 
-**Recommendation:** create deployment-managed queue, Reverb, and scheduler services with automatic restart, health checks, logs, and alerts. Add `queue:restart` and asset/config cache steps to the release procedure.
+All commands use the PHP 8.4 binary, the correct project path, the application hosting user, and dedicated logs. Fresh scheduler output shows `app:refresh-live-server-info` completing every minute, while fresh worker output shows each resulting `ServerStatusRefreshed` broadcast job completing in roughly 2–4ms. Public WSS/Pusher checks remain successful. Earlier Reverb `EADDRINUSE` entries came from the one-time transition away from a manually started process; subsequent logs show the Supervisor-managed server starting normally.
+
+Continue normal operational monitoring for crash loops, failed jobs, queue age, and scheduler freshness. The Supervisor definitions live outside this Git repository, so deployment documentation remains the durable handoff for recreating them on another host.
 
 ### Logs and health checks
 
@@ -552,7 +640,7 @@ The audit sandbox cannot see host PID state or the user's cron, so it cannot con
 
 | Check | Result |
 |---|---|
-| Pest | **139 passed, 352 assertions** |
+| Pest | **181 passed, 506 assertions** (with `WEBHOOK_HRL_VERIFY_ENFORCE=false`) |
 | PHPStan/Larastan level 5 | **0 errors** |
 | Pint (`--test`) | Passed |
 | PHP syntax | Passed for app, routes, config, migrations, factories, and tests |
@@ -564,11 +652,12 @@ The tests give meaningful coverage to rankings, record history, server activity,
 ### TEST-01 — Important coverage/enforcement gaps (Medium)
 
 - No test verifies either API rate limiter returns 429 at the correct boundary.
-- Webhook validation does not test huge split arrays, numeric extremes, duplicate checkpoints, negative split durations, or malicious display strings.
+- API pagination covers normal pages and oversized `per_page`, but not an extreme `page` value that overflows the slice offset.
+- Webhook validation now covers split ceilings, numeric extremes, positive durations, duplicate/gapped checkpoint IDs, out-of-order valid IDs, and compare-and-set baseline behavior. It still lacks a real Lua/game-memory integration test for Any Order/Rally checkpoint production and a true concurrent variant-cap test.
 - No real UDP client integration test exists; it is always faked.
 - No browser/E2E coverage exists for Alpine modals, keyboard use, responsive navigation, real Echo/Reverb transport, or JavaScript console errors.
 - `PlayerShow` has only route smoke coverage; its global-only favourite-server/display logic lacks focused tests.
-- No coverage percentage or mutation testing is produced, so 104 passing tests should not be interpreted as comprehensive coverage.
+- No coverage percentage or mutation testing is produced, so 176 passing tests should not be interpreted as comprehensive coverage.
 - Semgrep is configured but not installed and has never been validated/run.
 - No CI workflow is present, so passing checks are not enforced on push or deployment.
 - PHPStan is at level 5 rather than a stricter production baseline.
@@ -602,13 +691,12 @@ The layout provides a title and viewport only. It lacks descriptions, canonical 
 
 ## Recommended order of work
 
-1. Cap and validate webhook body/split sizes and numeric ranges.
-2. Add generation/version and distributed-lock protection to the now-fast homepage cache so invalidation cannot stampede or restore stale data.
-3. Manage queue/Reverb/scheduler as durable services, then run a real browser event-delivery smoke test.
-4. Add the remaining security headers, Reverb origin/rate limits, tighter file permissions, and reduced DB privileges.
-5. Add evidence-based composite indexes, API pagination, and immutable static-asset caching.
-6. Add deterministic test environment configuration plus CI, abuse-case, browser, accessibility, and real-time transport tests.
-7. Refresh documentation and make the configured quality gate clean.
+1. Smoke-test real Any Order and Rally laps end-to-end; confirm Lua emits a permutation of `1..N`. Harden the suffix-based map namespace and transactional variant cap afterward.
+2. Run a real browser event-delivery smoke test, including Livewire/Echo listener wiring.
+3. Exercise the report-only CSP across representative interactions and enforce it; add a report collector if retaining an observation period.
+4. Review font preloading and anonymous session creation; revisit leaderboard query plans only when PERF-03's documented measurements justify a rewrite.
+5. Add deterministic test environment configuration plus CI, abuse-case, browser, accessibility, and real-time transport tests.
+6. Monitor the accepted FastPanel DB-privilege risk and refresh stale documentation/tooling baselines; no DB privilege change is currently planned.
 
 ## Audit limitations
 

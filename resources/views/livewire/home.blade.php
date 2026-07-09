@@ -65,8 +65,7 @@
         <div class="hud-clip border border-hud-green/20 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-6 py-6">
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// KNOWN ISSUES</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> The final lap per map is not currently recorded</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Due to the above issue, Rally does not currently work</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Rally is not currently supported</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> AnyOrder does not currently work due to a bug in the lua missing recording of certain checkpoints</li>
             </ul>
         </div>

@@ -8,6 +8,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** Wraps one row of App\Models\GlobalRanking::mapLeaderboard()'s plain-array output. */
 class MapLeaderboardEntryResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         return [

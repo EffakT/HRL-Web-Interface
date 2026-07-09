@@ -12,6 +12,7 @@ use App\Models\Server;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -62,8 +63,10 @@ class Home extends Component
     /** How long the rebuild lock itself is held before it's considered abandoned (e.g. the holder's process died mid-computation) and another request may acquire it. */
     private const LOCK_TIMEOUT_SECONDS = 10;
 
+    /** @var list<array{type: string, data: array<int|string, mixed>}> */
     public array $highlights = [];
 
+    /** @var array<string, int> */
     public array $quickStats = [];
 
     /**
@@ -112,7 +115,12 @@ class Home extends Component
      *    generation *before* checking the cache, and deriving the data key from it, means a
      *    rebuild that started under an old generation can never clobber a newer one.
      *
-     * @return array{highlights: list<array{type: string, data: array}>, quickStats: array{players: int, servers: int, laps: int}}
+     * `data` is a list of row-shaped arrays for every candidate except `live-stats`, whose own
+     * `liveStats()` returns one flat associative stats record instead — the Blade partials for
+     * each type already expect this (`live-stats.blade.php` reads `$data['totalLaps']` etc.,
+     * not `$data[0]`), so `data`'s real type is a union of both shapes, not uniformly a list.
+     *
+     * @return array{highlights: list<array{type: string, data: array<int|string, mixed>}>, quickStats: array{players: int, servers: int, laps: int}}
      */
     private function rememberHighlights(): array
     {
@@ -143,7 +151,12 @@ class Home extends Component
      * The actual per-request computation PERF-01 profiled at ~1.5s/94 queries — extracted out of
      * `loadHighlights()` so it can sit behind the cache above without changing its own logic.
      *
-     * @return array{highlights: list<array{type: string, data: array}>, quickStats: array{players: int, servers: int, laps: int}}
+     * `data` is a list of row-shaped arrays for every candidate except `live-stats`, whose own
+     * `liveStats()` returns one flat associative stats record instead — the Blade partials for
+     * each type already expect this (`live-stats.blade.php` reads `$data['totalLaps']` etc.,
+     * not `$data[0]`), so `data`'s real type is a union of both shapes, not uniformly a list.
+     *
+     * @return array{highlights: list<array{type: string, data: array<int|string, mixed>}>, quickStats: array{players: int, servers: int, laps: int}}
      */
     private function computeHighlights(): array
     {
@@ -178,12 +191,11 @@ class Home extends Component
 
         $priority = ['records', 'most-active-server', 'fastest-improvements', 'new-content', 'achievements', 'live-stats'];
 
-        $highlights = collect($priority)
+        $highlights = array_values(collect($priority)
             ->map(fn (string $type): array => ['type' => $type, 'data' => $candidates[$type]])
             ->filter(fn (array $block): bool => ! empty($block['data']))
             ->take(3)
-            ->values()
-            ->all();
+            ->all());
 
         $quickStats = [
             'players' => Player::count(),
@@ -205,7 +217,7 @@ class Home extends Component
      */
     private function latestRecords(): array
     {
-        return collect(RecordHistory::recent(3, self::RECENCY_DAYS))
+        return array_values(collect(RecordHistory::recent(3, self::RECENCY_DAYS))
             ->map(fn (array $event): array => [
                 'map' => $event['map'],
                 'time' => $event['time'],
@@ -213,7 +225,7 @@ class Home extends Component
                 'server' => $event['serverName'],
                 'ago' => $event['setAt'] !== null ? $event['setAt']->diffForHumans() : '—',
             ])
-            ->all();
+            ->all());
     }
 
     /**
@@ -226,7 +238,7 @@ class Home extends Component
      */
     private function mostActiveServers(): array
     {
-        return collect(MostActiveServer::scores())
+        return array_values(collect(MostActiveServer::scores())
             ->filter(fn (array $server): bool => $server['totalScore'] > 0)
             ->take(3)
             ->map(fn (array $server): array => [
@@ -238,8 +250,7 @@ class Home extends Component
                 'players90d' => $server['players90d'],
                 'lastActive' => $server['lastLapAt'] !== null ? $server['lastLapAt']->diffForHumans() : '—',
             ])
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -357,7 +368,7 @@ class Home extends Component
                 $newRank = $current['rank'] ?? null;
                 $oldRank = $before['rank'] ?? null;
 
-                if (! $newRank || $newRank > 10 || ($oldRank !== null && $oldRank <= 10)) {
+                if ($current === null || ! $newRank || $newRank > 10 || ($oldRank !== null && $oldRank <= 10)) {
                     return null;
                 }
 
@@ -429,17 +440,19 @@ class Home extends Component
     {
         $cutoff = now()->subDays(self::RECENCY_DAYS);
 
+        // created_at is DB-nullable on both tables (default `timestamps()` behavior), but the
+        // `where('created_at', '>=', ...)` filter above already excludes any row where it's
+        // null (SQL's `NULL >= x` is never true) — ?->/?? below is defensive, not reachable here.
         $maps = Map::where('created_at', '>=', $cutoff)->get()
-            ->map(fn (Map $map): array => ['type' => 'map', 'name' => $map->label, 'ago' => $map->created_at->diffForHumans(), 'at' => $map->created_at]);
+            ->map(fn (Map $map): array => ['type' => 'map', 'name' => $map->label, 'ago' => $map->created_at?->diffForHumans() ?? '—', 'at' => $map->created_at]);
 
         $servers = Server::where('created_at', '>=', $cutoff)->get()
-            ->map(fn (Server $server): array => ['type' => 'server', 'name' => $server->name, 'ago' => $server->created_at->diffForHumans(), 'at' => $server->created_at]);
+            ->map(fn (Server $server): array => ['type' => 'server', 'name' => $server->name, 'ago' => $server->created_at?->diffForHumans() ?? '—', 'at' => $server->created_at]);
 
-        return $maps->concat($servers)
+        return array_values($maps->concat($servers)
             ->sortByDesc('at')
             ->map(fn (array $entry): array => ['type' => $entry['type'], 'name' => $entry['name'], 'ago' => $entry['ago']])
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -508,7 +521,7 @@ class Home extends Component
             $newRank = $current['rank'] ?? null;
             $oldRank = $before['rank'] ?? null;
 
-            if ($newRank && $newRank <= 10 && ($oldRank === null || $oldRank > 10)) {
+            if ($current !== null && $newRank && $newRank <= 10 && ($oldRank === null || $oldRank > 10)) {
                 $tier = $newRank <= 3 ? 'Top 3' : 'Top 10';
                 $items[] = ['player' => $current['name'], 'note' => "first appearance in the global {$tier}"];
             }
@@ -533,7 +546,7 @@ class Home extends Component
         ];
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.home');
     }

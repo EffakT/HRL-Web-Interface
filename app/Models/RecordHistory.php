@@ -92,23 +92,29 @@ class RecordHistory
     {
         $cutoff = $withinDays !== null ? now()->subDays($withinDays) : null;
 
-        return collect(self::events())
+        return array_values(collect(self::events())
             ->filter(fn (array $event): bool => $cutoff === null || ($event['setAt'] !== null && $event['setAt']->gte($cutoff)))
-            ->sortByDesc(fn (array $event): int => $event['setAt'] !== null ? $event['setAt']->timestamp : 0)
+            ->sortByDesc(fn (array $event): int => $event['setAt'] !== null ? (int) $event['setAt']->timestamp : 0)
             ->take($limit)
             ->values()
-            ->all();
+            ->all());
     }
 
     /**
      * A player's first-ever record-breaking event (their first course record on any map), or
      * null if they've never held one. Powers Player Achievements' "first record" sub-item.
+     *
+     * @return array{
+     *     mapId: int, map: string, lapId: int, playerId: int, playerName: string,
+     *     serverId: int, serverName: string, time: string, timeRaw: float,
+     *     previousTimeRaw: ?float, setAt: ?Carbon,
+     * }|null
      */
     public static function firstRecordFor(int $playerId): ?array
     {
         return collect(self::events())
             ->where('playerId', $playerId)
-            ->sortBy(fn (array $event): int => $event['setAt'] !== null ? $event['setAt']->timestamp : 0)
+            ->sortBy(fn (array $event): int => $event['setAt'] !== null ? (int) $event['setAt']->timestamp : 0)
             ->first();
     }
 }

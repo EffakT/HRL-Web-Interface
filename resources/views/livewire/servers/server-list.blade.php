@@ -12,42 +12,45 @@
             </div>
         </div>
 
-        <!-- featured server -->
-        <div class="hud-clip relative mt-6 flex flex-col gap-6 border border-hud-green/50 bg-[linear-gradient(115deg,#0f1d16,#0a140f)] px-6 py-5.5 shadow-[0_0_54px_-14px_theme(colors.hud-green/50%)] tp:flex-row tp:items-center tp:justify-between">
-            <div class="min-w-0">
-                <div class="mb-3 flex flex-wrap items-center gap-2.5">
-                    <span class="border border-hud-green/32 bg-hud-green/12 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.2em] text-hud-green"><span class="-translate-y-px inline-block">◆</span> MOST ACTIVE</span>
-                    @if ($featured['online'] ?? false)
-                        <span class="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-[0.1em] text-hud-green">
-                            <span class="-mt-px h-1.5 w-1.5 rounded-full bg-hud-green shadow-[0_0_10px_theme(colors.hud-green)]"></span>
-                            ACTIVE
-                        </span>
-                    @endif
+        @if ($featured)
+            <!-- featured server -->
+            <div class="hud-clip relative mt-6 flex flex-col gap-6 border border-hud-green/50 bg-[linear-gradient(115deg,#0f1d16,#0a140f)] px-6 py-5.5 shadow-[0_0_54px_-14px_theme(colors.hud-green/50%)] tp:flex-row tp:items-center tp:justify-between">
+                <div class="min-w-0">
+                    <div class="mb-3 flex flex-wrap items-center gap-2.5">
+                        <span class="border border-hud-green/32 bg-hud-green/12 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.2em] text-hud-green"><span class="-translate-y-px inline-block">◆</span> MOST ACTIVE</span>
+                        @if ($featured['online'] ?? false)
+                            <span class="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-[0.1em] text-hud-green">
+                                <span class="-mt-px h-1.5 w-1.5 rounded-full bg-hud-green shadow-[0_0_10px_theme(colors.hud-green)]"></span>
+                                ACTIVE
+                            </span>
+                        @endif
+                    </div>
+                    <div class="truncate text-3xl font-bold tracking-[0.02em] text-white">{{ $featured['name'] }}</div>
+                    <div class="mt-1 font-mono text-[10px] tracking-[0.05em] text-hud-text-faint">{{ $featured['ip'] }}:{{ $featured['port'] }}</div>
+                    <div class="mt-2 font-mono text-[11px] text-hud-text-dim">NOW PLAYING · <span class="text-hud-cyan">{{ $featured['map'] }}</span></div>
                 </div>
-                <div class="truncate text-3xl font-bold tracking-[0.02em] text-white">{{ $featured['name'] }}</div>
-                <div class="mt-1 font-mono text-[10px] tracking-[0.05em] text-hud-text-faint">{{ $featured['ip'] }}:{{ $featured['port'] }}</div>
-                <div class="mt-2 font-mono text-[11px] text-hud-text-dim">NOW PLAYING · <span class="text-hud-cyan">{{ $featured['map'] }}</span></div>
-            </div>
-            <div class="flex flex-wrap items-start gap-y-4 gap-x-7">
                 <div class="flex flex-wrap items-start gap-y-4 gap-x-7">
-                    <div>
-                        <div class="mb-2 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">PLAYERS</div>
-                        <div class="font-mono text-2xl font-extrabold text-hud-text-bright">{{ $featured['players'] }}</div>
-                        <div class="mt-2 h-1.5 w-[120px] bg-white/8">
-                            <div class="h-full bg-hud-green" style="width: {{ $featured['playersPct'] }}%"></div>
+                    <div class="flex flex-wrap items-start gap-y-4 gap-x-7">
+                        <div>
+                            <div class="mb-2 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">PLAYERS</div>
+                            <div class="font-mono text-2xl font-extrabold text-hud-text-bright">{{ $featured['players'] }}</div>
+                            <div class="mt-2 h-1.5 w-[120px] bg-white/8">
+                                <div class="h-full bg-hud-green" style="width: {{ $featured['playersPct'] }}%"></div>
+                            </div>
+                        </div>
+                        <div class="max-mm:w-full">
+                            <div class="mb-2 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">BEST LAP</div>
+                            <div class="font-mono text-2xl font-extrabold text-hud-text-bright">{{ $featured['best'] }}</div>
                         </div>
                     </div>
-                    <div class="max-mm:w-full">
-                        <div class="mb-2 font-mono text-[9px] font-semibold tracking-[0.16em] text-hud-text-dim">BEST LAP</div>
-                        <div class="font-mono text-2xl font-extrabold text-hud-text-bright">{{ $featured['best'] }}</div>
-                    </div>
+                    <a href="{{ route('servers.show', ['serverId' => $featured['id']]) }}"
+                    class="hud-clip-sm self-center whitespace-nowrap bg-hud-green px-5.5 py-3.5 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-[#04140d] transition hover:-translate-y-0.5 hover:shadow-[0_0_26px_-4px_theme(colors.hud-green/80%)] max-ml:w-full">
+                        VIEW BOARD
+                    </a>
                 </div>
-                <a href="{{ route('servers.show', ['serverId' => $featured['id']]) }}"
-                   class="hud-clip-sm self-center whitespace-nowrap bg-hud-green px-5.5 py-3.5 text-center font-mono text-[11px] font-semibold tracking-[0.14em] text-[#04140d] transition hover:-translate-y-0.5 hover:shadow-[0_0_26px_-4px_theme(colors.hud-green/80%)] max-ml:w-full">
-                    VIEW BOARD
-                </a>
             </div>
-        </div>
+        @endif
+
 
         <!-- desktop table -->
         <div class="mt-6 hidden tp:block">

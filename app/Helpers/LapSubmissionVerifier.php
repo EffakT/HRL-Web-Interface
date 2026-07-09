@@ -95,6 +95,8 @@ class LapSubmissionVerifier
      */
     private function fail(string $reason, array|false|null $response = null): array
     {
+        \Log::debug("Lap submission verification failed: {$reason}", ['response' => $response]);
+
         return ['verified' => false, 'reason' => $reason, 'response' => $response];
     }
 }

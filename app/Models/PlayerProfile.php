@@ -19,9 +19,9 @@ namespace App\Models;
 class PlayerProfile
 {
     /**
-     * @param  array<string, mixed>|null  $ranking  A `GlobalRanking::forPlayer()` result (global or server-scoped) — null if this player has no qualifying lap in scope at all
+     * @param  array{perMap?: non-empty-list<array<string, mixed>>, rank?: int, score?: int, firstPlaces?: int, top3?: int, mapsPlayed?: int}|null  $ranking  A `GlobalRanking::forPlayer()` result (global or server-scoped) — null if this player has no qualifying lap in scope at all
      * @return array{
-     *     laps: array<int, array<string, mixed>>,
+     *     laps: array<int, array{mapId: int, lapId: int, recordLapId: ?int, map: string, server: string, time: string, date: string, dateExact: string, recordHolder: string, recordTime: string, mapRank: ?int, points: ?int}>,
      *     performanceKeys: array<int, int>,
      *     recentLapKeys: array<int, int>,
      *     statsCard: array{numRecords: int, top3Finishes: int, mapsCompleted: int, totalValidLaps: int, firstSeen: string, lastActive: string},
@@ -89,11 +89,17 @@ class PlayerProfile
             ->limit(10)
             ->get();
 
-        $lapIdToKey = collect($laps)->mapWithKeys(fn (array $lap, int $key) => [$lap['lapId'] => $key]);
+        // Plain array, not Collection::mapWithKeys() — lets PHPStan infer array<int, int>
+        // precisely from $laps's known shape, rather than an untyped lookup requiring a cast
+        // on every read below.
+        $lapIdToKey = [];
+        foreach ($laps as $key => $existingLap) {
+            $lapIdToKey[$existingLap['lapId']] = $key;
+        }
 
         $recentLapKeys = $recentLaps
             ->map(function (LapTime $lap) use (&$laps, $lapIdToKey, $recordsByMap): int {
-                if ($lapIdToKey->has($lap->id)) {
+                if (array_key_exists($lap->id, $lapIdToKey)) {
                     return $lapIdToKey[$lap->id];
                 }
 

@@ -8,6 +8,7 @@ use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Map;
 use App\Models\Server;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -36,8 +37,10 @@ class ServerMapLeaderboard extends Component
 
     public int $totalLaps = 0;
 
+    /** @var list<array<string, mixed>> */
     public array $players = [];
 
+    /** @var list<array<string, mixed>> */
     public array $splits = [];
 
     /** The #1 player's lap id — used both for the split-pace sparkline and as the comparison reference for every other player. */
@@ -96,7 +99,7 @@ class ServerMapLeaderboard extends Component
         $secondTime = $bestPerPlayer->get(1)?->time;
         $this->topLapId = $bestPerPlayer->first()?->id;
 
-        $this->players = $bestPerPlayer
+        $this->players = array_values($bestPerPlayer
             ->map(function (LapTime $lap, int $index) use ($topTime, $secondTime): array {
                 // #1's "gap" is to #2 (the only other lap it's meaningful to compare against) —
                 // there's no "gap to record" for the record holder itself. Every gap renders
@@ -114,23 +117,23 @@ class ServerMapLeaderboard extends Component
                     'subtitle' => '',
                     'time' => $lap->formattedTime(),
                     'gap' => $gap,
-                    'date' => $lap->created_at->diffForHumans(),
-                    'dateExact' => $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T'),
+                    'date' => $lap->created_at?->diffForHumans() ?? '—',
+                    'dateExact' => $lap->created_at ? $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T') : '—',
                 ];
             })
-            ->all();
+            ->all());
 
         // Split-pace sparkline for the #1 lap — empty if that lap has no recorded splits (real
         // coverage is sparse, see docs/database.md); the podium partial handles an empty array fine.
         $this->splits = $this->topLapId
-            ? LapTimeSplit::where('lap_time_id', $this->topLapId)
+            ? array_values(LapTimeSplit::where('lap_time_id', $this->topLapId)
                 ->orderBy('checkpoint_id')
                 ->get()
                 ->map(fn (LapTimeSplit $split, int $index): array => [
                     'label' => 'CP '.($index + 1),
                     'time' => number_format($split->duration, 3),
                 ])
-                ->all()
+                ->all())
             : [];
     }
 
@@ -139,17 +142,26 @@ class ServerMapLeaderboard extends Component
      * ServerShow, see LapTimeSplit::compare(). Frequently empty (sparse real split data).
      * When viewing #1's own lap, there's nothing meaningful to compare it against itself, so
      * it's compared against #2 instead — see resolveComparisonReference().
+     *
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}>
      */
     public function getComparisonProperty(): array
     {
         $player = $this->players[$this->selectedPlayerIndex] ?? $this->players[0] ?? null;
-        $reference = $this->resolveComparisonReference($player);
 
-        if (! $player || ! $reference) {
+        if (! $player) {
             return [];
         }
 
-        return LapTimeSplit::compare($player['lapId'], $reference['lapId']);
+        $reference = $this->resolveComparisonReference($player);
+
+        // No runner-up/record lap exists yet (e.g. this is the very first lap ever recorded for
+        // a freshly-forked race_type/checkpoint-count map variant) — still show this lap's own
+        // splits rather than collapsing "no reference lap" into the same "no split data" message
+        // as "this lap genuinely has no splits."
+        return $reference
+            ? LapTimeSplit::compare($player['lapId'], $reference['lapId'])
+            : LapTimeSplit::solo($player['lapId']);
     }
 
     /**
@@ -159,6 +171,8 @@ class ServerMapLeaderboard extends Component
      * player #1's info, which previously stayed on-screen even when the real comparison had
      * silently swapped to #2 — a mismatch that made the "this lap has splits, reference
      * doesn't" message look backwards when viewing #1 (reported by the user).
+     *
+     * @return array<string, mixed>|null
      */
     public function getComparisonReferenceProperty(): ?array
     {
@@ -167,6 +181,10 @@ class ServerMapLeaderboard extends Component
         return $this->resolveComparisonReference($player);
     }
 
+    /**
+     * @param  array<string, mixed>|null  $player
+     * @return array<string, mixed>|null
+     */
     private function resolveComparisonReference(?array $player): ?array
     {
         if (! $player) {
@@ -184,7 +202,7 @@ class ServerMapLeaderboard extends Component
         return $reference ? [...$reference, 'label' => 'RECORD'] : null;
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.servers.server-map-leaderboard', [
             'rankedPlayers' => $this->rankedPlayers(),

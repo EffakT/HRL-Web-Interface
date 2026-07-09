@@ -5,6 +5,7 @@ namespace App\Livewire\Servers;
 use App\Models\LapTime;
 use App\Models\MostActiveServer;
 use App\Models\Server;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -20,8 +21,15 @@ class ServerList extends Component
      */
     private const LIVE_DATA_FRESHNESS_MINUTES = 5;
 
-    public array $featured;
+    /**
+     * Null when there are no servers at all (e.g. a fresh install) — the view guards on this
+     * rather than assuming a row always exists.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $featured = null;
 
+    /** @var list<array<string, mixed>> */
     public array $servers;
 
     public int $onlineCount = 0;
@@ -72,21 +80,21 @@ class ServerList extends Component
 
         $maxPlayers = max($rows->pluck('playersRaw')->max(), 1);
 
-        $this->servers = $rows->map(fn (array $row) => [
+        $this->servers = array_values($rows->map(fn (array $row) => [
             ...$row,
             'playersPct' => (int) round($row['playersRaw'] / $maxPlayers * 100),
-        ])->all();
+        ])->all());
 
         $topServerId = MostActiveServer::scores()[0]['serverId'] ?? null;
 
         $this->featured = collect($this->servers)->firstWhere('id', $topServerId)
-            ?? $this->servers[0] ?? [];
+            ?? $this->servers[0] ?? null;
 
         // The featured card is held to a stricter "online" bar than the table rows: "you could
         // join a race right now," not merely "the server process is reachable." Only applies
         // when we actually have a fresh live player count to check — otherwise the card keeps
         // the same recency-proxy value as everyone else.
-        if (($this->featured['livePlayerCount'] ?? null) !== null) {
+        if ($this->featured !== null && ($this->featured['livePlayerCount'] ?? null) !== null) {
             $this->featured['online'] = $this->featured['livePlayerCount'] > 0;
         }
 
@@ -95,6 +103,7 @@ class ServerList extends Component
         $this->lapsToday = LapTime::whereDate('created_at', today())->count();
     }
 
+    /** @return array<string, mixed> */
     private function buildRow(Server $server): array
     {
         $lastLap = $server->lapTimes()->with('map')->orderByDesc('created_at')->first();
@@ -118,7 +127,7 @@ class ServerList extends Component
 
         $map = $queriedRecently && $server->query_successful && $server->currentMap !== null
             ? $server->currentMap->label
-            : ($lastLap !== null && $lastLap->map !== null ? $lastLap->map->label : '—');
+            : ($lastLap !== null ? $lastLap->map->label : '—');
 
         // Only meaningful when a fresh, successful query actually happened — null otherwise, so
         // the featured-card override in mount() knows not to second-guess the recency proxy.
@@ -141,7 +150,7 @@ class ServerList extends Component
         ];
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.servers.server-list');
     }

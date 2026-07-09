@@ -9,6 +9,7 @@ use App\Models\LapTimeSplit;
 use App\Models\Player;
 use App\Models\PlayerProfile;
 use App\Models\Server;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -38,18 +39,28 @@ class ServerPlayerShow extends Component
 
     public string $playerName;
 
+    /** @var array<string, mixed> */
     public array $playerInfo = [];
 
+    /** @var array<string, mixed> */
     public array $statsCard = [];
 
+    /** @var array<int, string> */
     public array $achievements = [];
 
+    /** @var array<int, array{mapId: int, lapId: int, recordLapId: ?int, map: string, server: string, time: string, date: string, dateExact: string, recordHolder: string, recordTime: string, mapRank: ?int, points: ?int}> */
     public array $laps = [];
 
-    /** Keys into $laps for the Performance by Map table, in per-map order. */
+    /** Keys into $laps for the Performance by Map table, in per-map order.
+     *
+     * @var array<int, int>
+     */
     public array $performanceKeys = [];
 
-    /** Keys into $laps for the Recent Laps feed, in reverse-chronological order. */
+    /** Keys into $laps for the Recent Laps feed, in reverse-chronological order.
+     *
+     * @var array<int, int>
+     */
     public array $recentLapKeys = [];
 
     public function mount(string $serverId, string $playerId): void
@@ -115,6 +126,8 @@ class ServerPlayerShow extends Component
     /**
      * Real per-checkpoint split comparison against the map's course-record lap — same pattern
      * as PlayerShow/ServerShow, via the shared HasRecordVsRunnerUpReference trait.
+     *
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}>
      */
     public function getComparisonProperty(): array
     {
@@ -128,6 +141,7 @@ class ServerPlayerShow extends Component
         return LapTimeSplit::compare($lap['lapId'], $reference['lapId']);
     }
 
+    /** @return array{lapId: int, name: string, time: string, label: string}|null */
     public function getComparisonReferenceProperty(): ?array
     {
         $lap = $this->laps[$this->selectedPlayerIndex] ?? $this->laps[0] ?? null;
@@ -135,7 +149,7 @@ class ServerPlayerShow extends Component
         return $this->resolveComparisonReference($lap);
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.servers.server-player-show');
     }

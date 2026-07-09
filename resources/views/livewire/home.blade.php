@@ -14,7 +14,7 @@
         <div class="flex flex-wrap gap-2.5">
             <span class="border border-hud-green/16 bg-hud-green/4 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] text-hud-text-muted">{{ number_format($quickStats['players']) }} PLAYERS</span>
             <span class="border border-hud-green/16 bg-hud-green/4 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] text-hud-text-muted">{{ number_format($quickStats['servers']) }} SERVERS</span>
-            <span class="border border-hud-green/16 bg-hud-green/4 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] text-hud-text-muted">{{ number_format($quickStats['laps']) }} LAPS</span>
+            <span data-testid="quick-stats-laps" class="border border-hud-green/16 bg-hud-green/4 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em] text-hud-text-muted">{{ number_format($quickStats['laps']) }} LAPS</span>
         </div>
     </div>
 
@@ -66,6 +66,8 @@
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// KNOWN ISSUES</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> The final lap per map is not currently recorded</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Due to the above issue, Rally does not currently work</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> AnyOrder does not currently work due to a bug in the lua missing recording of certain checkpoints</li>
             </ul>
         </div>
 
@@ -74,7 +76,8 @@
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Full re-design of the app</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Conversion to a Progressive Web App</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grid" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind.</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to change the ingame position alerts to be based on server or global leaderboard via a in-chat command.</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grind" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind.</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Enhanced lag detection, particularly ping stability measures (maybe EMA?)</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Server admin lap deletion</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability for players to delete their own laps</li>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\LapTimeSplitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -84,20 +85,7 @@ class LapTimeSplit extends Model
         $refSplits = self::where('lap_time_id', $referenceLapId)->get()->keyBy('checkpoint_id');
 
         if ($refSplits->isEmpty()) {
-            return $mySplits->values()->map(fn (self $split, int $index): array => [
-                'label' => 'CP '.($index + 1),
-                'myTime' => number_format($split->duration, 3),
-                'refTime' => null,
-                'delta' => null,
-                'deltaValue' => null,
-                'running' => null,
-                'faster' => null,
-                'absDelta' => null,
-                'colorClass' => 'text-hud-text-dim',
-                'barW' => null,
-                'hasReference' => false,
-                'usingReferenceSplits' => false,
-            ])->all();
+            return self::soloRows($mySplits);
         }
 
         $rows = [];
@@ -148,5 +136,41 @@ class LapTimeSplit extends Model
             ...$row,
             'barW' => (int) round(min(50, $row['absDelta'] / $maxAbsDelta * 50)),
         ], $rows);
+    }
+
+    /**
+     * This lap's own splits with no reference lap to compare against at all (e.g. the very
+     * first lap ever recorded for a freshly-forked map variant — a new race_type/checkpoint-count
+     * `Map` row, see docs/decisions.md's 2026-07-08 race_type identity note, always starts with
+     * no runner-up). Same "raw times, no delta" row shape `compare()` already falls back to when
+     * a reference lap exists but has no splits of its own — reused here via `soloRows()` rather
+     * than duplicated, since callers can't tell those two "nothing to compare against" cases
+     * apart from the returned rows and shouldn't need to.
+     *
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}>
+     */
+    public static function solo(int $lapId): array
+    {
+        return self::soloRows(self::where('lap_time_id', $lapId)->orderBy('checkpoint_id')->get());
+    }
+
+    /** @param  Collection<int, self>  $splits
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}> */
+    private static function soloRows($splits): array
+    {
+        return $splits->values()->map(fn (self $split, int $index): array => [
+            'label' => 'CP '.($index + 1),
+            'myTime' => number_format($split->duration, 3),
+            'refTime' => null,
+            'delta' => null,
+            'deltaValue' => null,
+            'running' => null,
+            'faster' => null,
+            'absDelta' => null,
+            'colorClass' => 'text-hud-text-dim',
+            'barW' => null,
+            'hasReference' => false,
+            'usingReferenceSplits' => false,
+        ])->all();
     }
 }

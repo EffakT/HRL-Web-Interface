@@ -495,26 +495,70 @@ class ProcessNewLap
         return $this->resolveMapVariant($mapName, $mapLabel, $submittedCheckpointCount);
     }
 
-    /** @throws TooManyMapVariantsException */
+    /**
+     * TEST-01 audit follow-up (2026-07-09) — a real two-process MySQL concurrency test
+     * (`tests/Feature/MapVariantCapConcurrencyTest.php`, SQLite can't provide meaningful
+     * evidence for this) caught a genuine race here: the original plain
+     * count-then-`firstOrCreate()` let two concurrent requests proposing two *different* new
+     * checkpoint counts both read the same under-cap count, both pass the check, and both
+     * insert — pushing the real variant count one past the configured cap. Fixed by locking the
+     * *base* map row (`lockForUpdate()` inside a transaction) before counting: a concurrent
+     * request for the same base map name blocks until the first transaction commits or rolls
+     * back, so the count-then-insert is effectively serialized per base map name — the same
+     * "lock the thing two concurrent writers actually contend on" idea as the checkpoint-count
+     * baseline's conditional `UPDATE` above, just via pessimistic locking instead of a CAS,
+     * since a cap check has to look at other rows' existence, not just one row's own column.
+     *
+     * @throws TooManyMapVariantsException
+     */
     private function resolveMapVariant(string $mapName, string $mapLabel, int $checkpointCount): Map
     {
-        $variantName = "{$mapName}-splits-{$checkpointCount}";
-        $existingVariant = Map::where('name', $variantName)->first();
+        return DB::transaction(function () use ($mapName, $mapLabel, $checkpointCount): Map {
+            $this->acquireMapVariantLock($mapName);
 
-        if ($existingVariant !== null) {
-            return $existingVariant;
-        }
+            $variantName = "{$mapName}-splits-{$checkpointCount}";
+            $existingVariant = Map::where('name', $variantName)->first();
 
-        $existingVariantCount = Map::where('name', 'like', "{$mapName}-splits-%")->count();
+            if ($existingVariant !== null) {
+                return $existingVariant;
+            }
 
-        if ($existingVariantCount >= config('webhook.max_map_variants_per_name')) {
-            throw new TooManyMapVariantsException;
-        }
+            $existingVariantCount = $this->countExistingMapVariants("{$mapName}-splits-%");
 
-        return Map::firstOrCreate(
-            ['name' => $variantName],
-            ['label' => "{$mapLabel} ({$checkpointCount} CP)", 'checkpoint_count' => $checkpointCount],
-        );
+            if ($existingVariantCount >= config('webhook.max_map_variants_per_name')) {
+                throw new TooManyMapVariantsException;
+            }
+
+            return Map::firstOrCreate(
+                ['name' => $variantName],
+                ['label' => "{$mapLabel} ({$checkpointCount} CP)", 'checkpoint_count' => $checkpointCount],
+            );
+        });
+    }
+
+    /**
+     * Extracted as its own overridable step (code review follow-up, 2026-07-09) purely so
+     * `MapVariantCapConcurrencyTest.php` can inject a real delay here via a test-only subclass —
+     * without a genuine pause between "count read" and "insert," a lucky scheduler could let one
+     * worker's entire count-then-insert finish before the other even starts counting, which
+     * would produce the same passing assertions (one OK, one REJECTED, count === cap) whether or
+     * not `lockForUpdate()` above is actually doing anything. See the worker script's docblock.
+     */
+    protected function countExistingMapVariants(string $namePattern): int
+    {
+        return Map::where('name', 'like', $namePattern)->count();
+    }
+
+    /**
+     * Extracted as its own overridable step (code review follow-up, 2026-07-09), same reason as
+     * `countExistingMapVariants()` above — lets `MapVariantCapConcurrencyTest.php`'s negative
+     * control substitute a deliberately no-op lock via a test-only subclass, to prove (in CI,
+     * permanently, not just via a one-off manual edit) that this test harness genuinely detects
+     * a missing lock rather than passing by scheduling luck.
+     */
+    protected function acquireMapVariantLock(string $mapName): void
+    {
+        Map::where('name', $mapName)->lockForUpdate()->first();
     }
 
     /**

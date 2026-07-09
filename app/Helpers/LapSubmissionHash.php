@@ -32,7 +32,7 @@ class LapSubmissionHash
             ->values()
             ->all();
 
-        return hash('sha256', json_encode([
+        $encoded = json_encode([
             $data['player_hash'],
             $data['player_name'],
             $data['map_name'],
@@ -40,6 +40,16 @@ class LapSubmissionHash
             (float) $data['player_time'],
             $data['hrl_token'] ?? null,
             $splits,
-        ]));
+        ]);
+
+        if ($encoded === false) {
+            // Every value fed in above is a scalar or an array of scalars built just above from
+            // already-validated request input — there's no genuine way for json_encode() to fail
+            // (e.g. a resource, invalid UTF-8, or recursive reference) on this input, so this
+            // guards a real invariant rather than a case that can actually occur.
+            throw new \RuntimeException('Failed to encode lap submission data for hashing.');
+        }
+
+        return hash('sha256', $encoded);
     }
 }

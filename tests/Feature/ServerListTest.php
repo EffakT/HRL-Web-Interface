@@ -14,6 +14,21 @@ use Livewire\Livewire;
 // assert the real derivation, not just that the route renders (RoutesTest.php covers that).
 uses(LazilyRefreshDatabase::class);
 
+it('renders without error when there are no servers at all (TEST-01 audit follow-up)', function () {
+    // Real incident (2026-07-09, see docs/decisions.md): a genuinely empty `servers` table made
+    // this page throw a 500 twice over — first "Undefined array key" from an unguarded array
+    // access, then (after a fix that assigned `false` to a strictly `array`-typed property) a
+    // TypeError on the property assignment itself. `$featured` being nullable end-to-end is what
+    // actually fixes it.
+    $component = Livewire::test(ServerList::class);
+
+    expect($component->get('featured'))->toBeNull()
+        ->and($component->get('servers'))->toBe([])
+        ->and($component->get('onlineCount'))->toBe(0);
+
+    $this->get('/servers')->assertOk();
+});
+
 it('shows real server names and derives "now playing" from the most recent lap\'s map', function () {
     $server = Server::factory()->create(['name' => 'Real Server Name']);
     $map = Map::factory()->create(['label' => 'Real Map Label']);

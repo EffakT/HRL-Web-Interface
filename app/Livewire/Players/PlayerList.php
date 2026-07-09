@@ -7,6 +7,7 @@ use App\Models\GlobalRanking;
 use App\Models\LapTime;
 use App\Models\RecordHistory;
 use Illuminate\Support\Carbon;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -16,11 +17,17 @@ class PlayerList extends Component
 {
     use HasRankedLeaderboardPagination;
 
+    /** @var array<string, int|float> */
     public array $stats = [];
 
+    /** @var list<array<string, mixed>> */
     public array $podium = [];
 
-    /** Every ranked player, keyed 0-indexed by Global Score rank — top 3 render as the podium, rest are paginated via HasRankedLeaderboardPagination. */
+    /**
+     * Every ranked player, keyed 0-indexed by Global Score rank — top 3 render as the podium, rest are paginated via HasRankedLeaderboardPagination.
+     *
+     * @var list<array<string, mixed>>
+     */
     public array $players = [];
 
     public function mount(): void
@@ -55,7 +62,7 @@ class PlayerList extends Component
         // everywhere else for the same reason). Trend indicator dropped too: its mechanism
         // (periodic rank/score snapshots vs. a recent-activity proxy) is still an open roadmap
         // question, and there's no real signal to show honestly in the meantime.
-        $this->players = $rankings
+        $this->players = array_values($rankings
             ->map(fn (array $p): array => [
                 'id' => $p['playerId'],
                 'rank' => $p['rank'],
@@ -68,7 +75,7 @@ class PlayerList extends Component
                     ? Carbon::parse($lastActive[$p['playerId']])->diffForHumans()
                     : '—',
             ])
-            ->all();
+            ->all());
 
         // Top 3 podium — shaped for the shared podium partial (resources/views/livewire/partials/podium.blade.php).
         // Same "# RECORDS · # MAPS · # LAPS" stat line as Server Single's Top Players podium, per
@@ -91,11 +98,11 @@ class PlayerList extends Component
             // keeps the current-state reading — see docs/roadmap.md's "Number of records set"
             // open item and docs/players-list.md, which explicitly allows these two to differ).
             'recordsSet' => count(RecordHistory::events()),
-            'avgMapsPerPlayer' => count($this->players) > 0 ? round($rankings->avg('mapsPlayed'), 1) : 0,
+            'avgMapsPerPlayer' => round($rankings->avg('mapsPlayed') ?? 0, 1),
         ];
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.players.player-list', [
             'rankedPlayers' => $this->rankedPlayers(),

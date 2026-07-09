@@ -113,6 +113,13 @@ class MostActiveServer
         })->all();
     }
 
+    /**
+     * @return array{
+     *     serverId: int, name: string, ip: string, port: string, rank: int, activityScore: int,
+     *     recencyBonus: int, totalScore: int, uniquePlayers: int, mapsPlayed: int,
+     *     validLaps: int, players30d: int, players90d: int, lastLapAt: ?Carbon,
+     * }|null
+     */
     public static function forServer(int $serverId): ?array
     {
         return collect(static::scores())->firstWhere('serverId', $serverId);

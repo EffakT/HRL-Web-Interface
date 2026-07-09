@@ -4,6 +4,7 @@ namespace App\Livewire\Maps;
 
 use App\Models\LapTime;
 use App\Models\Map;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -11,6 +12,7 @@ use Livewire\Component;
 #[Layout('components.layout', ['title' => 'Maps', 'active' => 'maps'])]
 class MapList extends Component
 {
+    /** @var list<array<string, mixed>> */
     public array $maps = [];
 
     public function mount(): void
@@ -41,15 +43,15 @@ class MapList extends Component
             ->toBase()
             ->get();
 
-        $this->maps = $maps->map(fn (object $map) => [
+        $this->maps = array_values($maps->map(fn (object $map) => [
             'id' => $map->id,
             'name' => $map->label,
             'laps' => number_format((int) $map->laps),
             'best' => LapTime::formatSeconds($map->best),
-        ])->all();
+        ])->all());
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.maps.map-list');
     }

@@ -96,6 +96,16 @@ class StoreLapTimeRequest extends FormRequest
      * alone still let `[-7, 40, 999]` or any other 3-distinct-value set through as a "valid"
      * 3-checkpoint submission. Checked here rather than as a per-field rule since it needs the
      * whole `splits` array at once.
+     *
+     * Applies to every `race_type`, including Any Order/Rally — "any order" means the *player*
+     * doesn't have to complete checkpoints in course sequence, not that the physical checkpoint
+     * IDs themselves change; `sort()` before comparing is exactly what already lets a submission
+     * report them in any order. (TEST-01 audit follow-up, 2026-07-09: a real Any Order submission
+     * with checkpoint IDs `[1, 4, 5]` against `bloodgulch`'s real, established 5-checkpoint
+     * baseline was rejected here — investigated and confirmed correct: the map has checkpoints
+     * 1-5, so a genuine Any Order lap should still report all 5, just potentially out of
+     * sequence. The missing 2/3 point to the game server's Lua script under-reporting splits in
+     * Any Order mode, not a backend validation bug — see docs/decisions.md.)
      */
     public function withValidator(Validator $validator): void
     {

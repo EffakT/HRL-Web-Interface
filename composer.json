@@ -23,6 +23,7 @@
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^4.7",
+        "pestphp/pest-plugin-browser": "^4.3",
         "phpunit/phpunit": "^12.5.12",
         "rector/rector": "^2.5"
     },
@@ -45,7 +46,8 @@
             "@php artisan key:generate",
             "@php artisan migrate --force",
             "npm install --ignore-scripts",
-            "npm run build"
+            "npm run build",
+            "npx playwright install chromium"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",

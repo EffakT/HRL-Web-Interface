@@ -761,6 +761,60 @@ it('accepts checkpoint IDs submitted out of order as long as they form a contigu
     expect(Map::sole()->checkpoint_count)->toBe(3);
 });
 
+// TEST-01 audit follow-up (2026-07-09) — a real Any Order submission from a live game server was
+// rejected by the contiguous-1..N check above: checkpoint IDs [1, 4, 5], while bloodgulch's real
+// established checkpoint baseline is 5 (anonymised from the real payload; only
+// player_hash/player_name/hrl_token/submission_id/port were changed). Investigated before
+// "fixing" anything: Any Order means the *player* can complete checkpoints out of course
+// sequence, not that the map's physical checkpoint set changes — a genuine Any Order lap on
+// bloodgulch should still report all 5 checkpoints, just potentially unordered. The missing 2/3
+// point to the game server's Lua script under-reporting splits in Any Order mode specifically —
+// a producer-side bug, not a backend validation gap (this check doesn't even consult a map's
+// learned baseline — it's a self-contained "is this a real 1..N set" check, independent of any
+// particular map). The check is correctly race-type-agnostic; this test documents that and guards
+// against a future "fix" re-introducing the wrong loosening.
+it('rejects a real anonymised Any Order submission with an incomplete checkpoint set (Lua under-reporting)', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'map_name' => 'bloodgulch',
+        'player_hash' => 'feb7758227bdc1ef12e7c6bbb1567693',
+        'player_name' => 'Effakt',
+        'player_time' => 68.066666666667,
+        'port' => 2304,
+        'race_type' => 1,
+        'submission_id' => 'golden-anyorder-0001',
+        'splits' => [
+            ['checkpoint_id' => 1, 'duration' => 9.3, 'startTime' => 11.5, 'endTime' => 20.8],
+            ['checkpoint_id' => 4, 'duration' => 39.533333333333, 'startTime' => 20.8, 'endTime' => 60.333333333333],
+            ['checkpoint_id' => 5, 'duration' => 19.233333333333, 'startTime' => 60.333333333333, 'endTime' => 79.566666666667],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
+it('accepts an Any Order submission that reports every checkpoint, just out of course sequence', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'race_type' => 1,
+        'splits' => [
+            ['checkpoint_id' => 4, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 1, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+            ['checkpoint_id' => 5, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+            ['checkpoint_id' => 2, 'duration' => 10.0, 'startTime' => 30.0, 'endTime' => 40.0],
+            ['checkpoint_id' => 3, 'duration' => 10.0, 'startTime' => 40.0, 'endTime' => 50.0],
+        ],
+    ])->assertOk();
+
+    expect(Map::where('name', 'bloodgulch-anyorder')->sole())->checkpoint_count->toBe(5);
+});
+
 it('rejects a duplicate map name at the database level', function () {
     Map::factory()->create(['name' => 'some-map']);
 

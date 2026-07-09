@@ -8,9 +8,15 @@ rules:
       trusted rich-text field), never for raw user input or request data.
     paths:
       include:
-        - "resources/views/**/*.blade.php"
+        - "**/resources/views/**/*.blade.php"
     patterns:
-      - pattern: "{!! $X !!}"
+      # Validated 2026-07-09 (TEST-01 audit follow-up): `$X` is a single-token metavariable in
+      # Semgrep's generic/spacegrep mode — it never matched real Blade output like
+      # `{!! $userSuppliedHtml !!}` at all (confirmed: this rule fired zero times against real
+      # code or a deliberate positive fixture before this fix). Needs the ellipsis form (`$...X`,
+      # matches a run of tokens) to actually span the content between `{!!`/`!!}`. See
+      # tests/semgrep/resources/views/blade-unescaped-output.blade.php.
+      - pattern: "{!! $...X !!}"
 
   - id: raw-sql-with-interpolation
     languages: [php]
@@ -32,13 +38,19 @@ rules:
       Possible hardcoded credential/secret. Use config()/env() referencing
       .env instead of inlining secrets in PHP source.
     patterns:
-      - pattern-either:
-          - pattern: $PASSWORD = "..."
-          - pattern: $SECRET = "..."
-          - pattern: $API_KEY = "..."
-    metavariable-regex:
-      metavariable: $PASSWORD
-      regex: (?i)(password|secret|api_key|apikey|token)
+      # Validated 2026-07-09 (TEST-01 audit follow-up): the original rule used a different
+      # metavariable name in each `pattern-either` branch ($PASSWORD/$SECRET/$API_KEY) with
+      # `metavariable-regex` applied only to $PASSWORD. Semgrep only enforces a
+      # metavariable-regex when that exact metavariable is bound by the matching branch — for
+      # the $SECRET/$API_KEY branches it wasn't, so the constraint was silently skipped and the
+      # rule matched almost any `$var = "literal string";` (confirmed live: a fixture with
+      # `$foo = "bar";` and `$notAVariable = "...";` both fired). Fixed by using one shared
+      # metavariable ($VAR) across the whole pattern and constraining that one name directly —
+      # see tests/semgrep/hardcoded-credential-like-string.php.
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^\$?(password|secret|api_key|apikey|token)
 
   - id: livewire-mount-missing-validation-reminder
     languages: [php]
@@ -49,7 +61,7 @@ rules:
       policy check on ownership) rather than trusting the raw route value.
     paths:
       include:
-        - "app/Livewire/**/*.php"
+        - "**/app/Livewire/**/*.php"
     patterns:
       - pattern: |
           function mount($PARAM) { ... }

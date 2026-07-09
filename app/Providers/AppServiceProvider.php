@@ -38,9 +38,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Public read-only API rate limit (see docs/api.md, docs/security.md) — 60/min per IP
-        // is a starting point, not a measured/tuned value; revisit if real usage says otherwise.
-        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+        // Public read-only API rate limit (see docs/api.md, docs/security.md) — the configured
+        // ceiling (config/api.php, default 60/min) is a starting point, not a measured/tuned
+        // value; revisit if real usage says otherwise. Pulled from config rather than hardcoded
+        // so a test can assert the real production ceiling directly (TEST-01 audit follow-up).
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(config('api.rate_limit_per_minute'))->by($request->ip()));
 
         // The lap-submission webhook (docs/database.md) is machine-to-machine, not a browsing
         // client, but per docs/security.md's SEC-01 audit follow-up it's also the one endpoint
@@ -56,7 +58,10 @@ class AppServiceProvider extends ServiceProvider
         // applies at both tiers specifically so running many ports can't bypass it even once
         // "verified."
         RateLimiter::for('webhook', function (Request $request) {
-            $ip = ResolveSubmittingIp::resolve($request->ip());
+            // Request::ip() is nullable in Symfony's stack (no REMOTE_ADDR/trusted proxy
+            // resolvable) — doesn't happen in this app's real deployment, but falls back to a
+            // shared '' rate-limit bucket rather than crashing if it ever did.
+            $ip = ResolveSubmittingIp::resolve($request->ip() ?? '');
             $port = $request->input('port');
 
             $tier = Cache::has(LapSubmissionVerifier::verifiedMarkerKey($ip, $port))

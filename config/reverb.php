@@ -82,7 +82,18 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => [env('REVERB_APP_ALLOWED_ORIGIN', 'redesign.hrl.effakt.info')],
+                // '127.0.0.1' added (code review follow-up, 2026-07-09) so the real Echo/Reverb
+                // browser test (tests/Browser/EchoReverbDeliveryTest.php) can pass — Pest's
+                // browser plugin always serves pages from its own local 127.0.0.1:<random-port>
+                // origin, never the real domain (confirmed by reading the plugin's source), and
+                // this matches against hostname only, not port (see SEC-06 in docs/security.md).
+                // Low real risk: exploiting this needs an attacker already controlling something
+                // on the connecting client's own localhost, a materially different threat model
+                // than the spoofed-remote-origin case SEC-06 was written to close.
+                'allowed_origins' => [
+                    env('REVERB_APP_ALLOWED_ORIGIN', 'redesign.hrl.effakt.info'),
+                    '127.0.0.1',
+                ],
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => env('REVERB_APP_MAX_CONNECTIONS', 500),

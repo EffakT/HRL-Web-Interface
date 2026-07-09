@@ -19,6 +19,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Historical rows imported before this change still only have day precision (their time
  * component reads as midnight) since that detail was never captured for them; there's no way
  * to recover it retroactively. See docs/database.md's "Known constraint" section.
+ *
+ * `server`/`map`/`player` are declared non-nullable below (PHPStan level 8 follow-up,
+ * 2026-07-09): `server_id`/`map_id`/`player_id` are NOT NULL FK columns with the default
+ * RESTRICT delete behavior (no `onDelete()` set on any of them — see
+ * create_lap_times_table), so a persisted LapTime's related rows can never actually be missing.
+ * Larastan otherwise types every `belongsTo` as nullable regardless of DB constraints; these
+ * declarations state the real, DB-enforced invariant rather than null-guarding ~35 call sites
+ * for a case that cannot occur.
+ *
+ * @property-read Server $server
+ * @property-read Map $map
+ * @property-read Player $player
  */
 #[Fillable(['server_id', 'map_id', 'player_id', 'time', 'submission_id', 'submission_hash'])]
 class LapTime extends Model

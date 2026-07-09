@@ -58,6 +58,20 @@ it('rate-limits the public read API at its configured per-IP boundary (TEST-01 a
     $this->getJson('/api/v1/servers')->assertStatus(429);
 });
 
+it('enforces the real production rate-limit ceiling, not just the throttle:api wiring (TEST-01 audit follow-up)', function () {
+    // Unlike the fast boundary test above (which substitutes a small ceiling to exercise the
+    // wiring quickly), this asserts the actual configured production value — config/api.php,
+    // 60/min by default — so the test fails if that value ever drifts unintentionally, and
+    // proves requests 1-60 genuinely succeed while the 61st is rejected.
+    expect(config('api.rate_limit_per_minute'))->toBe(60);
+
+    for ($i = 0; $i < 60; $i++) {
+        $this->getJson('/api/v1/servers')->assertOk();
+    }
+
+    $this->getJson('/api/v1/servers')->assertStatus(429);
+});
+
 it('returns the global map leaderboard, ranked by best lap across all active servers', function () {
     $map = Map::factory()->create();
     $serverA = Server::factory()->create();

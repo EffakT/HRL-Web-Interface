@@ -49,8 +49,22 @@ class GlobalRanking
      * pulled toward the overall mean by `config('ranking.average_confidence_maps')` "virtual"
      * maps of that mean, fading out as a player races more maps of their own.
      *
-     * @param  array<int, array<string, mixed>>  $players  keyed by player id, each with at least 'score'/'mapsPlayed'
-     * @return array<int, array<string, mixed>> same shape, 'score' replaced
+     * @param  array<int, array{
+     *     playerId: int, name: string, rank: int, score: int, mapsPlayed: int,
+     *     firstPlaces: int, top3: int, top10: int, fastestLap: float, firstAchievedAt: ?Carbon,
+     *     perMap: non-empty-list<array{
+     *         mapId: int, map: string, serverId: int, server: string,
+     *         rank: int, points: int, time: string, lapId: int, setAt: ?Carbon,
+     *     }>
+     * }>  $players  keyed by player id
+     * @return array<int, array{
+     *     playerId: int, name: string, rank: int, score: int, mapsPlayed: int,
+     *     firstPlaces: int, top3: int, top10: int, fastestLap: float, firstAchievedAt: ?Carbon,
+     *     perMap: non-empty-list<array{
+     *         mapId: int, map: string, serverId: int, server: string,
+     *         rank: int, points: int, time: string, lapId: int, setAt: ?Carbon,
+     *     }>
+     * }> same shape, 'score' replaced
      */
     private static function applyScoreVariant(array $players): array
     {
@@ -124,37 +138,7 @@ class GlobalRanking
                 $points = self::pointsForRank($rank);
                 $time = (float) $lap->time;
 
-                if (! isset($players[$lap->player_id])) {
-                    $players[$lap->player_id] = [
-                        'playerId' => $lap->player_id,
-                        'name' => $lap->player->name,
-                        'rank' => 0,
-                        'score' => 0,
-                        'mapsPlayed' => 0,
-                        'firstPlaces' => 0,
-                        'top3' => 0,
-                        'top10' => 0,
-                        'fastestLap' => $time,
-                        'firstAchievedAt' => $lap->created_at,
-                        'perMap' => [],
-                    ];
-                } else {
-                    if ($time < $players[$lap->player_id]['fastestLap']) {
-                        $players[$lap->player_id]['fastestLap'] = $time;
-                    }
-
-                    if ($lap->created_at && (! $players[$lap->player_id]['firstAchievedAt'] || $lap->created_at->lt($players[$lap->player_id]['firstAchievedAt']))) {
-                        $players[$lap->player_id]['firstAchievedAt'] = $lap->created_at;
-                    }
-                }
-
-                $players[$lap->player_id]['score'] += $points;
-                $players[$lap->player_id]['mapsPlayed']++;
-                $players[$lap->player_id]['firstPlaces'] += $rank === 1 ? 1 : 0;
-                $players[$lap->player_id]['top3'] += $rank <= 3 ? 1 : 0;
-                $players[$lap->player_id]['top10'] += $rank <= 10 ? 1 : 0;
-
-                $players[$lap->player_id]['perMap'][] = [
+                $perMapEntry = [
                     'mapId' => $lap->map_id,
                     'map' => $lap->map->label,
                     'serverId' => $lap->server_id,
@@ -165,6 +149,39 @@ class GlobalRanking
                     'lapId' => $lap->id,
                     'setAt' => $lap->created_at,
                 ];
+
+                if (! isset($players[$lap->player_id])) {
+                    $players[$lap->player_id] = [
+                        'playerId' => $lap->player_id,
+                        'name' => $lap->player->name,
+                        'rank' => 0,
+                        'score' => $points,
+                        'mapsPlayed' => 1,
+                        'firstPlaces' => $rank === 1 ? 1 : 0,
+                        'top3' => $rank <= 3 ? 1 : 0,
+                        'top10' => $rank <= 10 ? 1 : 0,
+                        'fastestLap' => $time,
+                        'firstAchievedAt' => $lap->created_at,
+                        'perMap' => [$perMapEntry],
+                    ];
+
+                    continue;
+                }
+
+                if ($time < $players[$lap->player_id]['fastestLap']) {
+                    $players[$lap->player_id]['fastestLap'] = $time;
+                }
+
+                if ($lap->created_at && (! $players[$lap->player_id]['firstAchievedAt'] || $lap->created_at->lt($players[$lap->player_id]['firstAchievedAt']))) {
+                    $players[$lap->player_id]['firstAchievedAt'] = $lap->created_at;
+                }
+
+                $players[$lap->player_id]['score'] += $points;
+                $players[$lap->player_id]['mapsPlayed']++;
+                $players[$lap->player_id]['firstPlaces'] += $rank === 1 ? 1 : 0;
+                $players[$lap->player_id]['top3'] += $rank <= 3 ? 1 : 0;
+                $players[$lap->player_id]['top10'] += $rank <= 10 ? 1 : 0;
+                $players[$lap->player_id]['perMap'][] = $perMapEntry;
             }
         }
 
@@ -189,6 +206,16 @@ class GlobalRanking
         })->all();
     }
 
+    /**
+     * @return array{
+     *     playerId: int, name: string, rank: int, score: int, mapsPlayed: int,
+     *     firstPlaces: int, top3: int, top10: int, fastestLap: float, firstAchievedAt: ?Carbon,
+     *     perMap: non-empty-list<array{
+     *         mapId: int, map: string, serverId: int, server: string,
+     *         rank: int, points: int, time: string, lapId: int, setAt: ?Carbon,
+     *     }>
+     * }|null
+     */
     public static function forPlayer(int $playerId, ?int $serverId = null, ?int $excludeLapId = null): ?array
     {
         return collect(static::scores($serverId, $excludeLapId))->firstWhere('playerId', $playerId);
@@ -252,7 +279,7 @@ class GlobalRanking
         $topLap = $bestPerPlayer->first();
         $topTime = $topLap !== null ? (float) $topLap->time : null;
 
-        return $bestPerPlayer
+        return array_values($bestPerPlayer
             ->map(function (LapTime $lap, int $index) use ($topTime): array {
                 $time = (float) $lap->time;
 
@@ -269,6 +296,6 @@ class GlobalRanking
                     'setAt' => $lap->created_at,
                 ];
             })
-            ->all();
+            ->all());
     }
 }

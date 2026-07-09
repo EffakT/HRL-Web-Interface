@@ -29,9 +29,13 @@ class LapSubmissionController extends Controller
         // ported from ApiController.php-legacy) — rewritten here, first, so every downstream use
         // of $ip (idempotency key, verification, storage) sees the real address, matching what
         // the `webhook` rate limiter (AppServiceProvider) already resolved it to.
-        $ip = ResolveSubmittingIp::resolve($request->ip());
+        // Request::ip() is nullable in Symfony's stack (no REMOTE_ADDR/trusted proxy resolvable)
+        // — doesn't happen in this app's real deployment (nginx/PHP-FPM always sets it), but a
+        // missing IP should fail verification cleanly rather than crash: '' matches no
+        // internal_ip_map entry and fails the UDP query verification like any other bad IP.
+        $ip = ResolveSubmittingIp::resolve($request->ip() ?? '');
         $port = (int) $request->validated('port');
-        $data = $request->validated();
+        $data = $this->normalizeSubmission($request->validated());
 
         // Canonical content hash (App\Helpers\LapSubmissionHash) — identifies "the fields that
         // make two submissions the same lap," independent of whether a `submission_id` was
@@ -111,7 +115,43 @@ class LapSubmissionController extends Controller
         return response()->json($body, $statusCode);
     }
 
-    /** @return array{0: array<string, mixed>, 1: int} */
+    /**
+     * Canonicalizes freshly-validated request input into the exact runtime shape every
+     * downstream consumer (`LapSubmissionHash`, `LapSubmissionVerifier`, `ProcessNewLap`)
+     * already declares it needs. Laravel's `numeric`/`integer` validation rules confirm a field
+     * IS numeric but never cast it — raw `validated()` input can still carry e.g. `player_time`
+     * as a numeric string depending on how the submitting client encoded its request (a real
+     * case, not hypothetical — see `LapSubmissionHash::compute()`'s own docblock), rather than
+     * an already-canonical int/float.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, hrl_token: string|null, submission_id: string|null, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}
+     */
+    private function normalizeSubmission(array $raw): array
+    {
+        $splits = $raw['splits'] ?? null;
+
+        return [
+            'map_name' => (string) $raw['map_name'],
+            'player_hash' => (string) $raw['player_hash'],
+            'player_name' => (string) $raw['player_name'],
+            'player_time' => (float) $raw['player_time'],
+            'race_type' => (int) $raw['race_type'],
+            'hrl_token' => isset($raw['hrl_token']) ? (string) $raw['hrl_token'] : null,
+            'submission_id' => isset($raw['submission_id']) ? (string) $raw['submission_id'] : null,
+            'splits' => $splits !== null ? array_map(fn (array $split): array => [
+                'checkpoint_id' => (int) $split['checkpoint_id'],
+                'duration' => (float) $split['duration'],
+                'startTime' => isset($split['startTime']) ? (float) $split['startTime'] : null,
+                'endTime' => isset($split['endTime']) ? (float) $split['endTime'] : null,
+            ], $splits) : null,
+        ];
+    }
+
+    /**
+     * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, hrl_token: string|null, submission_id: string|null, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
+     * @return array{0: array<string, mixed>, 1: int}
+     */
     private function process(string $ip, int $port, array $data, LapSubmissionVerifier $verifier): array
     {
         $liveQueryResponse = null;

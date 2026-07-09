@@ -8,6 +8,7 @@ use App\Models\GlobalRanking;
 use App\Models\LapTimeSplit;
 use App\Models\Player;
 use App\Models\PlayerProfile;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -21,20 +22,31 @@ class PlayerShow extends Component
 
     public string $playerName;
 
+    /** @var array<string, mixed> */
     public array $playerInfo = [];
 
+    /** @var array<string, mixed> */
     public array $statsCard = [];
 
+    /** @var array<int, string> */
     public array $achievements = [];
 
+    /** @var array<int, array{mapId: int, lapId: int, recordLapId: ?int, map: string, server: string, time: string, date: string, dateExact: string, recordHolder: string, recordTime: string, mapRank: ?int, points: ?int}> */
     public array $laps = [];
 
-    /** Keys into $laps for the Performance by Map table, in per-map order. */
+    /** Keys into $laps for the Performance by Map table, in per-map order.
+     *
+     * @var array<int, int>
+     */
     public array $performanceKeys = [];
 
-    /** Keys into $laps for the Recent Laps feed, in reverse-chronological order. */
+    /** Keys into $laps for the Recent Laps feed, in reverse-chronological order.
+     *
+     * @var array<int, int>
+     */
     public array $recentLapKeys = [];
 
+    /** @var list<array<string, mixed>> */
     public array $favServers = [];
 
     public function mount(string $playerId): void
@@ -97,21 +109,27 @@ class PlayerShow extends Component
         // happen to live on that server.
         $bestRankByServer = $perMap->groupBy('serverId')->map(fn ($group) => $group->min('rank'));
 
-        $this->favServers = $allLaps->groupBy('server_id')
+        // Keyed lookup rather than `$group->first()->server->name` below — Collection::first()
+        // is typed nullable (it can't know a groupBy() result is never empty), and every group
+        // here shares one server_id, so this is equivalent without going through a nullable type.
+        $serverNamesById = $allLaps->pluck('server.name', 'server_id');
+
+        $this->favServers = array_values($allLaps->groupBy('server_id')
             ->map(fn ($group, $serverId) => [
                 'serverId' => (int) $serverId,
-                'server' => $group->first()->server->name,
+                'server' => $serverNamesById[$serverId],
                 'laps' => $group->count(),
                 'bestRank' => $bestRankByServer[$serverId] ?? null,
             ])
             ->sortByDesc('laps')
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
      * Real per-checkpoint split comparison against the map's course-record lap — same pattern
      * as ServerShow, via the shared HasRecordVsRunnerUpReference trait.
+     *
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}>
      */
     public function getComparisonProperty(): array
     {
@@ -125,6 +143,7 @@ class PlayerShow extends Component
         return LapTimeSplit::compare($lap['lapId'], $reference['lapId']);
     }
 
+    /** @return array{lapId: int, name: string, time: string, label: string}|null */
     public function getComparisonReferenceProperty(): ?array
     {
         $lap = $this->laps[$this->selectedPlayerIndex] ?? $this->laps[0] ?? null;
@@ -132,7 +151,7 @@ class PlayerShow extends Component
         return $this->resolveComparisonReference($lap);
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.players.player-show');
     }

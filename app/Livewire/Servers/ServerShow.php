@@ -10,6 +10,7 @@ use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use App\Models\Server;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -27,16 +28,27 @@ class ServerShow extends Component
 
     public string $serverPort;
 
+    /** @var list<array<string, mixed>> */
     public array $maps = [];
 
+    /** @var array<string, int> */
     public array $stats = [];
 
+    /** @var list<array<string, mixed>> */
     public array $topPlayers = [];
 
-    /** Every player ranked by Server Score on this server — HasRankedLeaderboardPagination slices ranks 4+ from this. */
+    /**
+     * Every player ranked by Server Score on this server — HasRankedLeaderboardPagination slices ranks 4+ from this.
+     *
+     * @var list<array<string, mixed>>
+     */
     public array $players = [];
 
-    /** Current page's Latest Laps rows, indexed the same as rendered — read by the Lap Detail modal via $selectedPlayerIndex. */
+    /**
+     * Current page's Latest Laps rows, indexed the same as rendered — read by the Lap Detail modal via $selectedPlayerIndex.
+     *
+     * @var array<int, array<string, mixed>>
+     */
     public array $latestLaps = [];
 
     public function mount(string $serverId): void
@@ -83,7 +95,7 @@ class ServerShow extends Component
             ->get()
             ->keyBy('map_id');
 
-        $this->maps = $server->maps
+        $this->maps = array_values($server->maps
             ->map(fn ($map): array => [
                 'id' => $map->id,
                 'name' => $map->label,
@@ -92,7 +104,7 @@ class ServerShow extends Component
                     ? LapTime::formatSeconds($serverMapStats[$map->id]->best)
                     : '—',
             ])
-            ->all();
+            ->all());
 
         // Stats badges — split into all-time + 30d/90d activity windows (matching the recency
         // pattern used elsewhere, e.g. most-active-server.md), rather than one flat all-time
@@ -130,7 +142,7 @@ class ServerShow extends Component
         // Same "# Records, # Laps, # Maps" stat set as the Global Leaderboard, per explicit
         // request to keep ranked-player displays consistent — 'records'/'maps' come straight off
         // GlobalRanking's per-scope firstPlaces/mapsPlayed, already scoped to this server.
-        $this->players = collect($serverRanking)
+        $this->players = array_values(collect($serverRanking)
             ->map(fn (array $player): array => [
                 'id' => $player['playerId'],
                 'rank' => $player['rank'],
@@ -140,7 +152,7 @@ class ServerShow extends Component
                 'maps' => $player['mapsPlayed'],
                 'laps' => (int) ($playerLapCounts[$player['playerId']]->laps ?? 0),
             ])
-            ->all();
+            ->all());
 
         $this->topPlayers = array_map(fn (array $player): array => [
             'title' => $player['name'],
@@ -162,6 +174,8 @@ class ServerShow extends Component
      * extracted from Player Single's inline copy — this is its second real consumer). The
      * transformed page is also stashed on $latestLaps so the modal can index into the exact
      * same array the page rendered, regardless of pagination.
+     *
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
     public function laps(): LengthAwarePaginator
     {
@@ -182,30 +196,40 @@ class ServerShow extends Component
             ->groupBy('map_id')
             ->map(fn ($group) => $group->sortBy('time')->first());
 
-        $paginator->through(function (LapTime $lap) use ($recordsByMap): array {
-            $record = $recordsByMap[$lap->map_id] ?? null;
-
-            return [
-                'lapId' => $lap->id,
-                'mapId' => $lap->map_id,
-                'recordLapId' => $record?->id,
-                'player' => $lap->player->name,
-                'map' => $lap->map->label,
-                'server' => $this->serverName,
-                'time' => $lap->formattedTime(),
-                // Relative ("3h ago") rather than an absolute date/time — avoids implying a
-                // timezone to an international audience. The exact date/time + timezone
-                // abbreviation is still available on hover (see server-show.blade.php).
-                'date' => $lap->created_at->diffForHumans(),
-                'dateExact' => $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T'),
-                'recordHolder' => $record?->player->name ?? '—',
-                'recordTime' => $record ? LapTime::formatSeconds($record->time) : '—',
-            ];
-        });
+        $paginator->through(fn (LapTime $lap): array => $this->formatLatestLapRow($lap, $recordsByMap[$lap->map_id] ?? null));
 
         $this->latestLaps = $paginator->items();
 
         return $paginator;
+    }
+
+    /**
+     * Extracted out of `laps()` so its return type is declared, not structurally inferred —
+     * `LengthAwarePaginator::through()`'s TValue is non-covariant, so `laps()`'s own `@return`
+     * generic needs the closure's result to match it invariantly; an inline closure's inferred
+     * literal type (e.g. `mapId: int<0, max>`) doesn't unify with the declared shape even though
+     * it's a valid subtype, where a named method's own declared return type does.
+     *
+     * @return array<string, mixed>
+     */
+    private function formatLatestLapRow(LapTime $lap, ?LapTime $record): array
+    {
+        return [
+            'lapId' => $lap->id,
+            'mapId' => $lap->map_id,
+            'recordLapId' => $record?->id,
+            'player' => $lap->player->name,
+            'map' => $lap->map->label,
+            'server' => $this->serverName,
+            'time' => $lap->formattedTime(),
+            // Relative ("3h ago") rather than an absolute date/time — avoids implying a
+            // timezone to an international audience. The exact date/time + timezone
+            // abbreviation is still available on hover (see server-show.blade.php).
+            'date' => $lap->created_at?->diffForHumans() ?? '—',
+            'dateExact' => $lap->created_at ? $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T') : '—',
+            'recordHolder' => $record?->player->name ?? '—',
+            'recordTime' => $record ? LapTime::formatSeconds($record->time) : '—',
+        ];
     }
 
     /**
@@ -215,17 +239,26 @@ class ServerShow extends Component
      * LapTimeSplit::compare() for the shared comparison math (also used by
      * ServerMapLeaderboard). Only ~4% of real laps have split rows at all, so this is
      * frequently empty — the view shows a "no split data" message rather than fabricating rows.
+     *
+     * @return array<int, array{label: string, myTime: string, refTime: ?string, delta: ?string, deltaValue: ?float, running: ?string, faster: ?bool, absDelta: ?float, colorClass: string, barW: ?int, hasReference: bool, usingReferenceSplits: bool}>
      */
     public function getComparisonProperty(): array
     {
         $lap = $this->latestLaps[$this->selectedPlayerIndex] ?? $this->latestLaps[0] ?? null;
-        $reference = $this->resolveComparisonReference($lap);
 
-        if (! $lap || ! $reference) {
+        if (! $lap) {
             return [];
         }
 
-        return LapTimeSplit::compare($lap['lapId'], $reference['lapId']);
+        $reference = $this->resolveComparisonReference($this->toComparisonReferenceInput($lap));
+
+        // No record/runner-up lap exists yet (e.g. this is the very first lap ever recorded for
+        // a freshly-forked race_type/checkpoint-count map variant) — still show this lap's own
+        // splits rather than collapsing "no reference lap" into the same "no split data" message
+        // as "this lap genuinely has no splits."
+        return $reference
+            ? LapTimeSplit::compare($lap['lapId'], $reference['lapId'])
+            : LapTimeSplit::solo($lap['lapId']);
     }
 
     /**
@@ -235,15 +268,45 @@ class ServerShow extends Component
      * reads this dynamically rather than always showing the record holder's info, which
      * previously stayed on-screen even when the real comparison had silently swapped to the
      * runner-up — a mismatch that made the "no delta comparison" message look backwards.
+     *
+     * @return array{lapId: int, name: string, time: string, label: string}|null
      */
     public function getComparisonReferenceProperty(): ?array
     {
         $lap = $this->latestLaps[$this->selectedPlayerIndex] ?? $this->latestLaps[0] ?? null;
 
-        return $this->resolveComparisonReference($lap);
+        return $this->resolveComparisonReference($this->toComparisonReferenceInput($lap));
     }
 
-    public function render()
+    /**
+     * `$latestLaps`' rows are stored as `array<string, mixed>` (see `formatLatestLapRow()`'s own
+     * docblock for why that's kept loose rather than a literal shape — `LengthAwarePaginator`'s
+     * `TValue` template isn't covariant, so a shaped return type there doesn't unify with this
+     * method's own declared generic), but every row is always actually built by
+     * `formatLatestLapRow()`, which unconditionally sets exactly these five keys with exactly
+     * these types — this narrows a known-good row down to the shape
+     * `HasRecordVsRunnerUpReference::resolveComparisonReference()` declares it needs, without
+     * loosening that trait method's own parameter type.
+     *
+     * @param  array<string, mixed>|null  $lap
+     * @return array{lapId: int, mapId: int, recordLapId: ?int, recordHolder: string, recordTime: string}|null
+     */
+    private function toComparisonReferenceInput(?array $lap): ?array
+    {
+        if ($lap === null) {
+            return null;
+        }
+
+        return [
+            'lapId' => (int) $lap['lapId'],
+            'mapId' => (int) $lap['mapId'],
+            'recordLapId' => $lap['recordLapId'] !== null ? (int) $lap['recordLapId'] : null,
+            'recordHolder' => (string) $lap['recordHolder'],
+            'recordTime' => (string) $lap['recordTime'],
+        ];
+    }
+
+    public function render(): View
     {
         return view('livewire.servers.server-show', [
             'laps' => $this->laps(),

@@ -66,7 +66,6 @@
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// KNOWN ISSUES</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Rally is not currently supported</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> AnyOrder does not currently work due to a bug in the lua missing recording of certain checkpoints</li>
             </ul>
         </div>
 

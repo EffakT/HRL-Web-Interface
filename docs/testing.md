@@ -97,8 +97,9 @@ Separately, the user also connected `EffakT/HRL-Web-Interface-v2` to Semgrep's h
 Closed: `PlayerShow` focused coverage, API and Livewire extreme-page pagination coverage, the read-API production rate-limit boundary, real UDP socket coverage for `QueryServer`, PHPStan level 8 (see the PHPStan section above for the false-positive-vs-real-gap breakdown), the MySQL concurrent map-variant-cap test (which found and fixed a real race condition — see decisions.md), real browser/UI coverage (`tests/Browser/`), Semgrep custom-rule validation (above, including finding and fixing two of the four custom rules that were themselves broken), coverage evidence, the dedicated test database (below), and the real end-to-end Echo/Reverb browser delivery test (below). General CI is explicitly deferred while this is a solo-maintained project; hosted Semgrep remains active independently.
 
 Still open:
-- **Lua producer fix for Any Order (still planned, unaffected by the 2026-07-10 last-lap fix)** — root cause identified (`hrl.lua`'s `NormalizeCheckpointId()` mis-decodes non-contiguous checkpoint bitmasks) but not fixed — `hrl.lua`/`hrl-refactored.lua` are outside this repo. A real Any Order golden fixture stays blocked until that's addressed game-side.
 - **Rally support: decided no-go (2026-07-10), not just deferred.** No Rally golden fixture is planned, regardless of the last-lap fix in `hrl-refactored.lua`. See [decisions.md](decisions.md) and [roadmap.md](roadmap.md).
+
+Resolved (2026-07-10): **Any Order's Lua producer bug is fixed in `hrl-refactored.lua`** (the script replacing `hrl.lua` at launch) — its bit-scanning checkpoint decode doesn't depend on contiguous bitmasks the way legacy `hrl.lua`'s did. A real Any Order golden fixture is unblocked once `hrl-refactored.lua` is live. See [decisions.md](decisions.md) and [roadmap.md](roadmap.md).
 
 ### Real end-to-end Echo/Reverb browser delivery test (2026-07-09)
 

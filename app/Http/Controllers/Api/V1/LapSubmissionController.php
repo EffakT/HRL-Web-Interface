@@ -193,7 +193,7 @@ class LapSubmissionController extends Controller
         $job = new ProcessNewLap(ip: $ip, port: $port, data: $data, liveQueryResponse: $liveQueryResponse);
 
         try {
-            $body = app()->call([$job, 'handle']);
+            $body = app()->call($job->handle(...));
         } catch (LapSubmissionConflictException) {
             // The durable, database-backed counterpart to this method's own cache-based
             // idempotency-conflict check above (SEC-01 audit follow-up) — reached when a reused

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Http\Controllers\RobotsController;
 use App\Http\Controllers\SitemapController;
 use App\Livewire\Home;

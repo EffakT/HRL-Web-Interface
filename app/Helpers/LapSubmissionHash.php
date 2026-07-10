@@ -2,6 +2,8 @@
 
 namespace App\Helpers;
 
+use RuntimeException;
+
 /**
  * Canonical content fingerprint for a lap submission (SEC-01 audit follow-up) — identifies
  * "the fields that make two submissions the same lap," independent of the client-supplied
@@ -42,13 +44,11 @@ class LapSubmissionHash
             $splits,
         ]);
 
-        if ($encoded === false) {
-            // Every value fed in above is a scalar or an array of scalars built just above from
-            // already-validated request input — there's no genuine way for json_encode() to fail
-            // (e.g. a resource, invalid UTF-8, or recursive reference) on this input, so this
-            // guards a real invariant rather than a case that can actually occur.
-            throw new \RuntimeException('Failed to encode lap submission data for hashing.');
-        }
+        // Every value fed in above is a scalar or an array of scalars built just above from
+        // already-validated request input — there's no genuine way for json_encode() to fail
+        // (e.g. a resource, invalid UTF-8, or recursive reference) on this input, so this
+        // guards a real invariant rather than a case that can actually occur.
+        throw_if($encoded === false, RuntimeException::class, 'Failed to encode lap submission data for hashing.');
 
         return hash('sha256', $encoded);
     }

@@ -16,10 +16,10 @@ These three concepts run through the whole app, not just one page — establishe
 
 ## In scope
 
-- New Laravel + Livewire frontend covering: Servers (list, single-server map list), Maps (global list, global leaderboard), server-scoped nested leaderboards, Players (list, single-player lap log with lap-detail popup), Opt-In, Contact, Home.
-- New REST API fixing known issues in the old one (see [api.md](api.md)).
-- Real-time leaderboard updates via Laravel Reverb (planned, not yet built).
-- Webhook → job pipeline for lap submission (planned, pending inspection of the old implementation).
+- New Laravel + Livewire frontend covering: Servers (list, single-server map list), Maps (global list, global leaderboard), server-scoped nested leaderboards, Players (list, single-player lap log with lap-detail popup), Opt-In, Contact, Home. **Done** — every page is wired to real data, see [roadmap.md](roadmap.md).
+- New REST API fixing known issues in the old one (see [api.md](api.md)). **Done.**
+- Real-time leaderboard updates via Laravel Reverb. **Done** (roadmap item 16).
+- Webhook → job pipeline for lap submission. **Done** (roadmap item 14), including the SEC-01 HRL query verification layer added afterward — see [security.md](security.md).
 - A HUD-styled design system ported from the provided static comps (see [architecture.md](architecture.md) styleguide section).
 
 ## Explicitly out of scope (for now)

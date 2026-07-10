@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 // ruleid: hardcoded-credential-like-string
 $password = 'hunter2';
 

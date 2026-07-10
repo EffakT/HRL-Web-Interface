@@ -13,9 +13,9 @@ return new class extends Migration
             $table->id();
             $table->unsignedInteger('lap_time_id');
             $table->integer('checkpoint_id');
-            $table->double('duration', 8, 2);
-            $table->double('start_time', 8, 2);
-            $table->double('end_time', 8, 2);
+            $table->double('duration');
+            $table->double('start_time');
+            $table->double('end_time');
             $table->timestamps();
 
             $table->foreign('lap_time_id')->references('id')->on('lap_times');

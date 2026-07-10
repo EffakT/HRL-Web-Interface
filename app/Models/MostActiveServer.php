@@ -16,7 +16,7 @@ use Carbon\Carbon;
  */
 class MostActiveServer
 {
-    private const WINDOW_DAYS = 90;
+    private const int WINDOW_DAYS = 90;
 
     /**
      * Activity Score + tie-break for every active (non-soft-deleted) server, ranked.

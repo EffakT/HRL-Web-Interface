@@ -19,7 +19,7 @@ class ServerList extends Component
      * lap-history-derived proxy below. A generous margin over the 1-minute schedule so a missed
      * run or two doesn't immediately flip a server back to "unknown."
      */
-    private const LIVE_DATA_FRESHNESS_MINUTES = 5;
+    private const int LIVE_DATA_FRESHNESS_MINUTES = 5;
 
     /**
      * Null when there are no servers at all (e.g. a fresh install) — the view guards on this
@@ -106,7 +106,7 @@ class ServerList extends Component
     /** @return array<string, mixed> */
     private function buildRow(Server $server): array
     {
-        $lastLap = $server->lapTimes()->with('map')->orderByDesc('created_at')->first();
+        $lastLap = $server->lapTimes()->with('map')->latest()->first();
         $laps = $server->lapTimes()->count();
         $players = $server->lapTimes()->distinct('player_id')->count('player_id');
 

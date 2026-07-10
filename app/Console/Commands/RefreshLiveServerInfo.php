@@ -65,7 +65,7 @@ class RefreshLiveServerInfo extends Command
             $this->line("✓ {$server->name}: {$response['mapname']} ({$numPlayers} players)");
         }
 
-        ServerStatusRefreshed::dispatch();
+        event(new ServerStatusRefreshed);
 
         return self::SUCCESS;
     }

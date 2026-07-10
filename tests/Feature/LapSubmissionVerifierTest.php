@@ -5,9 +5,9 @@ use App\Helpers\LapSubmissionVerifier;
 
 function fakeQuery(array|false $response): GameServerQuery
 {
-    return new class($response) implements GameServerQuery
+    return new readonly class($response) implements GameServerQuery
     {
-        public function __construct(private readonly array|false $response) {}
+        public function __construct(private array|false $response) {}
 
         public function query(string $ip, int $port, int $timeoutSeconds = 2): array|false
         {

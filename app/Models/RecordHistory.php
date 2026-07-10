@@ -42,8 +42,7 @@ class RecordHistory
         $laps = LapTime::query()
             ->when($mapId, fn ($query) => $query->where('map_id', $mapId))
             ->whereHas('server')
-            ->with(['player', 'map', 'server'])
-            ->orderBy('created_at')
+            ->with(['player', 'map', 'server'])->oldest()
             ->orderBy('id')
             ->get();
 

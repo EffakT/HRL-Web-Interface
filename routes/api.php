@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Http\Controllers\Api\V1\LapSubmissionController;
 use App\Http\Controllers\Api\V1\LapTimeController;
 use App\Http\Controllers\Api\V1\MapLeaderboardController;

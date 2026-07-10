@@ -228,7 +228,7 @@ class ServerShow extends Component
             'date' => $lap->created_at?->diffForHumans() ?? '—',
             'dateExact' => $lap->created_at ? $lap->created_at->format('d M Y, H:i').' '.$lap->created_at->format('T') : '—',
             'recordHolder' => $record?->player->name ?? '—',
-            'recordTime' => $record ? LapTime::formatSeconds($record->time) : '—',
+            'recordTime' => $record instanceof LapTime ? LapTime::formatSeconds($record->time) : '—',
         ];
     }
 

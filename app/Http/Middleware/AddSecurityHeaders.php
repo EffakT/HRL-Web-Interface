@@ -52,7 +52,7 @@ class AddSecurityHeaders
         ]));
 
         $httpOrigin = config('app.url');
-        $wsOrigin = preg_replace('/^http/', 'ws', $httpOrigin);
+        $wsOrigin = preg_replace('/^http/', 'ws', (string) $httpOrigin);
 
         $response->headers->set('Content-Security-Policy-Report-Only', implode('; ', [
             "default-src 'self'",

@@ -18,9 +18,9 @@ uses(LazilyRefreshDatabase::class);
 
 function fakeGameServerQuery(array|false $response = ['hostname' => 'Live Server Name', 'numplayers' => '1']): void
 {
-    app()->bind(GameServerQuery::class, fn () => new class($response) implements GameServerQuery
+    app()->bind(GameServerQuery::class, fn () => new readonly class($response) implements GameServerQuery
     {
-        public function __construct(private readonly array|false $response) {}
+        public function __construct(private array|false $response) {}
 
         public function query(string $ip, int $port, int $timeoutSeconds = 2): array|false
         {

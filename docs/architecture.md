@@ -5,35 +5,37 @@
 | Layer | Choice | Why |
 |---|---|---|
 | Framework | **Laravel 13.8**, PHP 8.3+ (planned as "Laravel 12" originally — actual installed version is 13.8; treat 13.8 as current) | Fresh install requirement for Reverb/Livewire |
-| Real-time | **Laravel Reverb** + Laravel Echo (planned, not yet wired) | First-party, self-hosted, no third-party dependency |
+| Real-time | **Laravel Reverb** + Laravel Echo — live and wired (roadmap item 16, 2026-07-06/08) | First-party, self-hosted, no third-party dependency |
 | Frontend | **Livewire** — planned as v3, actually installed **v4.3** (composer pulled v4 by default) | Server-rendered, pairs naturally with Reverb broadcast listeners, less boilerplate than Vue/Inertia here |
 | Component style | **Traditional two-file** (`app/Livewire/{Name}.php` + `resources/views/livewire/.../*.blade.php`), created by hand — not Livewire v4's default single-file-component (`⚡`-prefixed) style | Main pages carry real logic (broadcast listeners, computed rankings) — worth separating for readability/testability. `artisan make:livewire` scaffolds v4 SFC style by default; don't use it as-is for these components. |
 | Styling | **Tailwind CSS v4** | Matches the HUD design aesthetic (utility-driven, precise spacing/opacity) |
 | Interactivity | **Alpine.js**, bundled with Livewire (no separate install) | Mobile nav overlay, modal transitions, tooltip positioning |
-| Data layer (fast reads) | SQL `MIN(time)` queries for now; Redis sorted sets considered but not adopted | See [performance.md](performance.md) |
-| Queue | Redis queue driver (planned) | Don't block webhook response |
-| Testing | **Pest** | Laravel default; first real route-coverage test in place — see [testing.md](testing.md) |
-| Static analysis | **PHPStan (Larastan)**, **Rector**, **Semgrep** (config only, not installed — see [testing.md](testing.md)) | Set up proactively before real backend work starts, so it's already in place rather than bolted on later |
+| Data layer (fast reads) | SQL `MIN(time)` queries; Redis sorted sets considered but not adopted (still true at real current scale — see [performance.md](performance.md)) | See [performance.md](performance.md) |
+| Queue | `database` queue driver (actual, not Redis as originally planned) — moot in practice so far: `ProcessNewLap` deliberately runs synchronously in the webhook's own HTTP request rather than being queued, and `InvalidateHomeHighlightsCache` is deliberately `ShouldQueue`-free for the same reason (see [decisions.md](decisions.md)'s PERF-01 section) | Nothing in this app currently needs deferred/background processing badly enough to justify provisioning Redis |
+| Testing | **Pest** (+ Pest Browser/Playwright) | See [testing.md](testing.md) for current suite size/coverage |
+| Static analysis | **PHPStan (Larastan)** level 8, **Rector**, **Semgrep** (hosted against the GitHub repo, not a local install — see [testing.md](testing.md)) | Set up proactively before real backend work starts, so it's already in place rather than bolted on later |
 | AI tooling | **Laravel Boost** (dev dependency) | MCP server for schema/route/Tinker access; read-only dev DB user, never prod credentials |
 
 ## Directory layout (frontend)
 
 ```
 app/Livewire/
-  Servers/ServerList.php, ServerShow.php, ServerMapLeaderboard.php
+  Home.php
+  Servers/ServerList.php, ServerShow.php, ServerMapLeaderboard.php, ServerPlayerShow.php
   Maps/MapList.php, MapLeaderboard.php
   Players/PlayerList.php, PlayerShow.php
-  Concerns/HasLapDetailModal.php        <- shared trait, see below
+  Concerns/HasLapDetailModal.php, HasRankedLeaderboardPagination.php, HasRecordVsRunnerUpReference.php  <- shared traits
 
 resources/views/
-  components/layout.blade.php           <- shared <x-layout>, nav + mobile overlay
+  components/layout.blade.php           <- shared <x-layout>, nav + mobile overlay, canonical/OG/robots meta (SEO-01)
   livewire/servers/*.blade.php
   livewire/maps/*.blade.php
   livewire/players/*.blade.php
   livewire/partials/
-    leaderboard-podium-and-table.blade.php
-    lap-detail-modal.blade.php
-  welcome.blade.php, opt-in.blade.php, contact.blade.php  <- plain Blade pages
+    leaderboard-podium-and-table.blade.php, podium.blade.php
+    lap-detail-modal.blade.php, lap-vs-record-modal.blade.php
+    highlights/*.blade.php              <- Home's per-block highlight partials
+  opt-in.blade.php, contact.blade.php   <- plain Blade pages (Home is now a real Livewire component, not a static welcome.blade.php)
 ```
 
 ## Routing hierarchy
@@ -44,15 +46,17 @@ The redesign introduces **two distinct leaderboard concepts** that don't exist a
 - **Global leaderboard**: `/maps` (all maps, like Players) → `/maps/{mapId}` (leaderboard aggregated across ALL servers for that map).
 
 ```
-GET  /                                    -> welcome.blade.php (home) — planned redesign around live community data, see [homepage.md](homepage.md)
+GET  /                                    -> Livewire\Home             (home) — real community data, see [homepage.md](homepage.md)
 GET  /servers                             -> Servers\ServerList        (servers.index)
-GET  /servers/{serverId}                  -> Servers\ServerShow        (servers.show) — planned additions: stats card, top laps/players, all-laps table, see [server-single.md](server-single.md)
+GET  /servers/{serverId}                  -> Servers\ServerShow        (servers.show) — stats card, top players, all-laps table all real, see [server-single.md](server-single.md)
 GET  /servers/{serverId}/maps/{mapId}     -> Servers\ServerMapLeaderboard (servers.maps.show) — nested
+GET  /servers/{serverId}/players/{playerId} -> Servers\ServerPlayerShow (servers.players.show) — server-scoped player profile
 GET  /maps                                -> Maps\MapList              (maps.index)
 GET  /maps/{mapId}                        -> Maps\MapLeaderboard       (maps.show) — global
-GET  /players                             -> Players\PlayerList        (players.index) — planned redesign to a Global Leaderboard, see [players-list.md](players-list.md)
-GET  /players/{playerId}                  -> Players\PlayerShow        (players.show) — planned expansion around the existing lap log + Lap Detail popup, see [player-single.md](player-single.md)
+GET  /players                             -> Players\PlayerList        (players.index) — real Global Leaderboard, see [players-list.md](players-list.md)
+GET  /players/{playerId}                  -> Players\PlayerShow        (players.show) — real lap log + Lap Detail popup, see [player-single.md](player-single.md)
 GET  /opt-in, /contact                    -> plain Blade views, real content ported from old site
+GET  /robots.txt, /sitemap.xml            -> config-driven (SEO-01, see docs/decisions.md)
 GET  /login, /register                    -> not built yet
 ```
 

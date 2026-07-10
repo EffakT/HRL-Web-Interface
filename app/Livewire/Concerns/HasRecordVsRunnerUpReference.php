@@ -37,8 +37,7 @@ trait HasRecordVsRunnerUpReference
             ->where('map_id', $lap['mapId'])
             ->whereHas('server')
             ->where('id', '!=', $lap['lapId'])
-            ->orderBy('time')
-            ->orderBy('created_at')
+            ->orderBy('time')->oldest()
             ->first();
 
         if (! $runnerUp) {

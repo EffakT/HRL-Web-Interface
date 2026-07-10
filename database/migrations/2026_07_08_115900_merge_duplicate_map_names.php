@@ -41,9 +41,7 @@ return new class extends Migration
             $survivor = $rows->first();
             $losers = $rows->slice(1);
 
-            if ($losers->contains(fn ($row) => $row->lap_times > 0)) {
-                throw new RuntimeException("Duplicate map name '{$name}' has lap_times on more than one row — needs manual reconciliation, not an automatic merge.");
-            }
+            throw_if($losers->contains(fn ($row) => $row->lap_times > 0), RuntimeException::class, "Duplicate map name '{$name}' has lap_times on more than one row — needs manual reconciliation, not an automatic merge.");
 
             foreach ($losers as $loser) {
                 // MySQL rejects a subquery on `servers_maps` that also targets `servers_maps` in

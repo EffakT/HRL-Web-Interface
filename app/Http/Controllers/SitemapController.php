@@ -7,6 +7,8 @@ use App\Models\Player;
 use App\Models\Server;
 use Carbon\Carbon;
 use Illuminate\Http\Response;
+use RuntimeException;
+use SimpleXMLElement;
 
 class SitemapController extends Controller
 {
@@ -52,7 +54,7 @@ class SitemapController extends Controller
      */
     private function toXml(array $urls): string
     {
-        $root = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+        $root = new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
 
         foreach ($urls as $entry) {
             $url = $root->addChild('url');
@@ -65,7 +67,7 @@ class SitemapController extends Controller
 
         $xml = $root->asXML();
 
-        throw_if($xml === false, new \RuntimeException('Failed to generate sitemap XML.'));
+        throw_if($xml === false, RuntimeException::class, 'Failed to generate sitemap XML.');
 
         return $xml;
     }

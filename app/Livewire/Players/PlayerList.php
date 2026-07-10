@@ -6,7 +6,7 @@ use App\Livewire\Concerns\HasRankedLeaderboardPagination;
 use App\Models\GlobalRanking;
 use App\Models\LapTime;
 use App\Models\RecordHistory;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -72,7 +72,7 @@ class PlayerList extends Component
                 'maps' => $p['mapsPlayed'],
                 'laps' => (int) ($lapCounts[$p['playerId']] ?? 0),
                 'active' => isset($lastActive[$p['playerId']])
-                    ? Carbon::parse($lastActive[$p['playerId']])->diffForHumans()
+                    ? Date::parse($lastActive[$p['playerId']])->diffForHumans()
                     : '—',
             ])
             ->all());

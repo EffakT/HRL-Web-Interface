@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Override;
 
 /** One row per checkpoint per lap — see docs/database.md ("Splits are per-checkpoint"). */
 #[Fillable(['lap_time_id', 'checkpoint_id', 'duration', 'start_time', 'end_time'])]
@@ -16,6 +17,7 @@ class LapTimeSplit extends Model
     /** @use HasFactory<LapTimeSplitFactory> */
     use HasFactory;
 
+    #[Override]
     protected function casts(): array
     {
         return [

@@ -4,6 +4,7 @@ namespace App\Http\Resources\V1;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Override;
 
 /**
  * Wraps a plain array (built in ServerController@index), not an Eloquent Server model — the
@@ -18,6 +19,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ServerResource extends JsonResource
 {
     /** @return array<string, mixed> */
+    #[Override]
     public function toArray(Request $request): array
     {
         return [

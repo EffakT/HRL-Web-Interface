@@ -20,7 +20,7 @@ use Carbon\Carbon;
 class GlobalRanking
 {
     /** @var array<int, int> Fixed points for ranks 1-10, per docs/global-ranking.md. */
-    private const TOP_10_POINTS = [
+    private const array TOP_10_POINTS = [
         1 => 100, 2 => 95, 3 => 90, 4 => 86, 5 => 82,
         6 => 79, 7 => 76, 8 => 73, 9 => 70, 10 => 68,
     ];
@@ -121,8 +121,7 @@ class GlobalRanking
             ->when($excludeLapId, fn ($query) => $query->where('id', '!=', $excludeLapId))
             ->whereHas('server')
             ->with(['player', 'map', 'server'])
-            ->orderBy('time')
-            ->orderBy('created_at')
+            ->orderBy('time')->oldest()
             ->orderBy('id')
             ->get();
 

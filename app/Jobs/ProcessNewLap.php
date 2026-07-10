@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Log;
 class ProcessNewLap
 {
     /** Hardcoded machine-name → display-name aliases, ported verbatim from the legacy job. */
-    private const MAP_ALIASES = [
+    private const array MAP_ALIASES = [
         'beavercreek' => 'Battle Creek',
         'bloodgulch' => 'Bloodgulch',
         'boardingaction' => 'Boarding Action',
@@ -53,7 +53,7 @@ class ProcessNewLap
         'wizard' => 'Wizard',
     ];
 
-    private const RACE_TYPE_SUFFIXES = ['', 'Any Order', 'Rally'];
+    private const array RACE_TYPE_SUFFIXES = ['', 'Any Order', 'Rally'];
 
     /**
      * `race_type`'s own `Map`-identity suffix (2026-07-08 follow-up to the SEC-04 review — see
@@ -69,7 +69,7 @@ class ProcessNewLap
      * hash (see docs/roadmap.md's now-resolved open question) — so they stay under the plain
      * (race_type-0) row regardless of which race_type they actually were.
      */
-    private const RACE_TYPE_NAME_SUFFIXES = ['', '-anyorder', '-rally'];
+    private const array RACE_TYPE_NAME_SUFFIXES = ['', '-anyorder', '-rally'];
 
     /**
      * @param  array{map_name: string, player_hash: string, player_name: string, player_time: float, race_type: int, submission_id: string|null, splits: array<int, array{checkpoint_id: int, duration: float, startTime: float|null, endTime: float|null}>|null}  $data
@@ -125,11 +125,9 @@ class ProcessNewLap
             // player) already created the row between this request's read and write. That row
             // exists now, so simply retrying the whole transaction once succeeds via
             // firstOrCreate()'s SELECT finding it.
-            if (! $this->violatesServerIdentityUniqueness($e)
+            throw_if(! $this->violatesServerIdentityUniqueness($e)
                 && ! $this->violatesMapNameUniqueness($e)
-                && ! $this->violatesPlayerIdentityUniqueness($e)) {
-                throw $e;
-            }
+                && ! $this->violatesPlayerIdentityUniqueness($e), $e);
 
             $result = DB::transaction(fn (): array => $this->recordLap($hostname, $mapLabel, $submissionId, $contentHash));
         }
@@ -143,20 +141,13 @@ class ProcessNewLap
 
         // Every submission broadcasts site-wide (Servers List header stats/"MOST ACTIVE" card,
         // Home's highlights — anything that changes on any attempt, not just an improvement).
-        LapSubmitted::dispatch($result['server']->id, $result['map']->id);
+        event(new LapSubmitted($result['server']->id, $result['map']->id));
 
         // This one, scoped and fired only on a genuine improvement, is what the two leaderboard
         // pages (ServerMapLeaderboard/MapLeaderboard) listen for — see docs/database.md's "Live
         // leaderboard updates" section.
         if ($result['isNewRecord']) {
-            LeaderboardUpdated::dispatch(
-                $result['server']->id,
-                $result['map']->id,
-                $result['player']->id,
-                $result['player']->name,
-                $result['newTime'],
-                $leaderboardPosition['position'],
-            );
+            event(new LeaderboardUpdated($result['server']->id, $result['map']->id, $result['player']->id, $result['player']->name, $result['newTime'], $leaderboardPosition['position']));
         }
 
         return [
@@ -292,9 +283,7 @@ class ProcessNewLap
 
         // `submission_hash` is null for laps recorded before this column existed — nothing to
         // compare against, so fall through to the ordinary replay rather than reject.
-        if ($lapTime->submission_hash !== null && $lapTime->submission_hash !== $contentHash) {
-            throw new LapSubmissionConflictException;
-        }
+        throw_if($lapTime->submission_hash !== null && $lapTime->submission_hash !== $contentHash, LapSubmissionConflictException::class);
 
         $bestTime = (float) LapTime::where([
             'server_id' => $lapTime->server_id,
@@ -525,9 +514,7 @@ class ProcessNewLap
 
             $existingVariantCount = $this->countExistingMapVariants("{$mapName}-splits-%");
 
-            if ($existingVariantCount >= config('webhook.max_map_variants_per_name')) {
-                throw new TooManyMapVariantsException;
-            }
+            throw_if($existingVariantCount >= config('webhook.max_map_variants_per_name'), TooManyMapVariantsException::class);
 
             return Map::firstOrCreate(
                 ['name' => $variantName],

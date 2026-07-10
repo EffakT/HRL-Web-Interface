@@ -61,7 +61,7 @@ it('ranks each player by their global best lap across every server', function ()
         ->assertSee(route('servers.show', ['serverId' => $serverB->id]));
 
     // One empty-state message is in the #1 podium and one is in its always-rendered modal.
-    expect(substr_count($response->getContent(), 'No split data available for this lap.'))->toBe(2);
+    expect(substr_count((string) $response->getContent(), 'No split data available for this lap.'))->toBe(2);
 });
 
 it('breaks equal-time global positions by earliest achievement date', function () {

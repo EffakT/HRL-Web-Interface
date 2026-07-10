@@ -2,6 +2,8 @@
 
 namespace App\Helpers;
 
+use Log;
+
 /**
  * Cross-checks a lap-submission HTTP request against a live UDP `\query` response from the
  * same ip:port (SEC-01, docs/security.md) — binds the HTTP submission to a game server that is
@@ -95,7 +97,7 @@ class LapSubmissionVerifier
      */
     private function fail(string $reason, array|false|null $response = null): array
     {
-        \Log::debug("Lap submission verification failed: {$reason}", ['response' => $response]);
+        Log::debug("Lap submission verification failed: {$reason}", ['response' => $response]);
 
         return ['verified' => false, 'reason' => $reason, 'response' => $response];
     }

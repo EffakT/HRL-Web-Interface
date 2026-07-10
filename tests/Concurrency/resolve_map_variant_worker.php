@@ -3,6 +3,7 @@
 use App\Exceptions\TooManyMapVariantsException;
 use App\Jobs\ProcessNewLap;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Sleep;
 
 /**
  * TEST-01 audit follow-up (2026-07-09) — a standalone worker process (not a Pest test file, not
@@ -65,7 +66,7 @@ while (! file_exists($otherReadyFile)) {
         file_put_contents($outputFile, 'ERROR:barrier_timeout');
         exit(0);
     }
-    usleep(1_000);
+    Sleep::usleep(1_000);
 }
 
 $job = match ($lockMode) {
@@ -74,7 +75,7 @@ $job = match ($lockMode) {
         protected function countExistingMapVariants(string $namePattern): int
         {
             $count = parent::countExistingMapVariants($namePattern);
-            usleep(300_000);
+            Sleep::usleep(300_000);
 
             return $count;
         }
@@ -84,7 +85,7 @@ $job = match ($lockMode) {
         protected function countExistingMapVariants(string $namePattern): int
         {
             $count = parent::countExistingMapVariants($namePattern);
-            usleep(300_000);
+            Sleep::usleep(300_000);
 
             return $count;
         }
@@ -98,7 +99,6 @@ $job = match ($lockMode) {
 };
 
 $method = new ReflectionMethod(ProcessNewLap::class, 'resolveMapVariant');
-$method->setAccessible(true);
 
 try {
     $variant = $method->invoke($job, $mapName, $mapLabel, (int) $checkpointCount);

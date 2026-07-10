@@ -6,11 +6,13 @@ use App\Models\LapTime;
 use App\Models\LapTimeSplit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Override;
 
 /** @mixin LapTime */
 class LapTimeResource extends JsonResource
 {
     /** @return array<string, mixed> */
+    #[Override]
     public function toArray(Request $request): array
     {
         return [

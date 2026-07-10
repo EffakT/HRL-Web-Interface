@@ -15,9 +15,9 @@ class MapLeaderboardController extends Controller
     // PERF-03 audit follow-up (docs/performance.md) — same order of magnitude as the read API's
     // 60/min rate limit; a few hundred players per map (per docs/api.md) fits in 2-4 pages at
     // the default.
-    private const DEFAULT_PER_PAGE = 50;
+    private const int DEFAULT_PER_PAGE = 50;
 
-    private const MAX_PER_PAGE = 100;
+    private const int MAX_PER_PAGE = 100;
 
     /**
      * GET /api/v1/maps/{map}/leaderboard — the global (all-servers) leaderboard for one map,

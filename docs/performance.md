@@ -2,7 +2,7 @@
 
 ## Current scale
 
-`lap_times` has ~1,942 rows across 823 players at last check. This is small — most "will this scale" questions below are genuinely open until real usage data says otherwise.
+`lap_times` has **1,682 rows across 832 players** (checked 2026-07-10 — re-verify with `App\Models\LapTime::count()`/`Player::count()` rather than trusting this number indefinitely). This is small — most "will this scale" questions below are genuinely open until real usage data says otherwise.
 
 ## Home page recomputation (PERF-01, 2026-07-08)
 
@@ -56,12 +56,12 @@ Not measured continuously — these are one-time snapshots to give the next pers
 
 **Decision**: personal bests and course records are **derived reads** (`MIN(time) GROUP BY player_id, map_id, server_id`), not stored/upserted rows. A Redis sorted-set approach was considered (O(log N) updates vs. recomputing from SQL) but **not adopted** — the current scale doesn't justify the added complexity. Revisit only if the `MIN(time)` query genuinely becomes a bottleneck (unlikely at ~2k rows; worth re-measuring once real data volume is known and the query is actually implemented against real tables).
 
-## Not yet relevant (no real queries exist yet)
+## General query hygiene
 
-Everything below is guidance for **when** real Eloquent queries get built (see [roadmap.md](roadmap.md)), not audited issues today, since the app currently runs entirely on mock arrays:
+Real Eloquent queries have existed since Phase 2 (see [roadmap.md](roadmap.md)) — this was originally written as forward-looking guidance for when they'd be built; kept here as standing practice, not a still-open TODO:
 
 - Eager-load relationships (`with()`) to avoid N+1 on any query touching `lap_times` → `players`/`maps`/`servers`.
-- Consider `Model::preventLazyLoading()` in development once models exist.
+- Consider `Model::preventLazyLoading()` in development.
 - The most-active-server query (90-day rolling window over `lap_times`, grouped by server — see [most-active-server.md](most-active-server.md)) should be indexed on `server_id` + `created_at`, and likely `player_id`/`map_id` too since it counts distinct (player, map) pairs — check this when writing the migration/query.
 - Cache the derived "current bests" query if profiling ever shows it's hot — but don't pre-build a cache layer speculatively.
 
@@ -71,7 +71,7 @@ Heavier than a single map's leaderboard query — spans every map × every playe
 
 ## Most Active Server
 
-Unlike the other derived reads on this page, this one is explicitly spec'd as "recalculated periodically" rather than computed live per page load (see [most-active-server.md](most-active-server.md)) — a 90-day rolling window aggregate (counting distinct player/map participations, not raw lap rows) is a heavier query than a simple `MIN(time)` lookup, so periodic recalculation (interval not yet decided) plus a cached result is the planned approach from the start here, not a "wait and see if it's slow" case like the others on this page.
+Originally spec'd as "recalculated periodically" rather than computed live, on the assumption that a 90-day rolling-window aggregate (counting distinct player/map participations, not raw lap rows) would be too heavy for a per-request read. **Built differently, on shipping**: `App\Models\MostActiveServer::scores()` computes fresh on every call, same "derive, don't cache" precedent as `GlobalRanking` — no periodic job, no cached result. Revisit only if profiling at real scale shows this query is actually expensive; nothing here has needed it yet (see [most-active-server.md](most-active-server.md)).
 
 ## Server Single page
 

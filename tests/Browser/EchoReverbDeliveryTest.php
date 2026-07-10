@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Sleep;
 
 /**
  * `DB::connection()` in this Pest process resolves to whatever the default connection is here —
@@ -85,7 +86,7 @@ it('delivers a real lap submission to a real browser via Echo/Livewire/Reverb, l
     $page->assertNoJavascriptErrors();
 
     $lapsText = $page->text('[data-testid="quick-stats-laps"]');
-    preg_match('/([\d,]+)/', $lapsText, $matches);
+    preg_match('/([\d,]+)/', (string) $lapsText, $matches);
     $lapsBefore = (int) str_replace(',', '', $matches[1] ?? '0');
 
     // Broadcasts aren't replayed to late subscribers — triggering the lap before Echo has
@@ -104,7 +105,7 @@ it('delivers a real lap submission to a real browser via Echo/Livewire/Reverb, l
             break;
         }
 
-        usleep(250_000);
+        Sleep::usleep(250_000);
     }
 
     expect($subscribed)->toBeTrue('Echo never finished subscribing to the activity channel within 10s.');
@@ -112,14 +113,14 @@ it('delivers a real lap submission to a real browser via Echo/Livewire/Reverb, l
     // Diagnostic (code review follow-up, 2026-07-09): binds our own raw listener directly, so we
     // can tell "Echo never received the message at all" apart from "Echo received it but
     // Livewire's own listener wiring/re-render didn't fire" when this test fails.
-    $page->script(<<<'JS'
-        () => {
-            window.__echoReverbTestReceived = null;
-            window.Echo.channel('activity').listen('.lap.submitted', (e) => {
-                window.__echoReverbTestReceived = JSON.stringify(e);
-            });
-        }
-        JS);
+    $page->script(<<<'JS_WRAP'
+    () => {
+        window.__echoReverbTestReceived = null;
+        window.Echo.channel('activity').listen('.lap.submitted', (e) => {
+            window.__echoReverbTestReceived = JSON.stringify(e);
+        });
+    }
+    JS_WRAP);
 
     $outputFile = tempnam(sys_get_temp_dir(), 'echo_reverb_');
     $script = __DIR__.'/support/trigger_real_lap_broadcast.php';
@@ -175,7 +176,7 @@ it('delivers a real lap submission to a real browser via Echo/Livewire/Reverb, l
                 $delivered = true;
                 break;
             } catch (Throwable) {
-                usleep(500_000);
+                Sleep::usleep(500_000);
             }
         }
 
@@ -188,19 +189,19 @@ it('delivers a real lap submission to a real browser via Echo/Livewire/Reverb, l
                 $debugMessage = $consoleException->getMessage();
             }
 
-            $echoState = $page->script(<<<'JS'
-                () => {
-                    if (typeof window.Echo === 'undefined') { return 'window.Echo is undefined'; }
-                    if (typeof window.Echo.connector === 'undefined') { return 'window.Echo.connector is undefined'; }
-                    const connector = window.Echo.connector;
-                    const conn = connector.pusher?.connection;
-                    return JSON.stringify({
-                        connectorType: connector.constructor?.name,
-                        state: conn?.state,
-                        socketId: conn?.socket_id,
-                    });
-                }
-                JS);
+            $echoState = $page->script(<<<'JS_WRAP'
+            () => {
+                if (typeof window.Echo === 'undefined') { return 'window.Echo is undefined'; }
+                if (typeof window.Echo.connector === 'undefined') { return 'window.Echo.connector is undefined'; }
+                const connector = window.Echo.connector;
+                const conn = connector.pusher?.connection;
+                return JSON.stringify({
+                    connectorType: connector.constructor?.name,
+                    state: conn?.state,
+                    socketId: conn?.socket_id,
+                });
+            }
+            JS_WRAP);
 
             $rawReceived = $page->script('() => window.__echoReverbTestReceived');
 

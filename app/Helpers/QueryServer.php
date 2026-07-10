@@ -95,8 +95,9 @@ class QueryServer implements GameServerQuery
         }
 
         $data = [];
+        $counter = count($tokens);
 
-        for ($i = 0; $i + 1 < count($tokens); $i += 2) {
+        for ($i = 0; $i + 1 < $counter; $i += 2) {
             $data[$tokens[$i]] = $tokens[$i + 1];
         }
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Livewire\Servers\ServerMapLeaderboard;
 use App\Models\LapTime;
 use App\Models\Map;

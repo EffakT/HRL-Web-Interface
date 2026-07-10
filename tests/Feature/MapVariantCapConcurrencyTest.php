@@ -19,9 +19,7 @@ function mysqlConcurrencyTestDatabaseName(): string
 {
     $database = env('TEST_DB_DATABASE', 'redesign_hrl_test');
 
-    if (! is_string($database) || $database === '' || $database === 'redesign_hrl') {
-        throw new RuntimeException('Refusing to run MySQL concurrency test without a disposable TEST_DB_DATABASE.');
-    }
+    throw_if(! is_string($database) || $database === '' || $database === 'redesign_hrl', RuntimeException::class, 'Refusing to run MySQL concurrency test without a disposable TEST_DB_DATABASE.');
 
     return $database;
 }

@@ -59,9 +59,9 @@ Conversely: don't force an abstraction for genuinely small, non-reused logic. `P
 - **Any row using the `border-l-2 border-l-transparent ... hover:border-l-hud-green` hover-accent pattern must have horizontal padding (`px-3.5`) on the row itself**, not just the row's inner content. Without it, the row's text sits flush against the left edge with no gap from the hover accent line — this was missed on every mobile-list row across the app (Map List, Player List, Server List, Server Single's Maps table, the Map Leaderboard's rest-table, Player Single's Recent Laps) until caught on Player Single's Recent Laps and fixed everywhere at once. **Always do this** — when adding a new clickable/linked list row with this hover pattern, include `px-3.5` from the start; don't rely on catching it later.
 - A bullet `<li>` using `flex` with mixed content (bullet + plain text + an inline `<a>`) breaks natural text wrapping — the `<a>` becomes its own flex item instead of flowing inline with the surrounding text. Fix: wrap the text+link portion in one nested `<span>` so the flex row only ever has two items (bullet, content-span). Applied on the opt-in and contact pages' bullet lists — use this pattern for any future list item containing an inline link or other element.
 
-## Mock data (current phase)
+## Mock data (Phase 1 convention, no longer applicable)
 
-The whole frontend currently runs on mock/sample data by explicit decision — no models, no real queries. Every component with mock data should:
+Phase 1 (frontend design) deliberately ran on mock/sample data before any models or real queries existed. **Phase 2 replaced all of it with real Eloquent data** (see [roadmap.md](roadmap.md)) — no component in this app renders mock data today. Kept here as a reference for the convention that was followed while it was mock, in case any genuinely new page is ever built ahead of its backend again:
 - Comment it clearly as mock with a `// TODO: replace with real ... query once backend integration is wired up` note.
 - Prefer numbers/shapes that plausibly resemble real data (e.g. matching design-comp sample values) over arbitrary placeholders, so the UI reads correctly during review.
 - Not be treated as a spec to preserve — once real queries are wired up, mock data is deleted, not kept as a fallback.

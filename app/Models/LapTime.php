@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Override;
 
 /**
  * Full lap history — never pruned, never upserted. Personal bests / course records are
@@ -38,6 +39,7 @@ class LapTime extends Model
     /** @use HasFactory<LapTimeFactory> */
     use HasFactory;
 
+    #[Override]
     protected function casts(): array
     {
         return [

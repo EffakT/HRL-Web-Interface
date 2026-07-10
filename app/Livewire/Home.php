@@ -21,7 +21,7 @@ use Livewire\Component;
 class Home extends Component
 {
     /** Recency window shared by every windowed highlight below — see docs/homepage.md's "needs confirming" note. */
-    private const RECENCY_DAYS = 7;
+    private const int RECENCY_DAYS = 7;
 
     /**
      * PERF-01 follow-up (2026-07-08): even after the request-scoped dedup below, one full
@@ -55,13 +55,13 @@ class Home extends Component
      */
     public const GENERATION_KEY = 'home:highlights:gen';
 
-    private const CACHE_TTL_MINUTES = 10;
+    private const int CACHE_TTL_MINUTES = 10;
 
     /** How long a request will wait for another request's in-flight rebuild before giving up and computing its own — see `rememberHighlights()`. */
-    private const LOCK_WAIT_SECONDS = 5;
+    private const int LOCK_WAIT_SECONDS = 5;
 
     /** How long the rebuild lock itself is held before it's considered abandoned (e.g. the holder's process died mid-computation) and another request may acquire it. */
-    private const LOCK_TIMEOUT_SECONDS = 10;
+    private const int LOCK_TIMEOUT_SECONDS = 10;
 
     /** @var list<array{type: string, data: array<int|string, mixed>}> */
     public array $highlights = [];
@@ -193,7 +193,7 @@ class Home extends Component
 
         $highlights = array_values(collect($priority)
             ->map(fn (string $type): array => ['type' => $type, 'data' => $candidates[$type]])
-            ->filter(fn (array $block): bool => ! empty($block['data']))
+            ->reject(fn (array $block): bool => empty($block['data']))
             ->take(3)
             ->all());
 

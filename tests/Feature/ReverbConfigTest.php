@@ -1,7 +1,8 @@
 <?php
 
-// SEC-06 audit follow-up (docs/security.md) — config/reverb.php app policy.
+declare(strict_types=1);
 
+// SEC-06 audit follow-up (docs/security.md) — config/reverb.php app policy.
 it('restricts the reverb app to the real origin (plus 127.0.0.1 for the real Echo/Reverb browser test), with connection limits and rate limiting enabled', function () {
     $app = config('reverb.apps.apps.0');
 

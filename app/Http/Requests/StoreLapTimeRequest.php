@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Override;
 
 /**
  * Payload shape confirmed from `ApiController.php-legacy`'s logged example — the game server
@@ -22,6 +23,7 @@ class StoreLapTimeRequest extends FormRequest
         return true;
     }
 
+    #[Override]
     protected function prepareForValidation(): void
     {
         $this->merge([
@@ -118,7 +120,7 @@ class StoreLapTimeRequest extends FormRequest
 
             $checkpointIds = array_column($splits, 'checkpoint_id');
 
-            if (count($checkpointIds) !== count(array_filter($checkpointIds, 'is_numeric'))) {
+            if (count($checkpointIds) !== count(array_filter($checkpointIds, is_numeric(...)))) {
                 // Non-numeric values are already rejected by `splits.*.checkpoint_id`'s own
                 // `integer` rule — skip the sequence check so this doesn't pile a redundant,
                 // confusing second error onto the same field.

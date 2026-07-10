@@ -153,6 +153,10 @@ class PlayerShow extends Component
 
     public function render(): View
     {
-        return view('livewire.players.player-show');
+        return view('livewire.players.player-show')
+            ->layoutData([
+                'title' => $this->playerName,
+                'description' => "{$this->playerName}'s lap times, global rank, and split comparisons on the Halo Race Leaderboard.",
+            ]);
     }
 }

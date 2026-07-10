@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SitemapController;
 use App\Livewire\Home;
 use App\Livewire\Maps\MapLeaderboard;
 use App\Livewire\Maps\MapList;
@@ -10,6 +12,9 @@ use App\Livewire\Servers\ServerMapLeaderboard;
 use App\Livewire\Servers\ServerPlayerShow;
 use App\Livewire\Servers\ServerShow;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/robots.txt', [RobotsController::class, 'index'])->name('robots');
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 
 Route::get('/', Home::class)->name('home');
 

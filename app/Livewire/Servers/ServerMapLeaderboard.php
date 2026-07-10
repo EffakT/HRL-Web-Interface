@@ -206,6 +206,9 @@ class ServerMapLeaderboard extends Component
     {
         return view('livewire.servers.server-map-leaderboard', [
             'rankedPlayers' => $this->rankedPlayers(),
+        ])->layoutData([
+            'title' => "{$this->map} Leaderboard on {$this->server}",
+            'description' => "The leaderboard for {$this->map} on {$this->server}, a Halo Race Leaderboard server.",
         ]);
     }
 }

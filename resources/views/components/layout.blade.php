@@ -1,14 +1,38 @@
 @props(['title' => null, 'active' => null])
+@php
+    $pageTitle = $title ? $title.' | '.config('app.name') : config('app.name');
+    $canonicalUrl = url()->current();
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title>{{ $title ? $title . ' | Halo Race Leaderboard' : 'Halo Race Leaderboard' }}</title>
+        <title>{{ $pageTitle }}</title>
 
         @if ($description ?? null)
             <meta name="description" content="{{ $description }}">
+        @endif
+
+        <link rel="canonical" href="{{ $canonicalUrl }}">
+
+        @if (! config('seo.allow_indexing'))
+            <meta name="robots" content="noindex, nofollow">
+        @endif
+
+        <meta property="og:title" content="{{ $pageTitle }}">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{ $canonicalUrl }}">
+        <meta property="og:site_name" content="{{ config('app.name') }}">
+        @if ($description ?? null)
+            <meta property="og:description" content="{{ $description }}">
+        @endif
+
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ $pageTitle }}">
+        @if ($description ?? null)
+            <meta name="twitter:description" content="{{ $description }}">
         @endif
 
         @fonts

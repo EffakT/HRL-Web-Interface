@@ -12,7 +12,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-#[Layout('components.layout', ['title' => 'Players', 'active' => 'players'])]
+#[Layout('components.layout', ['title' => 'Players', 'active' => 'players', 'description' => 'The global player leaderboard for the Halo Race Leaderboard, ranked by score across every tracked map and server.'])]
 class PlayerList extends Component
 {
     use HasRankedLeaderboardPagination;

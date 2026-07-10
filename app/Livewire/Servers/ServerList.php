@@ -10,7 +10,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-#[Layout('components.layout', ['title' => 'Servers', 'active' => 'servers'])]
+#[Layout('components.layout', ['title' => 'Servers', 'active' => 'servers', 'description' => 'Browse every Halo server tracked by the Halo Race Leaderboard, with live status, maps, and top players.'])]
 class ServerList extends Component
 {
     /**

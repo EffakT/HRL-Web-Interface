@@ -176,6 +176,9 @@ class MapLeaderboard extends Component
     {
         return view('livewire.maps.map-leaderboard', [
             'rankedPlayers' => $this->rankedPlayers(),
+        ])->layoutData([
+            'title' => "{$this->map} Leaderboard",
+            'description' => "The global leaderboard for {$this->map} — best lap times across every active Halo Race Leaderboard server.",
         ]);
     }
 }

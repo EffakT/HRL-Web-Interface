@@ -151,6 +151,10 @@ class ServerPlayerShow extends Component
 
     public function render(): View
     {
-        return view('livewire.servers.server-player-show');
+        return view('livewire.servers.server-player-show')
+            ->layoutData([
+                'title' => "{$this->playerName} on {$this->serverName}",
+                'description' => "{$this->playerName}'s lap times and rank on {$this->serverName}, a Halo Race Leaderboard server.",
+            ]);
     }
 }

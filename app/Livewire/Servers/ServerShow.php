@@ -313,6 +313,9 @@ class ServerShow extends Component
             // Distinct page name ('players') so this doesn't collide with Latest Laps' own
             // pagination, which uses the default 'page' name on the same component.
             'rankedPlayers' => $this->rankedPlayers('players'),
+        ])->layoutData([
+            'title' => $this->serverName,
+            'description' => "Maps, stats, and top players on {$this->serverName}, a Halo Race Leaderboard server.",
         ]);
     }
 }

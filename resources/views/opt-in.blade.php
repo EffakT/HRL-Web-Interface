@@ -1,4 +1,4 @@
-<x-layout title="Opt-In" active="opt-in">
+<x-layout title="Opt-In" active="opt-in" description="How to get your Halo server tracked by the Halo Race Leaderboard.">
     <div class="mx-auto max-w-[720px] px-6 py-14">
 
         <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// OPT-IN</div>

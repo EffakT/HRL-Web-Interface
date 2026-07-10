@@ -37,6 +37,8 @@ it('renders every route successfully', function (string $uri) {
     'players.show' => '/players/1',
     'opt-in' => '/opt-in',
     'contact' => '/contact',
+    'robots' => '/robots.txt',
+    'sitemap' => '/sitemap.xml',
 ]);
 
 it('shows the server-scoped eyebrow on the nested leaderboard, not the global one', function () {

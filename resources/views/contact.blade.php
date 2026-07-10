@@ -1,4 +1,4 @@
-<x-layout title="Contact" active="contact">
+<x-layout title="Contact" active="contact" description="Get in touch with the Halo Race Leaderboard.">
     <div class="mx-auto max-w-[720px] px-6 py-14">
 
         <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// CONTACT</div>

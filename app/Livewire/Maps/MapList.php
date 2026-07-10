@@ -9,7 +9,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-#[Layout('components.layout', ['title' => 'Maps', 'active' => 'maps'])]
+#[Layout('components.layout', ['title' => 'Maps', 'active' => 'maps', 'description' => 'Browse every map tracked by the Halo Race Leaderboard and see each one\'s current course record.'])]
 class MapList extends Component
 {
     /** @var list<array<string, mixed>> */

@@ -28,6 +28,7 @@
      wire:key="lap-vs-record-modal"
      x-show="$wire.selectedPlayerIndex !== null"
      x-cloak
+     @keydown.escape.window="$wire.closeLap()"
      x-transition:enter="transition ease-out duration-200"
      x-transition:enter-start="opacity-0"
      x-transition:enter-end="opacity-100"
@@ -37,6 +38,10 @@
     <div class="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_45%,rgba(6,11,9,.7),rgba(4,7,6,.9))] backdrop-blur-sm" wire:click="closeLap"></div>
 
     <div class="hud-clip relative flex max-h-[85vh] w-full max-w-[520px] flex-col border border-hud-green/50 bg-gradient-to-b from-hud-modal-start to-hud-modal-end px-6 py-6 shadow-[0_40px_80px_-20px_rgba(0,0,0,.85),0_0_76px_-14px_theme(colors.hud-green/40%)]"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="lap-vs-record-modal-title"
+         x-trap.noscroll="$wire.selectedPlayerIndex !== null"
          x-transition:enter="transition ease-out duration-300 hud-flicker-in"
          x-transition:enter-start="opacity-0 scale-75 -translate-y-8"
          x-transition:enter-end="opacity-100 scale-100 translate-y-0"
@@ -46,7 +51,7 @@
         <div class="flex flex-none items-start justify-between">
             <div>
                 <div class="font-mono text-[10px] font-semibold tracking-[0.3em] text-hud-cyan">// LAP DETAIL</div>
-                <div class="mt-3 text-xl font-bold tracking-[0.02em] text-white">{{ $sel['map'] }}</div>
+                <div id="lap-vs-record-modal-title" class="mt-3 text-xl font-bold tracking-[0.02em] text-white">{{ $sel['map'] }}</div>
                 <div class="mt-1 font-mono text-[11px] text-hud-text-dim">{{ $sel['server'] }}</div>
             </div>
             <button type="button" wire:click="closeLap"

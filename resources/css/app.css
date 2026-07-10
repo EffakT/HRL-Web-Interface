@@ -39,6 +39,29 @@
     display: none !important;
 }
 
+:focus-visible {
+    outline: 2px solid var(--color-hud-green);
+    outline-offset: 2px;
+}
+
+/* .hud-clip/.hud-clip-sm clip-path their whole box, including any outline drawn outside it —
+   pull the ring inside the shape here instead, or it's invisible. */
+.hud-clip:focus-visible,
+.hud-clip-sm:focus-visible {
+    outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 body {
     background-color: var(--color-hud-bg);
     background-image: radial-gradient(120% 80% at 50% -10%, var(--color-hud-bg-glow), var(--color-hud-bg) 60%);

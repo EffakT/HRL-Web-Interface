@@ -6,18 +6,18 @@
 <div class="mt-8 grid grid-cols-1 items-end gap-3.5 tp:grid-cols-[1fr_1.28fr_1fr]">
     <!-- 2nd -->
     @if ($p[1])
-        <div wire:click="openLap(1)" class="hud-clip-sm order-2 cursor-pointer border border-hud-cyan/20 bg-gradient-to-b from-[#101915] to-[#0b120f] px-4 py-4.5 transition hover:-translate-y-1 hover:border-hud-cyan/55 tp:order-1">
+        <button type="button" wire:click="openLap(1)" class="hud-clip-sm order-2 w-full cursor-pointer border border-hud-cyan/20 bg-gradient-to-b from-[#101915] to-[#0b120f] px-4 py-4.5 text-left transition hover:-translate-y-1 hover:border-hud-cyan/55 tp:order-1">
             <div class="mb-3.5 text-2xl font-bold text-hud-cyan">{{ $p[1]['rank'] }}</div>
             <div class="text-base font-semibold tracking-[0.03em] text-hud-text">{{ $p[1]['name'] }}</div>
             <div class="mt-0.5 font-mono text-[10px] text-hud-text-dim">{{ $p[1]['subtitle'] }}</div>
             <div class="mt-3.5 font-mono text-2xl font-bold text-hud-text-bright">{{ $p[1]['time'] }}</div>
             <div class="mt-1 font-mono text-[11px] font-semibold text-hud-cyan">{{ $p[1]['gap'] }}</div>
-        </div>
+        </button>
     @endif
 
     <!-- 1st -->
     @if ($p[0])
-        <div wire:click="openLap(0)" class="hud-clip order-1 cursor-pointer border border-hud-green/50 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-5 py-5.5 shadow-[0_0_54px_-12px_theme(colors.hud-green/55%)] transition hover:-translate-y-1 tp:order-2">
+        <button type="button" wire:click="openLap(0)" class="hud-clip order-1 w-full cursor-pointer border border-hud-green/50 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-5 py-5.5 text-left shadow-[0_0_54px_-12px_theme(colors.hud-green/55%)] transition hover:-translate-y-1 tp:order-2">
             <div class="mb-4 flex items-center justify-between">
                 <span class="border border-hud-green/32 bg-hud-green/12 px-2.5 py-1 font-mono text-[9px] font-semibold tracking-[0.2em] text-hud-green"><span class="-translate-y-px inline-block">◆</span> COURSE RECORD</span>
                 <span class="text-3xl font-bold text-hud-green [text-shadow:0_0_22px_rgba(52,227,155,.6)]">{{ $p[0]['rank'] }}</span>
@@ -52,18 +52,18 @@
                     </div>
                 @endif
             </div>
-        </div>
+        </button>
     @endif
 
     <!-- 3rd -->
     @if ($p[2])
-        <div wire:click="openLap(2)" class="hud-clip-sm order-3 cursor-pointer border border-hud-gold/22 bg-gradient-to-b from-[#171410] to-[#0e0b08] px-4 py-4.5 transition hover:-translate-y-1 hover:border-hud-gold/55">
+        <button type="button" wire:click="openLap(2)" class="hud-clip-sm order-3 w-full cursor-pointer border border-hud-gold/22 bg-gradient-to-b from-[#171410] to-[#0e0b08] px-4 py-4.5 text-left transition hover:-translate-y-1 hover:border-hud-gold/55">
             <div class="mb-3.5 text-2xl font-bold text-hud-gold">{{ $p[2]['rank'] }}</div>
             <div class="text-base font-semibold tracking-[0.03em] text-[#e6ddc9]">{{ $p[2]['name'] }}</div>
             <div class="mt-0.5 font-mono text-[10px] text-[#7c6e52]">{{ $p[2]['subtitle'] }}</div>
             <div class="mt-3.5 font-mono text-2xl font-bold text-[#f6eede]">{{ $p[2]['time'] }}</div>
             <div class="mt-1 font-mono text-[11px] font-semibold text-hud-gold">{{ $p[2]['gap'] }}</div>
-        </div>
+        </button>
     @endif
 </div>
 

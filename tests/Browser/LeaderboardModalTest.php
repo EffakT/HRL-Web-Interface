@@ -6,13 +6,9 @@ use App\Models\Player;
 use App\Models\Server;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
-// TEST-01 audit follow-up (2026-07-09) — the first real browser coverage for this app (Pest's
-// browser plugin, Playwright/Chromium under the hood). Covers what the podium/lap-detail modal
-// actually does today: real click-driven open/close and a console-error-free render at both
-// desktop and mobile widths. Deliberately does NOT test Escape-to-close or a focus trap — neither
-// exists yet (the podium cards are plain `<div wire:click>`, not real buttons, and the modal has
-// no `role="dialog"`/`aria-modal`/focus management at all) — that gap is A11Y-01, tracked
-// separately in SITE_AUDIT.md, not something to fake coverage for here.
+// Real browser coverage (Pest's browser plugin, Playwright/Chromium under the hood) for the
+// podium/lap-detail modal: click-driven open/close, keyboard-driven open (podium cards are real
+// `<button>`s), and Escape-to-close, all console-error-free at desktop and mobile widths.
 uses(LazilyRefreshDatabase::class);
 
 function seedMapWithLap(): Map
@@ -60,5 +56,19 @@ it('renders the leaderboard modal flow at a mobile viewport with no console erro
     $page->assertNoJavascriptErrors()
         ->click('[wire\\:click="openLap(0)"]')
         ->assertSee('LAP DETAIL')
+        ->assertNoJavascriptErrors();
+});
+
+it('opens the podium card via keyboard (Enter) and closes the modal with Escape', function () {
+    $map = seedMapWithLap();
+
+    $page = visit("/maps/{$map->id}");
+
+    $page->assertNoJavascriptErrors()
+        ->assertDontSee('LAP DETAIL')
+        ->keys('[wire\\:click="openLap(0)"]', ['Enter'])
+        ->assertSee('LAP DETAIL')
+        ->keys('[aria-label="Close"]', ['Escape'])
+        ->assertDontSee('LAP DETAIL')
         ->assertNoJavascriptErrors();
 });

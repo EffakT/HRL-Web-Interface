@@ -17,6 +17,10 @@
     </head>
     <body x-data="{ mobileNavOpen: false }" class="min-h-screen font-sans text-hud-text">
 
+        <a href="#main-content" class="fixed left-3 top-3 z-50 -translate-y-20 border border-hud-green/50 bg-hud-bg px-4 py-2 font-mono text-[11px] font-semibold tracking-[0.14em] text-hud-green transition focus-visible:translate-y-0">
+            SKIP TO MAIN CONTENT
+        </a>
+
         @php
             $navLinks = [
                 ['label' => 'HOME', 'href' => route('home'), 'key' => 'home'],
@@ -92,7 +96,7 @@
             </div>
         </div>
 
-        <main>
+        <main id="main-content">
             {{ $slot }}
         </main>
 

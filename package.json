@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "@alpinejs/anchor": "^3.15.12",
+        "@alpinejs/focus": "^3.15.12",
         "laravel-echo": "^2.3.7",
         "pusher-js": "^8.5.0"
     }

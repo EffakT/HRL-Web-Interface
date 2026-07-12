@@ -13,11 +13,10 @@ it('adds hardening headers to a web response', function () {
     $response->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('X-Frame-Options', 'DENY')
         ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-        ->assertHeader('Content-Security-Policy-Report-Only');
+        ->assertHeader('Content-Security-Policy');
 
     expect($response->headers->get('Permissions-Policy'))->toContain('camera=()');
-    // Report-only, not enforced yet — see AddSecurityHeaders' docblock for why.
-    expect($response->headers->has('Content-Security-Policy'))->toBeFalse();
+    expect($response->headers->has('Content-Security-Policy-Report-Only'))->toBeFalse();
 });
 
 it('adds the same hardening headers to an api response', function () {
@@ -34,7 +33,7 @@ it('suppresses the X-Powered-By PHP version disclosure', function () {
 
 it('scopes the CSP connect-src to this app\'s own domain, including the wss upgrade', function () {
     $response = $this->get('/');
-    $csp = $response->headers->get('Content-Security-Policy-Report-Only');
+    $csp = $response->headers->get('Content-Security-Policy');
 
     expect($csp)->toContain("connect-src 'self' ".config('app.url').' '.str_replace('http', 'ws', config('app.url')));
 });

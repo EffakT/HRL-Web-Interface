@@ -14,15 +14,16 @@ use Symfony\Component\HttpFoundation\Response;
  * *document* renders, not a raw fetched response), so there's no reason to scope this to `web`
  * only.
  *
- * The CSP ships as `Content-Security-Policy-Report-Only` deliberately, not enforcing —
- * confirmed by inspecting the real rendered homepage first (no inline `<script>`, no `style=`
- * attributes, no `eval`/`new Function` in the built JS, every asset same-origin, no external
- * CDN dependencies at all), but Livewire itself injects a genuine inline `<style>` block into
- * every page (the `[wire\:loading]`/`[x-cloak]` rules) that an enforced `style-src` without
- * `'unsafe-inline'` would need to account for, and this hasn't been exercised against every
- * real interactive page (Livewire component updates, Alpine transitions) yet. Report-only mode
- * can never break page functionality — it only logs violations to the browser console — so this
- * is the safe way to validate the policy against real traffic before flipping to enforced.
+ * The CSP now ships enforced (`Content-Security-Policy`), not report-only — validated first by
+ * inspecting the real rendered homepage (no inline `<script>`, no `style=` attributes, no
+ * `eval`/`new Function` in the built JS, every asset same-origin, no external CDN dependencies
+ * at all) and then, before flipping from report-only, by driving a real external Playwright
+ * browser against the real live domain across every page type (home, servers/maps/players
+ * lists, server show, nested server-map-leaderboard, server-scoped player show, map
+ * leaderboard, player show) and every real interaction (mobile nav menu, podium/table
+ * lap-detail modals, pagination) plus a real Echo/Reverb-delivered live update (a genuine
+ * disposable lap broadcast, confirmed to update the page reactively via Livewire) — zero CSP
+ * violations, zero JS errors, on all of it.
  */
 class AddSecurityHeaders
 {
@@ -54,7 +55,7 @@ class AddSecurityHeaders
         $httpOrigin = config('app.url');
         $wsOrigin = preg_replace('/^http/', 'ws', (string) $httpOrigin);
 
-        $response->headers->set('Content-Security-Policy-Report-Only', implode('; ', [
+        $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
             "script-src 'self'",
             // 'unsafe-inline' is for Livewire's own injected <style> block (wire:loading/

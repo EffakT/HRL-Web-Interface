@@ -30,19 +30,14 @@ Reuses the existing podium visual style already built for the Map Leaderboard (`
 | Maps | "Maps with PBs" — count of distinct maps this player has a recorded lap on (every map a player has raced necessarily has a personal-best-for-that-player by definition, so this is equivalent to "maps played" / maps contributing to their Global Score, not a stricter subset). |
 | Laps | **Added 2026-07-06**, per explicit request to keep the same "# Records, # Laps, # Maps" stat set on every ranked-player display (see [server-single.md](server-single.md)'s Top Players, which shows the identical three). Total real laps (every attempt, any active server) — not deduplicated, a plain count. |
 | Active | Last activity date — most recent lap timestamp across all maps/servers for this player. |
-| ~~Trend~~ | **Removed from the table (2026-07-06)** when wiring real data — its mechanism (see below) is still undecided, and there's no real signal to show honestly in the meantime. Re-add once decided; see [decisions.md](decisions.md). |
+| Last Move | **Planned, not implemented (13 July 2026).** Event-based last actual global-rank movement (`▲ n`/`▼ n`/`NEW`/`—`), not a calendar trend. See [player-rank-movement.md](player-rank-movement.md). |
 
-## Open item: Trending indicator
+## Planned: Last Move indicator
 
-This is the one column that doesn't reduce to "run a query against current data" — a trend is inherently a comparison against some *earlier* state, which sits in tension with the project's broader "fully recalculable from current data, no historical dependency" philosophy (see [database.md](database.md), [global-ranking.md](global-ranking.md)). Two genuinely different implementation paths:
-
-1. **Periodic rank/score snapshots** — a scheduled job stores each player's rank/Global Score at intervals (e.g. daily), and Trend compares current standing to the most recent snapshot (e.g. 7 days back). Precise and literal, but introduces a new stored-history mechanism that nothing else in this project currently has — the ranking *calculation* itself stays stateless/derivable, but the *trend comparison* would depend on point-in-time snapshots existing.
-2. **Proxy from recent activity** — approximate "trending up" from recent lap data directly (e.g. "set a new PB on any map in the last 7 days" → up; "no activity in 30+ days" → down/neutral), without needing actual historical rank snapshots. Simpler, stays fully within the derived-reads philosophy, but is a proxy for trend rather than literally "did their rank move."
-
-**Not decided.** Leaning toward option 2 for consistency with the rest of the project's architecture, but this needs a real decision before implementation, not a silent default.
+The mechanism is now decided. HRL can go months without a new lap, so calendar snapshots would mostly produce stale dashes, while recent activity is not the same as rank movement. Capture the actual before/after ranks whenever an accepted lap changes the global leaderboard and retain each player's last non-zero movement. Label it **Last Move** so the UI does not claim one event is a sustained trend. Full schema, concurrency, baseline, UI, testing, and rollout plan: [player-rank-movement.md](player-rank-movement.md).
 
 ## Open items (summary)
 
-- Trending indicator mechanism (see above) — the main open question on this page.
+- Last Move implementation — direction decided; implementation remains. See [player-rank-movement.md](player-rank-movement.md).
 - ~~"Total records set" (info card) vs. "Records" (table column)~~ — both now implemented and real (2026-07-06), deliberately using different definitions (historical count vs. current-state per-player) — both live on the same page (19 vs. individual per-player counts) and this reads fine in practice, not confusing.
 - Podium partial extraction (cosmetic/implementation detail, not a design question).

@@ -2,6 +2,14 @@
 
 Chronological record of architecture decisions, reversals, and incidents — the "why" behind choices in the other docs. Newest at the bottom of each section's history isn't tracked; entries are grouped by topic instead.
 
+## Players leaderboard uses event-based Last Move, not calendar trend
+
+**Decision (2026-07-13):** replace the unresolved Trend concept with **Last Move**. HRL can go months without a new lap, so daily/weekly/monthly snapshots would usually compare identical states and provide little value. A recent-activity proxy was also rejected: submitting a lap or setting a PB does not necessarily move rank, while an inactive player can be displaced by somebody else.
+
+After a one-time neutral baseline, accepted laps will compare the real before/after global ranking and retain each player's last non-zero movement (`▲ n`, `▼ n`, or `NEW`) plus when it happened. Players displaced by somebody else's improvement receive a real downward move. Unchanged subsequent events do not erase the last meaningful move. The label deliberately says Last Move rather than Trend because one event is not a sustained trajectory.
+
+Initial scope is the global Players leaderboard only. The implementation must be database-serialized and idempotent under concurrent/retried lap processing, bulk-read on the page, and safe if movement data is absent. Full implementation plan: [player-rank-movement.md](player-rank-movement.md).
+
 ## Fresh reinstall, not incremental upgrade
 
 Old app: Laravel 6.2, PHP 7.2, both EOL. Decided against incremental upgrade — fresh install on Laravel 13.8 (planned as "12" originally), keeping the existing database. Migrations are additive/conditional against the real schema, not naive fresh `create` migrations.

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Blade;
 use Override;
 
 class AppServiceProvider extends ServiceProvider
@@ -45,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
         // value; revisit if real usage says otherwise. Pulled from config rather than hardcoded
         // so a test can assert the real production ceiling directly (TEST-01 audit follow-up).
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(config('api.rate_limit_per_minute'))->by($request->ip()));
+
+        Blade::directive('cspNonce', function () {
+            return '<?php echo e(app("csp-nonce")); ?>';
+        });
 
         // The lap-submission webhook (docs/database.md) is machine-to-machine, not a browsing
         // client, but per docs/security.md's SEC-01 audit follow-up it's also the one endpoint

@@ -16,6 +16,6 @@ return [
     |
     */
 
-    'allow_indexing' => (bool) env('SEO_ALLOW_INDEXING', false),
+    'allow_indexing' => (bool) env('SEO_ALLOW_INDEXING', true),
 
 ];

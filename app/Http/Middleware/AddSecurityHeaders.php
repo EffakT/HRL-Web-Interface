@@ -5,6 +5,8 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Vite;
+use Illuminate\Support\Str;
 
 /**
  * SEC-05 audit follow-up (docs/security.md) — response hardening headers were largely absent
@@ -32,34 +34,41 @@ class AddSecurityHeaders
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $nonce = base64_encode(random_bytes(16));
+
+        Vite::useCspNonce($nonce);
+
+        // Makes the nonce available to Blade and other rendering code.
+        app()->instance('csp-nonce', $nonce);
+
         $response = $next($request);
 
-        // Suppresses the exact PHP version this server discloses via `X-Powered-By` (SEC-05).
-        // `expose_php` itself is a php.ini/php-fpm-pool setting this environment has no access
-        // to (same FastPanel-managed-config limitation as elsewhere in this app) — header_remove()
-        // works instead because PHP only queues the header internally until the response is
-        // actually flushed, which hasn't happened yet at this point in the middleware stack.
         header_remove('X-Powered-By');
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
-        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        // Explicit opt-out of every browser feature this app has no use for, rather than an
-        // empty/absent header — a locked-down default that only needs loosening if a real
-        // feature (e.g. clipboard access for a "copy link" button) is added later.
+        $response->headers->set(
+            'Referrer-Policy',
+            'strict-origin-when-cross-origin'
+        );
+
         $response->headers->set('Permissions-Policy', implode(', ', [
-            'accelerometer=()', 'camera=()', 'geolocation=()', 'gyroscope=()',
-            'magnetometer=()', 'microphone=()', 'payment=()', 'usb=()',
+            'accelerometer=()',
+            'camera=()',
+            'geolocation=()',
+            'gyroscope=()',
+            'magnetometer=()',
+            'microphone=()',
+            'payment=()',
+            'usb=()',
         ]));
 
-        $httpOrigin = config('app.url');
-        $wsOrigin = preg_replace('/^http/', 'ws', (string) $httpOrigin);
+        $httpOrigin = rtrim((string) config('app.url'), '/');
+        $wsOrigin = preg_replace('/^http/', 'ws', $httpOrigin);
 
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
-            "script-src 'self'",
-            // 'unsafe-inline' is for Livewire's own injected <style> block (wire:loading/
-            // x-cloak rules), not application code — see class docblock.
+            "script-src 'self' 'nonce-{$nonce}'",
             "style-src 'self' 'unsafe-inline'",
             "font-src 'self'",
             "img-src 'self' data:",

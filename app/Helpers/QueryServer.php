@@ -1,136 +1,106 @@
 <?php
+
 namespace App\Helpers;
 
-/*
-  Version 1.0
+/**
+ * Real UDP implementation of the GameSpy-style `\query\` protocol Halo PC/CE dedicated
+ * servers respond to. Rebuilt from `QueryServer.php-legacy` — the request/response wire
+ * format is unchanged, but responses are now parsed into genuine key/value pairs instead of
+ * the legacy code's fragile fixed-array-offset reads (`numplayers` at a hardcoded index,
+ * player/score/ping/team arrays at hardcoded slot offsets). See docs/database.md.
  */
-class QueryServer {
-    private $buffer, $serverIP, $port, $error, $errortext, $sockHandle,
-        $respArr, $timeou, $errorcode, $start, $elapsed;
-    public function __construct(&$buffer, $serverIP, $port, $timeout = 2) {
-        $this->buffer = &$buffer;
-        $this->serverIP = $serverIP;
-        $this->port = $port;
-        $this->timeout = $timeout;
-        $this->errorcode = 0;
-    }
-    public function getResponse() {
-        return $this->respArr;
-    }
-    public function getError() {
-        return $this->errortext;
-    }
-    public function getErrorCode() {
-        return $this->errorcode;
-    }
-    public function runQuery() {
-        $this->ipCheck();
-        if (!$this->error) {
-            $this->portCheck();
+class QueryServer implements GameServerQuery
+{
+    private ?string $errorText = null;
+
+    public function query(string $ip, int $port, int $timeoutSeconds = 2): array|false
+    {
+        $this->errorText = null;
+
+        if (! filter_var($ip, FILTER_VALIDATE_IP)) {
+            $this->errorText = 'Invalid IP address';
+
+            return false;
         }
-        if (!$this->error) {
-            $this->runSocket();
+
+        if ($port < 1 || $port > 65535) {
+            $this->errorText = 'Invalid port';
+
+            return false;
         }
-        if (!$this->error) {
-            $this->splitResponse();
-            $this->parseResponse();
+
+        $socket = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+
+        if ($socket === false) {
+            $this->errorText = socket_strerror(socket_last_error());
+
+            return false;
         }
-        return (!$this->error) ? $this->getResponse() : false;
-    }
-    private function runSocket() {
-        if (!$this->error) {
-            $this->createSocket();
-        }
-        if (!$this->error) {
-            $this->socketConnect();
-        }
-        if (!$this->error) {
-            $this->socketSend();
-        }
-        if (!$this->error) {
-            $this->receiveResponse();
-        }
-    }
-    private function ipCheck() {
-        if (!filter_var($this->serverIP, FILTER_VALIDATE_IP)) {
-            $this->errorcode = 1;
-            $this->errortext = "Invalid IP address";
-            $this->error = true;
-        }
-    }
-    private function portCheck() {
-        $this->port = (int) $this->port;
-        if ($this->port < 1 || $this->port > 65535) {
-            $this->errorcode = 1;
-            $this->errortext = "Invalid port specified";
-            $this->error = true;
-        }
-    }
-    private function createSocket() {
-        $this->sockHandle = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-        if (!$this->sockHandle) {
-            $this->errortext = socket_strerror(socket_last_error());
-            $this->error = true;
-        }
-    }
-    private function socketConnect() {
-        socket_set_nonblock($this->sockHandle);
-        while (!@socket_connect($this->sockHandle, $this->serverIP, $this->port)) {
-            $this->errortext = socket_strerror(socket_last_error());
-            //Stop PHP from hanging
-            if ((time() - $start) >= $this->timeout) {
-                $this->error = true;
-                return;
-            } else {
-                usleep(500);
+
+        try {
+            socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, ['sec' => $timeoutSeconds, 'usec' => 0]);
+            socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, ['sec' => $timeoutSeconds, 'usec' => 0]);
+
+            if (@socket_connect($socket, $ip, $port) === false) {
+                $this->errorText = socket_strerror(socket_last_error($socket));
+
+                return false;
             }
-        }
-        socket_set_block($this->sockHandle);
-        $this->start = microtime(true);
-    }
-    private function socketSend() {
-        $start = time();
-        if (!@socket_send($this->sockHandle, "\\query", 6, MSG_EOF)) {
-            $this->errortext = socket_strerror(socket_last_error());
-            $this->error = true;
-        }
-    }
-    private function receiveResponse() {
-        $read = array($this->sockHandle);
-        $null = NULL;
-        $changed = socket_select($read, $null, $null, $this->timeout);
-        if ($changed) {
-            $this->elapsed = microtime(true) - $this->start;
-            $bytes = @socket_recv($this->sockHandle, $this->buffer, 10000, 2);
-            if ($bytes === false) {
-                $this->errortext = socket_strerror(socket_last_error());
-                $this->error = true;
+
+            // Wire format is the literal 6 bytes `\query` (no trailing backslash) — confirmed
+            // from the legacy implementation's `socket_send($sock, "\\query", 6, ...)` call.
+            if (@socket_send($socket, '\\query', 6, 0) === false) {
+                $this->errorText = socket_strerror(socket_last_error($socket));
+
+                return false;
             }
-        } else {
-            $this->errortext = "No response received";
-            $this->error = true;
+
+            $buffer = '';
+            $bytes = @socket_recv($socket, $buffer, 10000, 0);
+
+            if ($bytes === false || $bytes === 0) {
+                $this->errorText = $bytes === false
+                    ? socket_strerror(socket_last_error($socket))
+                    : 'No response received';
+
+                return false;
+            }
+        } finally {
+            socket_close($socket);
         }
+
+        return $this->parse($buffer);
     }
-    private function splitResponse() {
-        $this->respArr = explode("\\", utf8_encode($this->buffer));
+
+    public function getError(): ?string
+    {
+        return $this->errorText;
     }
-    private function parseResponse() {
-        unset($this->respArr[0]);
-        $this->respArr = array_values($this->respArr);
-        //Set offsets so we can build an assoc array
-        $numPlayers = $this->respArr[19];
-        $playerOffset = array_search("player_0", $this->respArr);
-        $scoreOffset = $playerOffset + ($numPlayers * 2);
-        $pingOffset = $playerOffset + ($numPlayers * 4);
-        $teamOffset = $playerOffset + ($numPlayers * 6);
-        $tempArray = $this->respArr;
-        array_splice($tempArray, $playerOffset, $numPlayers * 8);
-        //Begin converting data to an assoc array
-        for ($i = 0, $j =  count($tempArray); $i < $j; $i += 2) {
-            $key = $tempArray[$i];
-            $assocArr[$key] = $tempArray[$i + 1];
+
+    /**
+     * The response is one backslash-delimited string of alternating key/value tokens, e.g.
+     * `\hostname\Foo Server\numplayers\2\player_0\Alice\player_1\Bob\`. The leading token
+     * (before the first backslash) and a trailing empty token (after a trailing backslash, if
+     * present) carry no data and are dropped; everything else pairs up as key => value.
+     *
+     * @return array<string, string>
+     */
+    private function parse(string $buffer): array
+    {
+        $tokens = explode('\\', $buffer);
+        array_shift($tokens);
+
+        if (count($tokens) % 2 !== 0 && end($tokens) === '') {
+            array_pop($tokens);
         }
-        $assocArr['elapsed'] = $this->elapsed; //testing something!
-        $this->respArr = $assocArr;
+
+        $data = [];
+        $counter = count($tokens);
+
+        for ($i = 0; $i + 1 < $counter; $i += 2) {
+            $data[$tokens[$i]] = $tokens[$i + 1];
+        }
+
+        return $data;
     }
 }

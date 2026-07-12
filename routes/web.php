@@ -1,54 +1,36 @@
 <?php
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
+declare(strict_types=1);
 
-Auth::routes(['verify' => true]);
+use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SitemapController;
+use App\Livewire\Home;
+use App\Livewire\Maps\MapLeaderboard;
+use App\Livewire\Maps\MapList;
+use App\Livewire\Players\PlayerList;
+use App\Livewire\Players\PlayerShow;
+use App\Livewire\Servers\ServerList;
+use App\Livewire\Servers\ServerMapLeaderboard;
+use App\Livewire\Servers\ServerPlayerShow;
+use App\Livewire\Servers\ServerShow;
+use Illuminate\Support\Facades\Route;
 
+Route::get('/robots.txt', [RobotsController::class, 'index'])->name('robots');
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 
-Route::get('/', 'HomeController@home')->name('home');
+Route::get('/', Home::class)->name('home');
 
-Route::get('/my-account', 'AccountController@index')->name('my-account');
-Route::post('/my-account/generate-token', 'AccountController@generateToken')->name('generate-token');
+Route::get('/servers', ServerList::class)->name('servers.index');
+Route::get('/servers/{serverId}', ServerShow::class)->name('servers.show');
+Route::get('/servers/{serverId}/maps/{mapId}', ServerMapLeaderboard::class)->name('servers.maps.show');
+Route::get('/servers/{serverId}/players/{playerId}', ServerPlayerShow::class)->name('servers.players.show');
 
+Route::get('/maps', MapList::class)->name('maps.index');
+Route::get('/maps/{mapId}', MapLeaderboard::class)->name('maps.show');
 
-Route::get('/opt-in', 'HomeController@optIn')->name('opt-in');
+Route::get('/players', PlayerList::class)->name('players.index');
+Route::get('/players/{playerId}', PlayerShow::class)->name('players.show');
 
-Route::get('/help', 'HomeController@help')->name('help');
+Route::get('/opt-in', fn () => view('opt-in'))->name('opt-in');
 
-Route::get('/contact', 'HomeController@contact')->name('contact');
-
-Route::get('/servers', 'LeaderboardController@servers')->name('servers');
-
-Route::get('/servers/mine', 'ManageServerController@myServers')->name('server:mine');
-
-Route::get('/servers/{server}', 'LeaderboardController@server')->name('server');
-
-Route::get('/servers/{server}/manage', 'ManageServerController@index')->name('server:manage');
-Route::post('/servers/{server}/manage/claim', 'ManageServerController@claimServer')->name('server:claim')->middleware("can:claim");
-Route::get('/servers/{server}/manage/claim/verify', 'ManageServerController@verifyClaimServer')->name('server:claim-verify')->middleware("can:verify-claim");
-
-Route::post('/servers/{server}/manage/reset-laps', 'ManageServerController@resetLaps')->name('server:reset-laps')->middleware("can:reset,server");
-Route::post('/servers/{server}/manage/migrate-laps', 'ManageServerController@migrateLaps')->name('server:migrate-laps')->middleware("can:migrate,server");
-Route::post('/servers/{server}/manage/delete', 'ManageServerController@delete')->name('server:delete')->middleware("can:delete,server");
-
-Route::post('/servers/{server}/manage/notify-outage', 'ManageServerController@notifyOutage')->name('server:notify-outage')->middleware("can:notify-outage,server");
-
-
-Route::get('/maps', 'LeaderboardController@maps')->name('maps');
-Route::get('/maps/{map}', 'LeaderboardController@map')->name('map');
-
-
-Route::get('/players/', 'LeaderboardController@players')->name('players');
-Route::get('/players/{player}', 'LeaderboardController@player')->name('player');
-Route::get('/players/{player}/manage', 'ManagePlayerController@index')->name('player:manage');
-Route::post('/players/{player}/manage/claim', 'ManagePlayerController@claimPlayer')->name('player:claim')->middleware("can:claim,player");
-
+Route::get('/contact', fn () => view('contact'))->name('contact');

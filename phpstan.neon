@@ -1,0 +1,16 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - routes
+
+    # TEST-01 audit follow-up (2026-07-09): raised 5 -> 6 -> 7 -> 8, all clean. Level 8 initially
+    # surfaced 46 errors; ~35 were one false positive (LapTime::player()/map()/server() are
+    # FK-enforced NOT NULL belongsTo relations Larastan still types nullable — fixed once via
+    # @property-read on LapTime, not 35 call-site guards) and ~11 were real, individually-judged
+    # null-safety fixes (created_at is genuinely DB-nullable on lap_times; Request::ip() is
+    # nullable in Symfony's stack; a few PHPStan-can't-narrow-this-far cases). See docs/testing.md
+    # for the full breakdown.
+    level: 8

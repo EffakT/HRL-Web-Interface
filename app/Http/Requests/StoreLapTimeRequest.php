@@ -133,9 +133,10 @@ class StoreLapTimeRequest extends FormRequest
             $checkpointIds = array_map(intval(...), $checkpointIds);
             sort($checkpointIds);
 
-            if ($checkpointIds !== range(1, count($checkpointIds))) {
-                $validator->errors()->add('splits', 'The splits checkpoint IDs must form a contiguous sequence starting at 1.');
-            }
+            // CAMTRACK starts at 2...
+            // if ($checkpointIds !== range(1, count($checkpointIds))) {
+            //     $validator->errors()->add('splits', 'The splits checkpoint IDs must form a contiguous sequence starting at 1.');
+            // }
         });
     }
 }

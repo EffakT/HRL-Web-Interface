@@ -66,20 +66,20 @@
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// KNOWN ISSUES</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Rally is not currently supported</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> A bug in CE is causing laps to be recorded twice. Likely due to a race-condition or bug in the map downloader</li>
             </ul>
         </div>
 
         <div class="hud-clip border border-hud-green/20 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-6 py-6">
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// FUTURE PLANS</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Conversion to a Progressive Web App</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to change the ingame position alerts to be based on server or global leaderboard via a in-chat command.</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grind" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind.</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Server admin lap deletion</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability for players to delete their own laps</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Client-side tracking (Chimera, Maybe Optic support via HAC2) - Currently in progress</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Support for Halo Custom Edition - testing process</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Record-break notifications via email, opt-in per server/map - is email the best solution? maybe push notifications via API?</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Research viability of implementing replays - can we support full ghost replays, or is a simplified version (e.g. path/split overlay) more realistic given the client side?</li>
             </ul>
         </div>
 
@@ -89,6 +89,7 @@
         <div class="mb-4 font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// CHANGELOG</div>
         <div class="hud-clip border border-hud-green/14 bg-hud-panel">
             @foreach ([
+                ['date' => '13 JUL 2026', 'note' => 'Spun up & tested a demo server for CE'],
                 ['date' => '13 JUL 2026', 'note' => 'Implementation of EMA algorithm for ping stability detection'],
                 ['date' => '13 JUL 2026', 'note' => 'Fixed issue where final lap was not being recorded'],
                 ['date' => '13 JUL 2026', 'note' => 'Fixed any-order laps not recording'],

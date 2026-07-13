@@ -97,4 +97,3 @@
 - Halo Custom Edition support.
 - Enhanced lag detection (ping stability measures).
 - Record-break email notifications, opt-in per server/map.
-- Progressive Web App conversion.

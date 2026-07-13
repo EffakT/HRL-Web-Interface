@@ -74,7 +74,7 @@
             <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// FUTURE PLANS</div>
             <ul class="mt-4 space-y-3 font-mono text-[12px] leading-relaxed text-hud-text">
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to change the ingame position alerts to be based on server or global leaderboard via a in-chat command.</li>
-                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grind" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind.</li>
+                <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability to "grind" a map, on chat "grind", remove the lap limit, on run again, add it back. If player leaves while griding, detect if players still in game, show "grind will end in X, say grind to continue". Othersiwse, clear the grind. - Testing Phase</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Server admin lap deletion</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Ability for players to delete their own laps</li>
                 <li class="flex gap-2"><span class="text-hud-green">▸</span> Client-side tracking (Chimera, Maybe Optic support via HAC2) - Currently in progress</li>

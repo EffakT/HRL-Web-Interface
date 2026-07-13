@@ -75,6 +75,21 @@ it('derives the map label from the alias dictionary plus a race-type suffix, and
     expect($map->label)->toBe('Bloodgulch - Any Order');
 });
 
+it('normalizes an unaliased map name into a readable label', function (string $mapName, string $expectedLabel) {
+    fakeGameServerQuery();
+
+    submitLap(['map_name' => $mapName])->assertOk();
+
+    $map = Map::sole();
+    expect($map->name)->toBe($mapName);
+    expect($map->label)->toBe($expectedLabel);
+})->with([
+    ['atephobia__V2', 'Atephobia v2'],
+    ['New_Mombasa_Race_v2', 'New Mombasa Race v2'],
+    ['Camtrack-Arena-Race', 'Camtrack Arena Race'],
+    ['bc_raceway_final_mp', 'Bc Raceway Final Mp'],
+]);
+
 it('falls back to a placeholder server name when the live query fails, without dropping the lap', function () {
     fakeGameServerQuery(false);
 
@@ -164,6 +179,75 @@ it('reports the correct leaderboard position and gap to the top time', function 
         ->assertJsonPath('leaderboardPosition.total', 2)
         ->assertJsonPath('leaderboardPosition.top_time', 40)
         ->assertJsonPath('leaderboardPosition.difference', 5);
+});
+
+it('reports the global leaderboard position across all servers, separately from the server-scoped one', function () {
+    fakeGameServerQuery();
+
+    // p1 is #1 on server A (port 2302); p2 later submits an equal-or-better time on a
+    // DIFFERENT server B (port 2303) — server-scoped, p2 is #1 on their own server, but
+    // globally (across both servers) p2 is only #2, behind p1's faster time.
+    submitLap(['port' => 2302, 'player_hash' => 'p1', 'player_time' => 40]);
+
+    $response = submitLap(['port' => 2303, 'player_hash' => 'p2', 'player_time' => 45]);
+
+    $response->assertOk()
+        ->assertJsonPath('leaderboardPosition.position', 1)
+        ->assertJsonPath('leaderboardPosition.total', 1)
+        ->assertJsonPath('globalLeaderboardPosition.position', 2)
+        ->assertJsonPath('globalLeaderboardPosition.total', 2)
+        ->assertJsonPath('globalLeaderboardPosition.top_time', 40)
+        ->assertJsonPath('globalLeaderboardPosition.difference', 5);
+});
+
+it('excludes an archived server\'s laps from the global leaderboard position, same as the server-scoped one', function () {
+    fakeGameServerQuery();
+
+    submitLap(['port' => 2302, 'player_hash' => 'p1', 'player_time' => 40]);
+    Server::where('port', '2302')->sole()->delete();
+
+    $response = submitLap(['port' => 2303, 'player_hash' => 'p2', 'player_time' => 45]);
+
+    $response->assertOk()
+        ->assertJsonPath('globalLeaderboardPosition.position', 1)
+        ->assertJsonPath('globalLeaderboardPosition.total', 1);
+});
+
+it('reports personalBest with no previousTime/improvement on a player\'s first ever lap', function () {
+    fakeGameServerQuery();
+
+    submitLap(['player_time' => 42.5])
+        ->assertOk()
+        ->assertJsonPath('personalBest.time', 42.5)
+        ->assertJsonPath('personalBest.previousTime', null)
+        ->assertJsonPath('personalBest.isNewRecord', true)
+        ->assertJsonPath('personalBest.improvement', null);
+});
+
+it('reports personalBest.improvement when a later lap beats the existing PB', function () {
+    fakeGameServerQuery();
+
+    submitLap(['player_time' => 50]);
+
+    submitLap(['player_time' => 44])
+        ->assertOk()
+        ->assertJsonPath('personalBest.time', 44)
+        ->assertJsonPath('personalBest.previousTime', 50)
+        ->assertJsonPath('personalBest.isNewRecord', true)
+        ->assertJsonPath('personalBest.improvement', 6);
+});
+
+it('reports the existing PB with no improvement when a lap does not beat it', function () {
+    fakeGameServerQuery();
+
+    submitLap(['player_time' => 40]);
+
+    submitLap(['player_time' => 45])
+        ->assertOk()
+        ->assertJsonPath('personalBest.time', 40)
+        ->assertJsonPath('personalBest.previousTime', 40)
+        ->assertJsonPath('personalBest.isNewRecord', false)
+        ->assertJsonPath('personalBest.improvement', null);
 });
 
 it('validates the payload', function () {

@@ -94,7 +94,7 @@ class ProcessNewLap
     ) {}
 
     /**
-     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}}
+     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}, globalLeaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}, personalBest: array{time: float, previousTime: ?float, isNewRecord: bool, improvement: ?float}}
      */
     public function handle(GameServerQuery $query): array
     {
@@ -139,6 +139,16 @@ class ProcessNewLap
             $result['newTime'],
         );
 
+        // Same calculation, unscoped from this one server — the map's global (all-servers)
+        // leaderboard position, matching the "nested vs. global leaderboard" split this app
+        // already exposes elsewhere (ServerMapLeaderboard/MapLeaderboard, docs/architecture.md).
+        $globalLeaderboardPosition = $this->leaderboardPosition(
+            null,
+            $result['map']->id,
+            $result['bestTime'],
+            $result['newTime'],
+        );
+
         // Every submission broadcasts site-wide (Servers List header stats/"MOST ACTIVE" card,
         // Home's highlights — anything that changes on any attempt, not just an improvement).
         event(new LapSubmitted($result['server']->id, $result['map']->id));
@@ -156,6 +166,8 @@ class ProcessNewLap
             'lapTime' => round($result['newTime'], 2),
             'bestTime' => round($result['bestTime'], 2),
             'leaderboardPosition' => $leaderboardPosition,
+            'globalLeaderboardPosition' => $globalLeaderboardPosition,
+            'personalBest' => $this->personalBestPayload($result['bestTime'], $result['previousBest'], $result['isNewRecord'], $result['newTime']),
         ];
     }
 
@@ -165,7 +177,7 @@ class ProcessNewLap
      * `Server::firstOrCreate()` loses a race with a concurrent first-ever submission for the
      * same ip:port — see `handle()`'s catch block.
      *
-     * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float}
+     * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float, previousBest: ?float}
      */
     private function recordLap(?string $hostname, string $mapLabel, ?string $submissionId, string $contentHash): array
     {
@@ -240,6 +252,11 @@ class ProcessNewLap
             'isNewRecord' => $isNewRecord,
             'newTime' => $newTime,
             'bestTime' => $isNewRecord ? $newTime : $bestTime,
+            // The player's PB as it stood BEFORE this submission — null on a player's first ever
+            // lap for this server+map. Kept separate from 'bestTime' above (which becomes the new
+            // time itself once isNewRecord is true) so a "beat your PB by X seconds" comparison
+            // stays possible.
+            'previousBest' => $bestTime,
         ];
     }
 
@@ -252,7 +269,7 @@ class ProcessNewLap
      * entirely in `LapSubmissionController`, before this job ever runs a second time.
      *
      *
-     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}}
+     * @return array{success: bool, isNewRecord: bool, lapTime: float, bestTime: float, leaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}, globalLeaderboardPosition: array{position: int, total: int, top_time?: float, difference?: float}, personalBest: array{time: float, previousTime: ?float, isNewRecord: bool, improvement: ?float}}
      *
      * @throws LapSubmissionConflictException if the reused submission_id's stored content
      *                                        fingerprint no longer matches this request's
@@ -278,6 +295,8 @@ class ProcessNewLap
                 'lapTime' => 0.0,
                 'bestTime' => 0.0,
                 'leaderboardPosition' => ['position' => 0, 'total' => 0],
+                'globalLeaderboardPosition' => ['position' => 0, 'total' => 0],
+                'personalBest' => ['time' => 0.0, 'previousTime' => null, 'isNewRecord' => false, 'improvement' => null],
             ];
         }
 
@@ -291,12 +310,25 @@ class ProcessNewLap
             'player_id' => $lapTime->player_id,
         ])->min('time');
 
+        // The PB as it stood before THIS lap was ever recorded — excludes the replayed row itself
+        // so a replay reports the same "previous best" a fresh submission of it would have.
+        $previousBestRaw = LapTime::where([
+            'server_id' => $lapTime->server_id,
+            'map_id' => $lapTime->map_id,
+            'player_id' => $lapTime->player_id,
+        ])->where('id', '!=', $lapTime->id)->min('time');
+        $previousBest = $previousBestRaw !== null ? (float) $previousBestRaw : null;
+
+        $isNewRecord = (float) $lapTime->time === $bestTime;
+
         return [
             'success' => true,
-            'isNewRecord' => (float) $lapTime->time === $bestTime,
+            'isNewRecord' => $isNewRecord,
             'lapTime' => round((float) $lapTime->time, 2),
             'bestTime' => round($bestTime, 2),
             'leaderboardPosition' => $this->leaderboardPosition($lapTime->server_id, $lapTime->map_id, $bestTime, (float) $lapTime->time),
+            'globalLeaderboardPosition' => $this->leaderboardPosition(null, $lapTime->map_id, $bestTime, (float) $lapTime->time),
+            'personalBest' => $this->personalBestPayload($bestTime, $previousBest, $isNewRecord, (float) $lapTime->time),
         ];
     }
 
@@ -397,10 +429,32 @@ class ProcessNewLap
 
     private function mapLabel(string $mapName, int $raceType): string
     {
-        $label = self::MAP_ALIASES[$mapName] ?? $mapName;
+        $label = self::MAP_ALIASES[$mapName] ?? $this->formatUnaliasedMapLabel($mapName);
         $suffix = self::RACE_TYPE_SUFFIXES[$raceType] ?? '';
 
         return $suffix !== '' ? "{$label} - {$suffix}" : $label;
+    }
+
+    /**
+     * Fallback for any raw map name not in MAP_ALIASES above, so an unlisted map (e.g. a custom
+     * or newly-added one) still gets a readable label instead of its literal machine name.
+     * Splits on any run of `_`/`-` (single or double), title-cases each word, and lowercases a
+     * bare version token (`V2`, `v3`, ...) so it reads as a suffix rather than a title word —
+     * e.g. `atephobia__V2` -> `Atephobia v2`, `New_Mombasa_Race_v2` -> `New Mombasa Race v2`,
+     * `Camtrack-Arena-Race` -> `Camtrack Arena Race`.
+     */
+    private function formatUnaliasedMapLabel(string $mapName): string
+    {
+        $words = preg_split('/[_-]+/', $mapName, -1, PREG_SPLIT_NO_EMPTY);
+
+        $words = array_map(
+            fn (string $word): string => preg_match('/^v\d+$/i', $word) === 1
+                ? strtolower($word)
+                : ucfirst(strtolower($word)),
+            $words,
+        );
+
+        return implode(' ', $words);
     }
 
     /**
@@ -557,12 +611,20 @@ class ProcessNewLap
      * PHP" precedent (`GlobalRanking`, `MostActiveServer`) — real scale per map is at most a
      * few hundred players (see docs/database.md).
      *
+     * `$serverId` null means the map's GLOBAL position — across every active server, not just
+     * one — matching the "nested vs. global leaderboard" split this app already exposes
+     * elsewhere (ServerMapLeaderboard/MapLeaderboard). A soft-deleted server's laps are excluded
+     * from that global scope (`whereHas('server')`, same convention as `GlobalRanking`); a
+     * specific `$serverId` is always one already-resolved, non-deleted server, so that filter is
+     * skipped there to keep the existing server-scoped behavior unchanged.
+     *
      * @return array{position: int, total: int, top_time?: float, difference?: float}
      */
-    private function leaderboardPosition(int $serverId, int $mapId, float $timeForPosition, float $timeForDifference): array
+    private function leaderboardPosition(?int $serverId, int $mapId, float $timeForPosition, float $timeForDifference): array
     {
-        $bestTimes = LapTime::where('server_id', $serverId)
-            ->where('map_id', $mapId)
+        $bestTimes = LapTime::where('map_id', $mapId)
+            ->when($serverId !== null, fn ($query) => $query->where('server_id', $serverId))
+            ->when($serverId === null, fn ($query) => $query->whereHas('server'))
             ->selectRaw('MIN(time) as best_time')
             ->groupBy('player_id')
             ->pluck('best_time')
@@ -584,5 +646,23 @@ class ProcessNewLap
         }
 
         return $position;
+    }
+
+    /**
+     * Groups the PB-comparison fields already derived by `recordLap()`/`replayDuplicateSubmission()`
+     * into one payload, so `handle()` and the duplicate-replay path can't drift out of sync on
+     * what "PB" means in the response. `previousTime`/`improvement` are null when there's no
+     * earlier lap to compare against (a player's first-ever lap for this server+map).
+     *
+     * @return array{time: float, previousTime: ?float, isNewRecord: bool, improvement: ?float}
+     */
+    private function personalBestPayload(float $bestTime, ?float $previousBest, bool $isNewRecord, float $newTime): array
+    {
+        return [
+            'time' => round($bestTime, 2),
+            'previousTime' => $previousBest !== null ? round($previousBest, 2) : null,
+            'isNewRecord' => $isNewRecord,
+            'improvement' => ($isNewRecord && $previousBest !== null) ? round($previousBest - $newTime, 2) : null,
+        ];
     }
 }

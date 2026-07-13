@@ -142,10 +142,13 @@ class ProcessNewLap
         // Same calculation, unscoped from this one server — the map's global (all-servers)
         // leaderboard position, matching the "nested vs. global leaderboard" split this app
         // already exposes elsewhere (ServerMapLeaderboard/MapLeaderboard, docs/architecture.md).
+        // Ranked against the player's GLOBAL best time, not their server-scoped one — a player
+        // whose fastest time was set on a different server would otherwise be ranked using a
+        // slower time than their real best.
         $globalLeaderboardPosition = $this->leaderboardPosition(
             null,
             $result['map']->id,
-            $result['bestTime'],
+            $result['globalBestTime'],
             $result['newTime'],
         );
 
@@ -167,7 +170,7 @@ class ProcessNewLap
             'bestTime' => round($result['bestTime'], 2),
             'leaderboardPosition' => $leaderboardPosition,
             'globalLeaderboardPosition' => $globalLeaderboardPosition,
-            'personalBest' => $this->personalBestPayload($result['bestTime'], $result['previousBest'], $result['isNewRecord'], $result['newTime']),
+            'personalBest' => $this->personalBestPayload($result['globalBestTime'], $result['globalPreviousBest'], $result['globalIsNewRecord'], $result['newTime']),
         ];
     }
 
@@ -177,7 +180,7 @@ class ProcessNewLap
      * `Server::firstOrCreate()` loses a race with a concurrent first-ever submission for the
      * same ip:port — see `handle()`'s catch block.
      *
-     * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float, previousBest: ?float}
+     * @return array{server: Server, map: Map, player: Player, isNewRecord: bool, newTime: float, bestTime: float, previousBest: ?float, globalBestTime: float, globalPreviousBest: ?float, globalIsNewRecord: bool}
      */
     private function recordLap(?string $hostname, string $mapLabel, ?string $submissionId, string $contentHash): array
     {
@@ -217,6 +220,21 @@ class ProcessNewLap
         $bestTime = $bestTimeRaw !== null ? (float) $bestTimeRaw : null;
         $isNewRecord = $bestTime === null || $newTime < $bestTime;
 
+        // Global (all-active-servers) PB baseline for this player+map — deliberately a SEPARATE
+        // computation from $bestTime/$isNewRecord above, which stay server-scoped on purpose
+        // (existing behavior, relied on by the currently-deployed Lua client's `isNewRecord`
+        // read and the `LeaderboardUpdated` broadcast). Only the `personalBest` response
+        // payload uses this one — a player's PB should reflect their overall best across every
+        // server they've played on, not reset per server. Archived servers' laps are excluded
+        // (`whereHas('server')`), matching `GlobalRanking`'s own convention.
+        $globalBestTimeRaw = LapTime::where('map_id', $map->id)
+            ->where('player_id', $player->id)
+            ->whereHas('server')
+            ->min('time');
+
+        $globalPreviousBest = $globalBestTimeRaw !== null ? (float) $globalBestTimeRaw : null;
+        $globalIsNewRecord = $globalPreviousBest === null || $newTime < $globalPreviousBest;
+
         // Logged unconditionally (see class docblock) — not gated on beating the existing best.
         // `submission_id` is null for laps submitted without one (older Lua scripts) — the
         // (server_id, submission_id) unique index (SEC-01 audit follow-up, see the
@@ -252,11 +270,14 @@ class ProcessNewLap
             'isNewRecord' => $isNewRecord,
             'newTime' => $newTime,
             'bestTime' => $isNewRecord ? $newTime : $bestTime,
-            // The player's PB as it stood BEFORE this submission — null on a player's first ever
-            // lap for this server+map. Kept separate from 'bestTime' above (which becomes the new
-            // time itself once isNewRecord is true) so a "beat your PB by X seconds" comparison
-            // stays possible.
+            // The player's server-scoped PB as it stood BEFORE this submission — null on a
+            // player's first ever lap for this server+map. Kept separate from 'bestTime' above
+            // (which becomes the new time itself once isNewRecord is true) so a "beat your PB by
+            // X seconds" comparison stays possible.
             'previousBest' => $bestTime,
+            'globalBestTime' => $globalIsNewRecord ? $newTime : $globalPreviousBest,
+            'globalPreviousBest' => $globalPreviousBest,
+            'globalIsNewRecord' => $globalIsNewRecord,
         ];
     }
 
@@ -321,14 +342,25 @@ class ProcessNewLap
 
         $isNewRecord = (float) $lapTime->time === $bestTime;
 
+        // Global (all-active-servers) equivalents, same convention as recordLap() — `personalBest`
+        // reflects the player's overall best across every server, not just this one.
+        $globalPreviousBestRaw = LapTime::where('map_id', $lapTime->map_id)
+            ->where('player_id', $lapTime->player_id)
+            ->whereHas('server')
+            ->where('id', '!=', $lapTime->id)
+            ->min('time');
+        $globalPreviousBest = $globalPreviousBestRaw !== null ? (float) $globalPreviousBestRaw : null;
+        $globalIsNewRecord = $globalPreviousBest === null || (float) $lapTime->time <= $globalPreviousBest;
+        $globalBestTime = $globalIsNewRecord ? (float) $lapTime->time : $globalPreviousBest;
+
         return [
             'success' => true,
             'isNewRecord' => $isNewRecord,
             'lapTime' => round((float) $lapTime->time, 2),
             'bestTime' => round($bestTime, 2),
             'leaderboardPosition' => $this->leaderboardPosition($lapTime->server_id, $lapTime->map_id, $bestTime, (float) $lapTime->time),
-            'globalLeaderboardPosition' => $this->leaderboardPosition(null, $lapTime->map_id, $bestTime, (float) $lapTime->time),
-            'personalBest' => $this->personalBestPayload($bestTime, $previousBest, $isNewRecord, (float) $lapTime->time),
+            'globalLeaderboardPosition' => $this->leaderboardPosition(null, $lapTime->map_id, $globalBestTime, (float) $lapTime->time),
+            'personalBest' => $this->personalBestPayload($globalBestTime, $globalPreviousBest, $globalIsNewRecord, (float) $lapTime->time),
         ];
     }
 

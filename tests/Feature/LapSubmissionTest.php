@@ -250,6 +250,52 @@ it('reports the existing PB with no improvement when a lap does not beat it', fu
         ->assertJsonPath('personalBest.improvement', null);
 });
 
+it('bases personalBest on the player\'s global best across servers, not just the submitting server', function () {
+    fakeGameServerQuery();
+
+    // Player's fastest time (30) was set on a DIFFERENT server than this submission.
+    submitLap(['port' => 2302, 'player_time' => 30]);
+
+    // First-ever lap on THIS server, but not the player's first lap overall — a server-scoped
+    // PB would show previousTime=null (no prior row on this server); global-based PB must
+    // still show the real global PB (30) from the other server.
+    submitLap(['port' => 2303, 'player_time' => 50])
+        ->assertOk()
+        ->assertJsonPath('personalBest.time', 30)
+        ->assertJsonPath('personalBest.previousTime', 30)
+        ->assertJsonPath('personalBest.isNewRecord', false)
+        ->assertJsonPath('personalBest.improvement', null);
+});
+
+it('reports a new global PB and improvement when a different server\'s lap beats the old global best', function () {
+    fakeGameServerQuery();
+
+    submitLap(['port' => 2302, 'player_time' => 50]);
+
+    submitLap(['port' => 2303, 'player_time' => 44])
+        ->assertOk()
+        ->assertJsonPath('personalBest.time', 44)
+        ->assertJsonPath('personalBest.previousTime', 50)
+        ->assertJsonPath('personalBest.isNewRecord', true)
+        ->assertJsonPath('personalBest.improvement', 6);
+});
+
+it('ranks globalLeaderboardPosition using the player\'s true global best time, not their slower server-scoped time', function () {
+    fakeGameServerQuery();
+
+    // p1's real global best (30) is on server A; p2's best (35) is on server B.
+    submitLap(['port' => 2302, 'player_hash' => 'p1', 'player_time' => 30]);
+    submitLap(['port' => 2303, 'player_hash' => 'p2', 'player_time' => 35]);
+
+    // p1 now submits a slower lap (50) on server B — their global best is still 30, which
+    // should keep them ranked #1 globally (ahead of p2's 35), not #2 as a naive comparison
+    // against this slower 50 would incorrectly report.
+    submitLap(['port' => 2303, 'player_hash' => 'p1', 'player_time' => 50])
+        ->assertOk()
+        ->assertJsonPath('globalLeaderboardPosition.position', 1)
+        ->assertJsonPath('globalLeaderboardPosition.top_time', 30);
+});
+
 it('validates the payload', function () {
     fakeGameServerQuery();
 

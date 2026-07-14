@@ -46,6 +46,24 @@ it('does not leak the old API\'s trailing-space "name " key bug', function () {
     expect(array_keys($response->json('data.0')))->not->toContain('name ');
 });
 
+it('paginates the servers list', function () {
+    Server::factory()->count(5)->create();
+
+    $response = $this->getJson('/api/v1/servers?per_page=2')->assertOk();
+
+    expect($response->json('data'))->toHaveCount(2)
+        ->and($response->json('meta.total'))->toBe(5)
+        ->and($response->json('meta.last_page'))->toBe(3);
+});
+
+it('caps the servers list per_page at a sane maximum', function () {
+    Server::factory()->create();
+
+    $response = $this->getJson('/api/v1/servers?per_page=999999')->assertOk();
+
+    expect($response->json('meta.per_page'))->toBe(100);
+});
+
 it('rate-limits the public read API at its configured per-IP boundary (TEST-01 audit follow-up)', function () {
     // The real `api` limiter (AppServiceProvider) is a flat 60/min, too slow to exhaust one
     // request at a time in a test — re-registering the same named limiter with a much smaller

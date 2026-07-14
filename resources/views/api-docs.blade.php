@@ -33,8 +33,11 @@
                         <span class="text-hud-text-bright">/servers</span>
                     </div>
                     <p class="mt-3 font-mono text-[12px] leading-relaxed text-hud-text">
-                        Every active (non-archived) server, with real derived stats. Not paginated — real scale is a handful of servers.
+                        Every active (non-archived) server, with real derived stats.
                     </p>
+
+                    <x-code-block label="QUERY PARAMETERS">page        int   optional, default 1
+per_page    int   optional, default 50, capped at 100</x-code-block>
 
                     <x-code-block label="EXAMPLE REQUEST">GET /api/v1/servers</x-code-block>
 
@@ -48,7 +51,9 @@
       "maps_played": 6,
       "last_active_at": "2026-07-14T09:12:03+00:00"
     }
-  ]
+  ],
+  "links": { "first": "…?page=1", "last": "…?page=1", "prev": null, "next": null },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 50, "total": 1 }
 }</x-code-block>
                 </div>
 

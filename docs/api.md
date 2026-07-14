@@ -22,11 +22,11 @@ POST /api/v1/laps
 
 ### `GET /api/v1/servers`
 
-Every active (non-archived) server with real, derived stats — `id`, `name`, `total_laps`, `total_players`, `maps_played`, `last_active_at` (ISO 8601, `null` if the server has no laps at all). No pagination — real scale is a handful of servers.
+Every active (non-archived) server with real, derived stats — `id`, `name`, `total_laps`, `total_players`, `maps_played`, `last_active_at` (ISO 8601, `null` if the server has no laps at all). **Paginated** (2026-07-14) — `?page={n}`/`?per_page={n}` (default 50, capped at 100), same bounds as the other paginated endpoints below. Real scale today is still a handful of servers — this was deliberately unpaginated until now, but paginating up front costs nothing for a small result set and avoids a breaking response-shape change later if the server count genuinely grows.
 
 ### `GET /api/v1/maps`
 
-Every map (2026-07-14), paginated — `id`, `name`, `label`, `checkpoint_count`, `total_laps`. Unlike `GET /api/v1/servers` (a handful of rows, deliberately unpaginated), the number of `Map` rows genuinely grows over time — a checkpoint-count mismatch or `race_type` variant each forks its own `{name}-splits-{count}`/`-anyorder`/`-rally` row (see [security.md](security.md), [decisions.md](decisions.md)) — so this is real DB-level pagination (`Map::paginate()`), same `?page=`/`?per_page=` bounds as the leaderboard endpoint below (default 50, capped 100). Exists mainly so a client that only knows a map's `id` can discover its `name` (or vice versa) without already knowing which endpoint to call next.
+Every map (2026-07-14), paginated — `id`, `name`, `label`, `checkpoint_count`, `total_laps`. The number of `Map` rows genuinely grows over time — a checkpoint-count mismatch or `race_type` variant each forks its own `{name}-splits-{count}`/`-anyorder`/`-rally` row (see [security.md](security.md), [decisions.md](decisions.md)) — so this is real DB-level pagination (`Map::paginate()`), same `?page=`/`?per_page=` bounds as the leaderboard endpoint below (default 50, capped 100). Exists mainly so a client that only knows a map's `id` can discover its `name` (or vice versa) without already knowing which endpoint to call next.
 
 ### `GET /api/v1/maps/{map}/leaderboard`
 

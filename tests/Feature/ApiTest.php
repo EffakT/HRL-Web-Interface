@@ -140,6 +140,62 @@ it('scopes the map leaderboard to one server via the server query parameter', fu
         ->and($response->json('data.0.player.name'))->toBe('OnServerA');
 });
 
+it('scopes the map leaderboard by the requester\'s own ip:port via the port query parameter', function () {
+    $map = Map::factory()->create();
+    $serverA = Server::factory()->create(['ip' => '10.0.0.1', 'port' => '2302']);
+    $serverB = Server::factory()->create(['ip' => '10.0.0.2', 'port' => '2302']);
+    $onServerA = Player::factory()->create(['name' => 'OnServerA']);
+    $onServerB = Player::factory()->create(['name' => 'OnServerB']);
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $serverA->id, 'player_id' => $onServerA->id, 'time' => 50]);
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $serverB->id, 'player_id' => $onServerB->id, 'time' => 40]);
+
+    test()->withServerVariables(['REMOTE_ADDR' => '10.0.0.1']);
+    $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?port=2302")->assertOk();
+
+    expect($response->json('data'))->toHaveCount(1)
+        ->and($response->json('data.0.player.name'))->toBe('OnServerA');
+});
+
+it('rewrites a known internal NAT ip before resolving the requester\'s own server (same map as lap submission)', function () {
+    config(['webhook.internal_ip_map' => ['192.168.88.1' => '114.23.254.181']]);
+
+    $map = Map::factory()->create();
+    $server = Server::factory()->create(['ip' => '114.23.254.181', 'port' => '2302']);
+    $player = Player::factory()->create();
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $player->id]);
+
+    test()->withServerVariables(['REMOTE_ADDR' => '192.168.88.1']);
+    $this->getJson("/api/v1/maps/{$map->id}/leaderboard?port=2302")
+        ->assertOk()
+        ->assertJsonCount(1, 'data');
+});
+
+it('returns 404 when the port query parameter does not match any registered server', function () {
+    $map = Map::factory()->create();
+
+    test()->withServerVariables(['REMOTE_ADDR' => '10.0.0.9']);
+    $this->getJson("/api/v1/maps/{$map->id}/leaderboard?port=9999")->assertNotFound();
+});
+
+it('prefers the port query parameter over an explicit server id when both are given', function () {
+    $map = Map::factory()->create();
+    $serverA = Server::factory()->create(['ip' => '10.0.0.1', 'port' => '2302']);
+    $serverB = Server::factory()->create(['ip' => '10.0.0.2', 'port' => '2302']);
+    $onServerA = Player::factory()->create(['name' => 'OnServerA']);
+    $onServerB = Player::factory()->create(['name' => 'OnServerB']);
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $serverA->id, 'player_id' => $onServerA->id]);
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $serverB->id, 'player_id' => $onServerB->id]);
+
+    test()->withServerVariables(['REMOTE_ADDR' => '10.0.0.1']);
+    $response = $this->getJson("/api/v1/maps/{$map->id}/leaderboard?port=2302&server={$serverB->id}")->assertOk();
+
+    expect($response->json('data'))->toHaveCount(1)
+        ->and($response->json('data.0.player.name'))->toBe('OnServerA');
+});
+
 it('excludes laps on soft-deleted servers from the map leaderboard', function () {
     $map = Map::factory()->create();
     $archivedServer = Server::factory()->create();

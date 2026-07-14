@@ -35,7 +35,7 @@ resources/views/
     leaderboard-podium-and-table.blade.php, podium.blade.php
     lap-detail-modal.blade.php, lap-vs-record-modal.blade.php
     highlights/*.blade.php              <- Home's per-block highlight partials
-  opt-in.blade.php, contact.blade.php   <- plain Blade pages (Home is now a real Livewire component, not a static welcome.blade.php)
+  opt-in.blade.php, contact.blade.php, api-docs.blade.php   <- plain Blade pages (Home is now a real Livewire component, not a static welcome.blade.php)
 ```
 
 ## Routing hierarchy
@@ -56,6 +56,7 @@ GET  /maps/{mapId}                        -> Maps\MapLeaderboard       (maps.sho
 GET  /players                             -> Players\PlayerList        (players.index) — real Global Leaderboard, see [players-list.md](players-list.md)
 GET  /players/{playerId}                  -> Players\PlayerShow        (players.show) — real lap log + Lap Detail popup, see [player-single.md](player-single.md)
 GET  /opt-in, /contact                    -> plain Blade views, real content ported from old site
+GET  /api-docs                            -> plain Blade view, human-readable reference for docs/api.md's real /api/v1 endpoints
 GET  /robots.txt, /sitemap.xml            -> config-driven (SEO-01, see docs/decisions.md)
 GET  /login, /register                    -> not built yet
 ```
@@ -79,7 +80,7 @@ This was extracted **from the moment the second leaderboard component was create
 - Desktop top nav: brand mark, nav links with active-state underline, LIVE indicator, hamburger (mobile only).
 - Mobile: full-screen overlay nav (Alpine `x-show`/`x-transition`, scanline background, large uppercase links, HUD-styled close button).
 
-**Non-Livewire pages** (`welcome`, `opt-in`, `contact`) wrap explicitly with `<x-layout>...</x-layout>`. **Livewire full-page components** use the `#[Layout('components.layout', [...])]` attribute instead — see [livewire-guide.md](livewire-guide.md) for why manually embedding `<x-layout>` inside a Livewire component breaks it.
+**Non-Livewire pages** (`welcome`, `opt-in`, `contact`, `api-docs`) wrap explicitly with `<x-layout>...</x-layout>`. **Livewire full-page components** use the `#[Layout('components.layout', [...])]` attribute instead — see [livewire-guide.md](livewire-guide.md) for why manually embedding `<x-layout>` inside a Livewire component breaks it.
 
 ## Styleguide
 

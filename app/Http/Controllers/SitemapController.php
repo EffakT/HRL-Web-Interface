@@ -26,6 +26,7 @@ class SitemapController extends Controller
             ['loc' => route('maps.index')],
             ['loc' => route('players.index')],
             ['loc' => route('opt-in')],
+            ['loc' => route('api-docs')],
             ['loc' => route('contact')],
         ];
 

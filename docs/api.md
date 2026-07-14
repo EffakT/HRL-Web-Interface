@@ -4,6 +4,8 @@
 
 **Implemented (2026-07-06)**, versioned under `/api/v1`, public and read-only. See [decisions.md](decisions.md) for the implementation notes and [roadmap.md](roadmap.md) item 15.
 
+**Human-readable reference page**: `/api-docs` (2026-07-14, `resources/views/api-docs.blade.php`, linked from the main nav) — a condensed version of this doc's endpoint reference for a browsing developer, not a replacement for this file (which stays the source of truth for implementation-level detail: rationale, edge cases, decision history).
+
 ## Old API (for reference, replaced)
 
 Public API at `/docs` on the old site (Players, Maps, Servers endpoints). Known issue, now fixed: the Player/Server resources had a JSON key bug — `"name "` (trailing space) instead of `"name"`. Auth required a per-user API token generated in profile — the new API drops this (see "Auth" below).

@@ -52,9 +52,10 @@
                 ['label' => 'MAPS', 'href' => route('maps.index'), 'key' => 'maps'],
                 ['label' => 'PLAYERS', 'href' => route('players.index'), 'key' => 'players'],
                 ['label' => 'OPT-IN', 'href' => route('opt-in'), 'key' => 'opt-in'],
+                ['label' => 'API', 'href' => route('api-docs'), 'key' => 'api-docs'],
                 ['label' => 'CONTACT', 'href' => route('contact'), 'key' => 'contact'],
             ];
-            $disabledLinks = ['API', 'LOGIN', 'REGISTER'];
+            $disabledLinks = ['LOGIN', 'REGISTER'];
         @endphp
 
         <nav class="relative z-30 flex items-center justify-between gap-4 border-b border-hud-green/15 bg-gradient-to-b from-[#0c1310] to-[#080d0b] px-6 py-4">

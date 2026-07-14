@@ -36,6 +36,7 @@ it('renders every route successfully', function (string $uri) {
     'players.index' => '/players',
     'players.show' => '/players/1',
     'opt-in' => '/opt-in',
+    'api-docs' => '/api-docs',
     'contact' => '/contact',
     'robots' => '/robots.txt',
     'sitemap' => '/sitemap.xml',
@@ -50,4 +51,18 @@ it('shows the server-scoped eyebrow on the nested leaderboard, not the global on
 it('shows the global eyebrow on the global leaderboard, not a server name', function () {
     $this->get('/maps/1')
         ->assertSee('ALL SERVERS · GLOBAL');
+});
+
+it('lists every real API endpoint on the API docs page, with example requests/responses', function () {
+    $this->get('/api-docs')
+        ->assertSee('/servers', false)
+        ->assertSee('/maps', false)
+        ->assertSee('/maps/{map}/leaderboard', false)
+        ->assertSee('/laps/{lapTime}', false)
+        ->assertSee('/laps', false)
+        ->assertSee('EXAMPLE REQUEST')
+        ->assertSee('EXAMPLE RESPONSE')
+        // A literal backslash in a hand-written JSON example (App\Models\Map) — confirms Blade's
+        // default {{ }} escaping didn't mangle it or break the surrounding markup.
+        ->assertSee('App\Models\Map', false);
 });

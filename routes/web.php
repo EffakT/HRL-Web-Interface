@@ -33,4 +33,6 @@ Route::get('/players/{playerId}', PlayerShow::class)->name('players.show');
 
 Route::get('/opt-in', fn () => view('opt-in'))->name('opt-in');
 
+Route::get('/api-docs', fn () => view('api-docs'))->name('api-docs');
+
 Route::get('/contact', fn () => view('contact'))->name('contact');

@@ -58,6 +58,7 @@ it('lists every real API endpoint on the API docs page, with example requests/re
         ->assertSee('/servers', false)
         ->assertSee('/maps', false)
         ->assertSee('/maps/{map}/leaderboard', false)
+        ->assertSee('/players', false)
         ->assertSee('/laps/{lapTime}', false)
         ->assertSee('/laps', false)
         ->assertSee('EXAMPLE REQUEST')

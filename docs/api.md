@@ -16,6 +16,7 @@ Public API at `/docs` on the old site (Players, Maps, Servers endpoints). Known 
 GET  /api/v1/servers
 GET  /api/v1/maps
 GET  /api/v1/maps/{map}/leaderboard[?server={serverId}]
+GET  /api/v1/players
 GET  /api/v1/laps/{lapTime}
 POST /api/v1/laps
 ```
@@ -41,6 +42,14 @@ Each entry: `rank`, `lap_id`, `player` (`id`, `name`), `server` (`id`, `name`), 
 **Paginated** (PERF-03 audit follow-up, 2026-07-08) — `?page={n}` and `?per_page={n}` (default 50, capped at 100 regardless of what's requested). Standard Laravel resource-collection pagination envelope: `data` (this page's entries) plus `links`/`meta` (`current_page`, `last_page`, `per_page`, `total`, etc.). This only bounds response size, not the underlying computation — `GlobalRanking::mapLeaderboard()` still ranks every qualifying lap for the map before this slices out the requested page (same in-memory `LengthAwarePaginator` approach the equivalent Livewire leaderboards already use via `HasRankedLeaderboardPagination`); see [performance.md](performance.md) for when the computation itself, not just the response, would need to change.
 
 Backed by a new `App\Models\GlobalRanking::mapLeaderboard()` calculator method — the third occurrence of "rank every player's best lap on one map" (after `MapLeaderboard` and `ServerMapLeaderboard`'s own inline, UI-formatted versions), so per [coding-standards.md](coding-standards.md)'s "extract on the second genuine duplicate" rule, this gives the API its own canonical, tested, raw-data source rather than a fourth ad-hoc copy.
+
+### `GET /api/v1/players`
+
+The Global Leaderboard (2026-07-14) — every player with at least one real lap, ranked by Global Score, the same data the [Players List](players-list.md) page shows. Each entry: `id`, `rank`, `name`, `score`, `records` (# maps where this player currently holds rank 1), `maps_played`, `total_laps` (every real attempt, any server), `last_active_at` (ISO 8601, `null` only if somehow absent from lap history entirely — every ranked player has at least one lap by construction).
+
+Backed by the existing `App\Models\GlobalRanking::scores()` calculator — the same one `PlayerList`, `Home`, `ServerShow`, and `PlayerShow` already use — reshaped and paginated, not recomputed. `scores()` is a shared, multi-consumer method (unlike `mapLeaderboard()`, which only this API uses), so its own signature/return shape is untouched here.
+
+**Paginated** — `?page={n}`/`?per_page={n}` (default 50, capped at 100), same envelope and same in-memory `LengthAwarePaginator` approach as the map leaderboard endpoint above — `scores()` computes every player's full ranking up front (no query-builder form to paginate at the DB level), the same reason that endpoint isn't `Model::paginate()` either.
 
 ### `GET /api/v1/laps/{lapTime}`
 

@@ -122,6 +122,83 @@ it('caps the maps list per_page at a sane maximum', function () {
     expect($response->json('meta.per_page'))->toBe(100);
 });
 
+it('lists players ranked by Global Score, with real derived stats (same data as the Players List page)', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    $leader = Player::factory()->create(['name' => 'Leader']);
+    $runnerUp = Player::factory()->create(['name' => 'RunnerUp']);
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $leader->id, 'time' => 50, 'created_at' => now()->subHour()]);
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $runnerUp->id, 'time' => 60, 'created_at' => now()->subDay()]);
+
+    $this->getJson('/api/v1/players')
+        ->assertOk()
+        ->assertJsonPath('data.0.rank', 1)
+        ->assertJsonPath('data.0.name', 'Leader')
+        ->assertJsonPath('data.0.score', 100)
+        ->assertJsonPath('data.0.records', 1)
+        ->assertJsonPath('data.0.maps_played', 1)
+        ->assertJsonPath('data.0.total_laps', 1)
+        ->assertJsonPath('data.1.rank', 2)
+        ->assertJsonPath('data.1.name', 'RunnerUp')
+        ->assertJsonPath('data.1.records', 0);
+});
+
+it('reports a player\'s real last-active timestamp, and null for a player somehow absent from lap history', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    $player = Player::factory()->create();
+    $lastLapAt = now()->subHours(3);
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $player->id, 'created_at' => $lastLapAt]);
+
+    $this->getJson('/api/v1/players')
+        ->assertOk()
+        ->assertJsonPath('data.0.last_active_at', $lastLapAt->toIso8601String());
+});
+
+it('excludes laps on soft-deleted servers from the players list stats', function () {
+    $map = Map::factory()->create();
+    $archivedServer = Server::factory()->create();
+    $player = Player::factory()->create();
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $archivedServer->id, 'player_id' => $player->id]);
+    $archivedServer->delete();
+
+    $this->getJson('/api/v1/players')->assertOk()->assertJsonCount(0, 'data');
+});
+
+it('paginates the players list', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+
+    foreach (range(1, 5) as $i) {
+        LapTime::factory()->create([
+            'map_id' => $map->id,
+            'server_id' => $server->id,
+            'player_id' => Player::factory()->create()->id,
+            'time' => 50 + $i,
+        ]);
+    }
+
+    $response = $this->getJson('/api/v1/players?per_page=2')->assertOk();
+
+    expect($response->json('data'))->toHaveCount(2)
+        ->and($response->json('meta.total'))->toBe(5)
+        ->and($response->json('meta.last_page'))->toBe(3)
+        ->and($response->json('data.0.rank'))->toBe(1);
+});
+
+it('caps the players list per_page at a sane maximum', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+
+    $response = $this->getJson('/api/v1/players?per_page=999999')->assertOk();
+
+    expect($response->json('meta.per_page'))->toBe(100);
+});
+
 it('returns the global map leaderboard, ranked by best lap across all active servers', function () {
     $map = Map::factory()->create();
     $serverA = Server::factory()->create();

@@ -124,6 +124,50 @@ GET /api/v1/maps/bloodgulch/leaderboard?port=2302</x-code-block>
                 <div class="hud-clip border border-hud-green/20 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-6 py-6">
                     <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[13px] font-bold">
                         <span class="text-hud-green">GET</span>
+                        <span class="text-hud-text-bright">/players</span>
+                    </div>
+                    <p class="mt-3 font-mono text-[12px] leading-relaxed text-hud-text">
+                        The Global Leaderboard — every player with at least one real lap, ranked by Global Score. Same data as the
+                        <a href="{{ route('players.index') }}" class="font-semibold text-hud-text-bright underline decoration-hud-green/50 underline-offset-2 transition hover:decoration-hud-green">Players List</a>
+                        page.
+                    </p>
+
+                    <x-code-block label="QUERY PARAMETERS">page        int   optional, default 1
+per_page    int   optional, default 50, capped at 100</x-code-block>
+
+                    <x-code-block label="EXAMPLE REQUEST">GET /api/v1/players?per_page=2</x-code-block>
+
+                    <x-code-block label="EXAMPLE RESPONSE">{
+  "data": [
+    {
+      "id": 12,
+      "rank": 1,
+      "name": "EffakT",
+      "score": 1845,
+      "records": 6,
+      "maps_played": 11,
+      "total_laps": 342,
+      "last_active_at": "2026-07-14T09:12:03+00:00"
+    },
+    {
+      "id": 31,
+      "rank": 2,
+      "name": "RunnerUp",
+      "score": 1720,
+      "records": 2,
+      "maps_played": 10,
+      "total_laps": 210,
+      "last_active_at": "2026-07-13T22:40:11+00:00"
+    }
+  ],
+  "links": { "first": "…?page=1", "last": "…?page=44", "prev": null, "next": "…?page=2" },
+  "meta": { "current_page": 1, "last_page": 44, "per_page": 2, "total": 87 }
+}</x-code-block>
+                </div>
+
+                <div class="hud-clip border border-hud-green/20 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-6 py-6">
+                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[13px] font-bold">
+                        <span class="text-hud-green">GET</span>
                         <span class="text-hud-text-bright">/laps/{lapTime}</span>
                     </div>
                     <p class="mt-3 font-mono text-[12px] leading-relaxed text-hud-text">

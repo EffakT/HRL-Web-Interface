@@ -261,6 +261,7 @@ class GlobalRanking
      *     rank: int, lapId: int, playerId: int, playerName: string,
      *     serverId: int, serverName: string, timeRaw: float, time: string,
      *     gapRaw: ?float, setAt: ?Carbon,
+     *     splits: list<array{checkpoint_id: int, duration: float}>,
      * }>
      */
     public static function mapLeaderboard(int $mapId, ?int $serverId = null): array
@@ -268,7 +269,7 @@ class GlobalRanking
         $laps = LapTime::where('map_id', $mapId)
             ->when($serverId, fn ($query) => $query->where('server_id', $serverId))
             ->whereHas('server')
-            ->with(['player', 'server'])
+            ->with(['player', 'server', 'splits'])
             ->orderBy('time')
             ->orderBy('created_at')
             ->orderBy('id')
@@ -293,6 +294,13 @@ class GlobalRanking
                     'time' => $lap->formattedTime(),
                     'gapRaw' => $topTime !== null ? round($time - $topTime, 3) : null,
                     'setAt' => $lap->created_at,
+                    // Sparse real coverage (~4% of laps have splits — see docs/database.md), so
+                    // an empty array here is the common case, same as LapTimeResource's own
+                    // `splits` key on the single-lap endpoint.
+                    'splits' => array_values($lap->splits->map(fn (LapTimeSplit $split): array => [
+                        'checkpoint_id' => $split->checkpoint_id,
+                        'duration' => $split->duration,
+                    ])->all()),
                 ];
             })
             ->all());

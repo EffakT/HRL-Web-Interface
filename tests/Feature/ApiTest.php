@@ -124,6 +124,33 @@ it('returns the global map leaderboard, ranked by best lap across all active ser
         ->assertJsonPath('data.1.gap', 5.5);
 });
 
+it('includes a leaderboard entry\'s splits when its lap has any', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    $player = Player::factory()->create();
+
+    $lap = LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $player->id]);
+    LapTimeSplit::factory()->create(['lap_time_id' => $lap->id, 'checkpoint_id' => 1, 'duration' => 5.5]);
+    LapTimeSplit::factory()->create(['lap_time_id' => $lap->id, 'checkpoint_id' => 2, 'duration' => 6.25]);
+
+    $this->getJson("/api/v1/maps/{$map->id}/leaderboard")
+        ->assertOk()
+        ->assertJsonCount(2, 'data.0.splits')
+        ->assertJsonPath('data.0.splits.0.checkpoint_id', 1)
+        ->assertJsonPath('data.0.splits.0.duration', 5.5)
+        ->assertJsonPath('data.0.splits.1.checkpoint_id', 2);
+});
+
+it('returns an empty splits array for a leaderboard entry whose lap has none (the common case)', function () {
+    $map = Map::factory()->create();
+    $server = Server::factory()->create();
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+
+    $this->getJson("/api/v1/maps/{$map->id}/leaderboard")
+        ->assertOk()
+        ->assertJsonCount(0, 'data.0.splits');
+});
+
 it('scopes the map leaderboard to one server via the server query parameter', function () {
     $map = Map::factory()->create();
     $serverA = Server::factory()->create();

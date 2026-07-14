@@ -28,6 +28,9 @@ class MapLeaderboardEntryResource extends JsonResource
             'time_formatted' => $this->resource['time'],
             'gap' => $this->resource['gapRaw'],
             'set_at' => $this->resource['setAt']?->toIso8601String(),
+            // Sparse real coverage (~4% of laps have splits — see docs/database.md), so an empty
+            // array here is the common case, same as LapTimeResource's own `splits` key.
+            'splits' => $this->resource['splits'],
         ];
     }
 }

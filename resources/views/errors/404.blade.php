@@ -1,5 +1,5 @@
 <x-layout title="404" description="Page not found — Halo Race Leaderboard.">
-    <div class="mx-auto flex min-h-[70vh] max-w-[1080px] flex-col items-center justify-center px-6 py-14 text-center">
+    <div class="mx-auto flex min-h-[70vh] max-w-[900px] flex-col items-center justify-center px-6 py-14 text-center">
 
         <div class="mb-3 font-mono text-[11px] font-semibold tracking-[0.34em] text-hud-cyan">// ERROR 404</div>
 
@@ -11,7 +11,7 @@
             Off The Track
         </h1>
 
-        <p class="mx-auto mt-4 max-w-md font-mono text-[13px] leading-relaxed text-hud-text-dim">
+        <p class="mt-4 max-w-md font-mono text-[13px] leading-relaxed text-hud-text-dim">
             This page doesn't exist, or the route's been retired. Head back to base, or jump straight to a leaderboard below.
         </p>
 
@@ -20,7 +20,9 @@
             RETURN TO BASE ►
         </a>
 
-        <!-- Same width/gap as Home's own Quick Links grid, so these cards render at the exact same size. -->
+        <!-- A middle-ground width (900px): full-page-width (1080px, Home's own size) felt
+             disconnected from the narrower hero above it, but matching the hero's original
+             720px made the cards themselves feel cramped. -->
         <div class="mt-12 grid w-full grid-cols-1 gap-5 tp:grid-cols-3">
             <a href="{{ route('servers.index') }}" class="hud-clip border border-hud-green/20 bg-gradient-to-b from-[#0f1d16] to-[#0a140f] px-6 py-6 text-left transition hover:-translate-y-0.5 hover:border-hud-green/50">
                 <div class="font-mono text-[10px] font-semibold tracking-[0.2em] text-hud-cyan">// SERVERS</div>

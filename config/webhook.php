@@ -94,16 +94,17 @@ return [
     |--------------------------------------------------------------------------
     |
     | A hard, protocol-wide ceiling on how many distinct checkpoints one submission can claim —
-    | enforced in StoreLapTimeRequest regardless of which map it's for. Real maps top out at 14
-    | (see docs/database.md); 20 leaves generous headroom for a legitimate map while still
+    | enforced in StoreLapTimeRequest regardless of which map it's for. Real maps top out at 21
+    | (see docs/database.md); 30 leaves generous headroom for a legitimate map while still
     | bounding the resource-exhaustion risk an unauthenticated, unbounded `splits` array would
     | otherwise allow. Below this ceiling, App\Jobs\ProcessNewLap separately learns and enforces
     | each individual map's own real checkpoint count (see the add_checkpoint_count_to_maps_table
-    | migration) — this value only ever needs raising if a real map genuinely has more than 20
-    | checkpoints, which no map observed so far does.
+    | migration) — this value only ever needs raising if a real map genuinely has more than 30
+    | checkpoints, which no map observed so far does. (Raised from 20 to 30 on 2026-07-14 after a
+    | real 21-checkpoint map was found — the previous ceiling would have rejected it outright.)
     |
     */
-    'max_checkpoints' => env('WEBHOOK_MAX_CHECKPOINTS', 20),
+    'max_checkpoints' => env('WEBHOOK_MAX_CHECKPOINTS', 30),
 
     /*
     |--------------------------------------------------------------------------

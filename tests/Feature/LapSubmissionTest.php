@@ -891,6 +891,44 @@ it('accepts checkpoint IDs submitted out of order as long as they form a contigu
     expect(Map::sole()->checkpoint_count)->toBe(3);
 });
 
+// 2026-07-14 — the contiguity check was found hand-disabled in the code (a stale `// CAMTRACK
+// starts at 2...` comment around a commented-out `range(1, N)` check), and real `lap_time_splits`
+// data confirms this isn't hypothetical: `Camtrack-Arena-Race` (2..14) and `Cityscape-Adrenaline`
+// (2..13) are both genuine, already-established maps whose checkpoint IDs don't start at 1. The
+// check is re-enabled and generalized to "contiguous starting anywhere >= 1" — see docs/security.md.
+it('accepts a contiguous checkpoint set that does not start at 1', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'map_name' => 'Camtrack-Arena-Race',
+        'splits' => [
+            ['checkpoint_id' => 3, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+            ['checkpoint_id' => 2, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 4, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+        ],
+    ])->assertOk();
+
+    expect(Map::sole()->checkpoint_count)->toBe(3);
+});
+
+it('rejects a checkpoint set that is contiguous but starts below 1', function () {
+    config(['webhook.hrl_query.enforce' => false]);
+    fakeGameServerQuery();
+
+    submitLap([
+        'splits' => [
+            ['checkpoint_id' => 0, 'duration' => 10.0, 'startTime' => 0, 'endTime' => 10.0],
+            ['checkpoint_id' => 1, 'duration' => 10.0, 'startTime' => 10.0, 'endTime' => 20.0],
+            ['checkpoint_id' => -1, 'duration' => 10.0, 'startTime' => 20.0, 'endTime' => 30.0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['splits']);
+
+    expect(LapTime::count())->toBe(0);
+});
+
 // TEST-01 audit follow-up (2026-07-09) — a real Any Order submission from a live game server was
 // rejected by the contiguous-1..N check above: checkpoint IDs [1, 4, 5], while bloodgulch's real
 // established checkpoint baseline is 5 (anonymised from the real payload; only

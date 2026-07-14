@@ -92,12 +92,16 @@ class StoreLapTimeRequest extends FormRequest
     }
 
     /**
-     * A map's checkpoint IDs form the real physical sequence `1..N` (SEC-04 review follow-up,
-     * confirmed against real data: every map's recorded checkpoint IDs are a stable, contiguous
-     * `1..N` set), not just N *distinct* values — `splits.*.checkpoint_id`'s `distinct` rule
-     * alone still let `[-7, 40, 999]` or any other 3-distinct-value set through as a "valid"
-     * 3-checkpoint submission. Checked here rather than as a per-field rule since it needs the
-     * whole `splits` array at once.
+     * A map's checkpoint IDs form a real, contiguous physical sequence (SEC-04 review
+     * follow-up; generalized 2026-07-14 — confirmed against real data that this contiguous run
+     * doesn't always start at 1: `Camtrack-Arena-Race` is `2..14` and `Cityscape-Adrenaline` is
+     * `2..13`, both genuine maps, not data errors), not just N *distinct* values —
+     * `splits.*.checkpoint_id`'s `distinct` rule alone still lets `[-7, 40, 999]` or any other
+     * 3-distinct-value set through as a "valid" 3-checkpoint submission. Checked here rather
+     * than as a per-field rule since it needs the whole `splits` array at once. The lowest ID
+     * must still be `>= 1` — checkpoint IDs are physical in-game locations, never zero or
+     * negative — so this still rejects a nonsense set like `[-7, 40, 999]` (not contiguous
+     * either way) while accepting a real map whose IDs happen to start above 1.
      *
      * Applies to every `race_type`, including Any Order/Rally — "any order" means the *player*
      * doesn't have to complete checkpoints in course sequence, not that the physical checkpoint
@@ -133,10 +137,11 @@ class StoreLapTimeRequest extends FormRequest
             $checkpointIds = array_map(intval(...), $checkpointIds);
             sort($checkpointIds);
 
-            // CAMTRACK starts at 2...
-            // if ($checkpointIds !== range(1, count($checkpointIds))) {
-            //     $validator->errors()->add('splits', 'The splits checkpoint IDs must form a contiguous sequence starting at 1.');
-            // }
+            $lowestCheckpointId = $checkpointIds[0];
+
+            if ($lowestCheckpointId < 1 || $checkpointIds !== range($lowestCheckpointId, $lowestCheckpointId + count($checkpointIds) - 1)) {
+                $validator->errors()->add('splits', 'The splits checkpoint IDs must form a contiguous sequence.');
+            }
         });
     }
 }

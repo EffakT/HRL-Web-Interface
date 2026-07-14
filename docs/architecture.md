@@ -80,6 +80,7 @@ This was extracted **from the moment the second leaderboard component was create
 `resources/views/components/layout.blade.php` (used as `<x-layout>`) provides:
 - Desktop top nav: brand mark, nav links with active-state underline, LIVE indicator, hamburger (mobile only).
 - Mobile: full-screen overlay nav (Alpine `x-show`/`x-transition`, scanline background, large uppercase links, HUD-styled close button).
+- Site-wide footer (2026-07-14): copyright line (`© {year} {config('app.name')}`) and a Halo trademark disclaimer — Halo is a Microsoft trademark and this is an unaffiliated fan project, not endorsed by Microsoft. Every page gets it, since it's part of `<x-layout>` itself, not per-page content.
 
 **Non-Livewire pages** (`welcome`, `opt-in`, `contact`, `api-docs`) wrap explicitly with `<x-layout>...</x-layout>`. **Livewire full-page components** use the `#[Layout('components.layout', [...])]` attribute instead — see [livewire-guide.md](livewire-guide.md) for why manually embedding `<x-layout>` inside a Livewire component breaks it.
 

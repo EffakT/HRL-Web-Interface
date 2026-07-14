@@ -125,6 +125,11 @@
             {{ $slot }}
         </main>
 
+        <footer class="relative z-30 border-t border-hud-green/10 bg-gradient-to-b from-[#080d0b] to-[#050807] px-6 py-6 text-center font-mono text-[10px] leading-relaxed text-hud-text-faint">
+            <p>© {{ now()->year }} {{ config('app.name') }}.</p>
+            <p class="mt-1">Halo is a trademark of Microsoft. This project is not endorsed by or affiliated with Microsoft.</p>
+        </footer>
+
         @livewireScripts
     </body>
 </html>

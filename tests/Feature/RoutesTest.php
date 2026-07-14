@@ -53,6 +53,17 @@ it('shows the global eyebrow on the global leaderboard, not a server name', func
         ->assertSee('ALL SERVERS · GLOBAL');
 });
 
+it('shows the copyright notice and trademark disclaimer in the footer on every page', function () {
+    $this->get('/')
+        ->assertSee('© '.now()->year.' Halo Race Leaderboard', false)
+        ->assertSee('Halo is a trademark of Microsoft');
+
+    // Also present on the custom 404 page (both wrap <x-layout>, but confirmed separately —
+    // the footer is easy to accidentally scope to <main> only rather than every page).
+    $this->get('/this-route-does-not-exist')
+        ->assertSee('Halo is a trademark of Microsoft');
+});
+
 it('shows a custom-designed 404 page for an unknown web route', function () {
     $this->get('/this-route-does-not-exist')
         ->assertNotFound()

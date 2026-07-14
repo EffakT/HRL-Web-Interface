@@ -36,6 +36,7 @@ resources/views/
     lap-detail-modal.blade.php, lap-vs-record-modal.blade.php
     highlights/*.blade.php              <- Home's per-block highlight partials
   opt-in.blade.php, contact.blade.php, api-docs.blade.php   <- plain Blade pages (Home is now a real Livewire component, not a static welcome.blade.php)
+  errors/404.blade.php                  <- custom-designed error page (Laravel's `errors::{code}` convention), wraps <x-layout> like the pages above
 ```
 
 ## Routing hierarchy

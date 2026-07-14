@@ -53,6 +53,19 @@ it('shows the global eyebrow on the global leaderboard, not a server name', func
         ->assertSee('ALL SERVERS · GLOBAL');
 });
 
+it('shows a custom-designed 404 page for an unknown web route', function () {
+    $this->get('/this-route-does-not-exist')
+        ->assertNotFound()
+        ->assertSee('Off The Track')
+        ->assertSee('RETURN TO BASE');
+});
+
+it('shows the same custom 404 page for a real model-not-found on a web route, not a JSON error', function () {
+    $this->get('/players/999999')
+        ->assertNotFound()
+        ->assertSee('Off The Track');
+});
+
 it('lists every real API endpoint on the API docs page, with example requests/responses', function () {
     $this->get('/api-docs')
         ->assertSee('/servers', false)

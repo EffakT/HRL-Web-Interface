@@ -72,6 +72,38 @@ it('enforces the real production rate-limit ceiling, not just the throttle:api w
     $this->getJson('/api/v1/servers')->assertStatus(429);
 });
 
+it('lists every map, paginated, with real derived stats', function () {
+    $mapA = Map::factory()->create(['name' => 'bloodgulch', 'label' => 'Blood Gulch', 'checkpoint_count' => 5]);
+    $mapB = Map::factory()->create(['name' => 'dangercanyon', 'label' => 'Danger Canyon', 'checkpoint_count' => 6]);
+    $server = Server::factory()->create();
+
+    LapTime::factory()->create(['map_id' => $mapA->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+    LapTime::factory()->count(2)->create(['map_id' => $mapB->id, 'server_id' => $server->id, 'player_id' => Player::factory()->create()->id]);
+
+    $this->getJson('/api/v1/maps')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $mapA->id, 'name' => 'bloodgulch', 'label' => 'Blood Gulch', 'checkpoint_count' => 5, 'total_laps' => 1])
+        ->assertJsonFragment(['id' => $mapB->id, 'name' => 'dangercanyon', 'label' => 'Danger Canyon', 'checkpoint_count' => 6, 'total_laps' => 2]);
+});
+
+it('paginates the maps list', function () {
+    Map::factory()->count(5)->create();
+
+    $response = $this->getJson('/api/v1/maps?per_page=2')->assertOk();
+
+    expect($response->json('data'))->toHaveCount(2)
+        ->and($response->json('meta.total'))->toBe(5)
+        ->and($response->json('meta.last_page'))->toBe(3);
+});
+
+it('caps the maps list per_page at a sane maximum', function () {
+    Map::factory()->create();
+
+    $response = $this->getJson('/api/v1/maps?per_page=999999')->assertOk();
+
+    expect($response->json('meta.per_page'))->toBe(100);
+});
+
 it('returns the global map leaderboard, ranked by best lap across all active servers', function () {
     $map = Map::factory()->create();
     $serverA = Server::factory()->create();
@@ -123,6 +155,22 @@ it('excludes laps on soft-deleted servers from the map leaderboard', function ()
 
 it('returns 404 for a map that does not exist', function () {
     $this->getJson('/api/v1/maps/999999/leaderboard')->assertNotFound();
+});
+
+it('resolves the map leaderboard route by name as well as by id', function () {
+    $map = Map::factory()->create(['name' => 'bloodgulch']);
+    $server = Server::factory()->create();
+    $player = Player::factory()->create();
+
+    LapTime::factory()->create(['map_id' => $map->id, 'server_id' => $server->id, 'player_id' => $player->id]);
+
+    $this->getJson('/api/v1/maps/bloodgulch/leaderboard')
+        ->assertOk()
+        ->assertJsonCount(1, 'data');
+});
+
+it('returns 404 for a map name that does not exist', function () {
+    $this->getJson('/api/v1/maps/does-not-exist/leaderboard')->assertNotFound();
 });
 
 it('paginates the map leaderboard (PERF-03 audit follow-up)', function () {

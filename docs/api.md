@@ -12,6 +12,7 @@ Public API at `/docs` on the old site (Players, Maps, Servers endpoints). Known 
 
 ```
 GET  /api/v1/servers
+GET  /api/v1/maps
 GET  /api/v1/maps/{map}/leaderboard[?server={serverId}]
 GET  /api/v1/laps/{lapTime}
 POST /api/v1/laps
@@ -21,9 +22,15 @@ POST /api/v1/laps
 
 Every active (non-archived) server with real, derived stats — `id`, `name`, `total_laps`, `total_players`, `maps_played`, `last_active_at` (ISO 8601, `null` if the server has no laps at all). No pagination — real scale is a handful of servers.
 
+### `GET /api/v1/maps`
+
+Every map (2026-07-14), paginated — `id`, `name`, `label`, `checkpoint_count`, `total_laps`. Unlike `GET /api/v1/servers` (a handful of rows, deliberately unpaginated), the number of `Map` rows genuinely grows over time — a checkpoint-count mismatch or `race_type` variant each forks its own `{name}-splits-{count}`/`-anyorder`/`-rally` row (see [security.md](security.md), [decisions.md](decisions.md)) — so this is real DB-level pagination (`Map::paginate()`), same `?page=`/`?per_page=` bounds as the leaderboard endpoint below (default 50, capped 100). Exists mainly so a client that only knows a map's `id` can discover its `name` (or vice versa) without already knowing which endpoint to call next.
+
 ### `GET /api/v1/maps/{map}/leaderboard`
 
 The **global** leaderboard for one map — every player's single best lap across all active servers, ranked, same tie-break as every other real leaderboard in this app (earliest lap wins a tie). Pass `?server={serverId}` for that server's **nested** leaderboard instead (see [architecture.md](architecture.md)'s global-vs-nested split) — resolves this doc's earlier open question in favor of a query parameter over a second endpoint, since it's the exact same underlying calculation just scoped differently.
+
+**`{map}` accepts either the numeric id or the map's real `name`** (2026-07-14, e.g. `/api/v1/maps/bloodgulch/leaderboard`) — `App\Models\Map::resolveRouteBinding()` routes a plain-digit value to `id`, anything else to `name`. Lets a caller who already knows the name (the common case — that's what a game server or a human recognizes, not an opaque id) skip a prior `GET /api/v1/maps` round trip just to look up the id first.
 
 Each entry: `rank`, `lap_id`, `player` (`id`, `name`), `server` (`id`, `name`), `time` (raw seconds), `time_formatted`, `gap` (seconds behind rank 1, `0` for rank 1 itself), `set_at` (ISO 8601).
 

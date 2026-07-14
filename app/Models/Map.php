@@ -39,4 +39,21 @@ class Map extends Model
     {
         return $this->hasMany(LapTime::class);
     }
+
+    /**
+     * Lets a route like `/maps/{map}/leaderboard` accept either the numeric id or the map's real
+     * `name` (e.g. `bloodgulch`) — a caller that already knows the name (the common case, since
+     * that's what a game server or a human recognizes) doesn't need a prior GET /api/v1/maps
+     * round trip just to look up the id first. `ctype_digit` rather than `is_numeric` deliberately
+     * excludes `"1.5"`/`"-1"`/scientific notation — a real id is always a plain positive integer
+     * string, and `maps.name` has its own real-world values that could otherwise collide with a
+     * looser numeric check (unlikely today, but this is the correct check regardless).
+     */
+    #[Override]
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $field ??= ctype_digit((string) $value) ? $this->getRouteKeyName() : 'name';
+
+        return $this->resolveRouteBindingQuery($this, $value, $field)->first();
+    }
 }

@@ -63,7 +63,7 @@ it('lists every real API endpoint on the API docs page, with example requests/re
         ->assertSee('/laps', false)
         ->assertSee('EXAMPLE REQUEST')
         ->assertSee('EXAMPLE RESPONSE')
-        // A literal backslash in a hand-written JSON example (App\Models\Map) — confirms Blade's
-        // default {{ }} escaping didn't mangle it or break the surrounding markup.
-        ->assertSee('App\Models\Map', false);
+        // The real 404 message (bootstrap/app.php's ModelNotFoundException mapping) — not the
+        // internal-class-leaking default Laravel would otherwise produce.
+        ->assertSee('No query results for map bloodgulch2', false);
 });

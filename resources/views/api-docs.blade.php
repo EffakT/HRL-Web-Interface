@@ -236,7 +236,7 @@ per_page    int   optional, default 50, capped at 100</x-code-block>
             <x-code-block>HTTP/1.1 404 Not Found
 
 {
-  "message": "No query results for model [App\Models\Map] bloodgulch2"
+  "message": "No query results for map bloodgulch2"
 }</x-code-block>
 
             <p class="mt-4 font-mono text-[12px] leading-relaxed text-hud-text">Rate limit exceeded:</p>

@@ -2,10 +2,13 @@
 
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\RedirectIfNotSecure;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -67,4 +70,27 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // Laravel's default message leaks the internal Eloquent class name — e.g. "No query
+        // results for model [App\Models\Map] bloodgulch2" — which exposes app-internal
+        // namespace/class structure to a public API consumer for no benefit. Route-model
+        // binding failures (a bad {map}/{lapTime} in the URL) are the real-world case this
+        // hits; `getModel()`/`getIds()` already carry everything needed for a clean message.
+        //
+        // Must be `map()`, not `render()`: the handler's `prepareException()` unconditionally
+        // rewrites every `ModelNotFoundException` into a `NotFoundHttpException` (carrying the
+        // original message along) BEFORE any registered `render()` callback is even considered
+        // — confirmed by reading `Illuminate\Foundation\Exceptions\Handler::render()`, a
+        // `render(ModelNotFoundException ...)` callback never actually matches anything at
+        // runtime. `map()` runs earlier, so returning an already-`NotFoundHttpException` here
+        // (with the clean message) passes through `prepareException()` unchanged, since it's no
+        // longer a `ModelNotFoundException` by the time that check runs.
+        $exceptions->map(ModelNotFoundException::class, function (ModelNotFoundException $e) {
+            // Str::snake(..., ' ') rather than a flat strtolower() — `Map` -> "map" either way,
+            // but `LapTime` -> "lap time" instead of the run-together "laptime".
+            $model = Str::snake(class_basename($e->getModel()), ' ');
+            $ids = implode(', ', $e->getIds());
+
+            return new NotFoundHttpException(trim("No query results for {$model} {$ids}"), $e);
+        });
     })->create();

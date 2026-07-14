@@ -332,7 +332,9 @@ it('excludes laps on soft-deleted servers from the map leaderboard', function ()
 });
 
 it('returns 404 for a map that does not exist', function () {
-    $this->getJson('/api/v1/maps/999999/leaderboard')->assertNotFound();
+    $this->getJson('/api/v1/maps/999999/leaderboard')
+        ->assertNotFound()
+        ->assertExactJson(['message' => 'No query results for map 999999']);
 });
 
 it('resolves the map leaderboard route by name as well as by id', function () {
@@ -348,7 +350,9 @@ it('resolves the map leaderboard route by name as well as by id', function () {
 });
 
 it('returns 404 for a map name that does not exist', function () {
-    $this->getJson('/api/v1/maps/does-not-exist/leaderboard')->assertNotFound();
+    $this->getJson('/api/v1/maps/does-not-exist/leaderboard')
+        ->assertNotFound()
+        ->assertExactJson(['message' => 'No query results for map does-not-exist']);
 });
 
 it('paginates the map leaderboard (PERF-03 audit follow-up)', function () {
@@ -442,5 +446,7 @@ it('still returns a lap belonging to a since-archived server', function () {
 });
 
 it('returns 404 for a lap that does not exist', function () {
-    $this->getJson('/api/v1/laps/999999')->assertNotFound();
+    $this->getJson('/api/v1/laps/999999')
+        ->assertNotFound()
+        ->assertExactJson(['message' => 'No query results for lap time 999999']);
 });
